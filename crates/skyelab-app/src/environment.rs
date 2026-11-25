@@ -395,7 +395,7 @@ impl RemoteEnv {
     }
 
     /// Lists every project's threads again within a second, once however many events arrive meanwhile.
-    fn refresh_soon(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn refresh_soon(&mut self, cx: &mut Context<Self>) {
         if self._refresh.is_some() {
             return;
         }

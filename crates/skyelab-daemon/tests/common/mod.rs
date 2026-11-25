@@ -64,6 +64,10 @@ impl Backend for Counting {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
+    fn shelve_thread(&self, _: i64, _: bool, _: Option<i64>) -> Result<(), RpcError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
 }
 
 pub fn test_config() -> Config {

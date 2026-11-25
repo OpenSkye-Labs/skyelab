@@ -16,6 +16,7 @@ mod keepalive;
 mod keychain;
 mod reconnect;
 mod rpc;
+mod shelve;
 mod tls;
 mod watch_handles;
 

@@ -49,6 +49,8 @@ impl ThreadSource for LongSource {
             status: "idle".into(),
             pinned: false,
             preview: None,
+            settled_at: None,
+            snoozed_until: None,
             created_at: 0,
             updated_at: 0,
         }]

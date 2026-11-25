@@ -154,6 +154,8 @@ pub struct Client {
     hello: Arc<Mutex<Option<Hello>>>,
     next_watch: AtomicU64,
     device_code: Option<String>,
+    /// The MagicDNS name dialled, for errors that name the machine.
+    host: String,
 }
 
 impl Client {
@@ -192,6 +194,7 @@ impl Client {
             .enable_all()
             .build()?;
         let shared_hello = hello.clone();
+        let name = host.clone();
         let task_commands = commands.downgrade();
         let stopped = Arc::new(Mutex::new(false));
         let task_stopped = stopped.clone();
@@ -223,6 +226,7 @@ impl Client {
             hello,
             next_watch: AtomicU64::new(1),
             device_code,
+            host: name,
         })
     }
 
@@ -318,6 +322,35 @@ impl Client {
             },
             ok,
         )
+    }
+
+    /// Puts the thread on a shelf on the environment (protocol 1.6): settled, snoozed until `snoozed_until` (Unix
+    /// ms), or neither. An environment older than 1.6 is never asked: it fails here with a `NotWired` error that
+    /// says to update SkyeLab there.
+    pub fn shelve_thread(
+        &self,
+        thread_id: i64,
+        settled: bool,
+        snoozed_until: Option<i64>,
+    ) -> Pending<()> {
+        if self
+            .hello()
+            .is_some_and(|h| h.protocol.minor < skyelab_protocol::SHELVES_SINCE_MINOR)
+        {
+            let (tx, rx) = flume::bounded(1);
+            let message = format!(
+                "{} runs an older SkyeLab without settle and snooze: update SkyeLab on {}",
+                self.host, self.host
+            );
+            let _ = tx.send(Err(Error::Rpc(RpcError::new(ErrorCode::NotWired, message))));
+            return Pending(rx);
+        }
+        let call = Call::ShelveThread {
+            thread_id,
+            settled,
+            snoozed_until,
+        };
+        self.call(call, ok)
     }
 
     /// Forwards `port` on the environment's loopback to a port on this machine's 127.0.0.1 (protocol 1.5): the same

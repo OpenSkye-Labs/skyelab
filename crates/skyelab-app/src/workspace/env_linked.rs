@@ -83,6 +83,8 @@ fn drawn(env: &RemoteEnv) -> u64 {
             &t.status,
             t.pinned,
             &t.preview,
+            t.settled_at,
+            t.snoozed_until,
         )
             .hash(&mut h);
         (&t.account_id, &t.account_label, t.updated_at).hash(&mut h);
@@ -328,15 +330,16 @@ impl Workspace {
         self.open_thread_on(env, a.id, window, cx);
     }
 
-    /// This machine's list's rows from linked machines: (pinned, working, the rest newest first) and a "Linked
-    /// machines" section for those not connected, with each row's marks added to `marks`. Nothing while searching or
+    /// This machine's list's rows from linked machines: (pinned, working, the rest newest first, snoozed, settled)
+    /// and a "Linked machines" section for those not connected, with each row's marks added to `marks`. Nothing while searching or
     /// scoped to projects: those filter this machine's threads.
     pub(super) fn linked_rows(
         &self,
         marks: &mut HashMap<SharedString, RowMarks>,
         cx: &gpui::App,
-    ) -> ([Vec<SidebarItem>; 3], Option<SidebarSection>) {
-        let mut out: [Vec<SidebarItem>; 3] = Default::default();
+    ) -> ([Vec<SidebarItem>; 5], Option<SidebarSection>) {
+        let mut out: [Vec<SidebarItem>; 5] = Default::default();
+        let now = crate::ui::now_ms();
         let mut waiting = Vec::new();
         if self.thread_search.is_some() || !self.scope.is_empty() {
             return (out, None);
@@ -391,12 +394,7 @@ impl Workspace {
                         ..m
                     },
                 );
-                let slot = match (t.pinned, working(&t.status)) {
-                    (true, _) => 0,
-                    (false, true) => 1,
-                    _ => 2,
-                };
-                out[slot].push(item);
+                out[super::env_sidebar::remote_slot(t, working(&t.status), now)].push(item);
             }
         }
         out[2].sort_by_key(|i| std::cmp::Reverse(i.updated_ms));

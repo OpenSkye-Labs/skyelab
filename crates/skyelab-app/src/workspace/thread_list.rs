@@ -37,16 +37,17 @@ pub struct NewThreadIn {
 impl Workspace {
     pub(super) fn refresh_sidebar(&mut self, cx: &mut Context<Self>) {
         let _span = tracing::info_span!("sidebar.refresh").entered();
-        if let Some((sections, marks)) = self.remote_sections(cx) {
-            return self.sidebar.update(cx, |sidebar, cx| {
+        if let Some((sections, marks, shelves)) = self.remote_sections(cx) {
+            self.sidebar.update(cx, |sidebar, cx| {
                 sidebar.sections = sections;
                 sidebar.marks = marks;
                 sidebar.archived = None;
-                sidebar.shelves = Vec::new();
+                sidebar.shelves = shelves;
                 sidebar.searchable = false;
                 sidebar.scope = None;
                 sidebar.rows_changed(cx);
             });
+            return self.arm_wake(cx);
         }
         // An open tab knows its thread's state now; the row is only as fresh as the last load.
         for v in &self.open_threads {
@@ -123,6 +124,7 @@ impl Workspace {
                         id: t.id,
                         settled: t.settled_at.is_some(),
                         snoozed_until: t.snoozed_until,
+                        host: None,
                     }),
                     scheduled: t.scheduled_task_id.is_some(),
                     unread: t.unread,
@@ -171,16 +173,8 @@ impl Workspace {
         let [pinned, working, rest, mut snoozed, mut settled] = groups;
         snoozed.sort_by_key(|t| t.snoozed_until);
         settled.sort_by_key(|t| std::cmp::Reverse(t.settled_at));
-        let shelved = !snoozed.is_empty() || !settled.is_empty();
-        let shelves = [("Snoozed", snoozed, false), ("Settled", settled, true)]
-            .into_iter()
-            .filter(|(_, rows, _)| !rows.is_empty())
-            .map(|(title, rows, paged)| super::panels::Shelf {
-                title: title.into(),
-                items: rows.into_iter().map(&mut item).collect(),
-                paged,
-            })
-            .collect();
+        let [mut snoozed, mut settled] =
+            [snoozed, settled].map(|rows| rows.into_iter().map(&mut item).collect::<Vec<_>>());
         let mut group_rows = Vec::new(); // a comparison group folds into one row (`compare_sidebar.rs`)
         let mut fold = |ts| self.fold_section(ts, &mut item, &mut group_rows, cx);
         let (mut pinned, mut working, mut rest) = (fold(pinned), fold(working), fold(rest));
@@ -206,10 +200,15 @@ impl Workspace {
         };
         super::compare_sidebar::mark_groups(&mut marks, group_rows);
         // Linked machines' rows join the list after the comparison groups are marked, so none lands inside one.
-        let ([lp, lw, lr], linked_state) = self.linked_rows(&mut marks, cx);
+        let ([lp, lw, lr, ls, lt], linked_state) = self.linked_rows(&mut marks, cx);
         pinned.extend(lp);
         working.extend(lw);
         super::env_linked::merge_by_time(&mut rest, lr, &marks);
+        // shortcut: linked machines' shelved rows follow this machine's, not merged by time; merge if lists grow.
+        snoozed.extend(ls);
+        settled.extend(lt);
+        let shelved = !snoozed.is_empty() || !settled.is_empty();
+        let shelves = shelves(snoozed, settled);
         let empty = pinned.is_empty() && working.is_empty() && rest.is_empty() && !shelved;
         let cards = &mut cx.default_global::<super::panels::ThreadCards>().0;
         for (id, m) in &marks {
@@ -417,6 +416,22 @@ pub(super) fn plain_section(title: &str, items: Vec<SidebarItem>) -> SidebarSect
 
 /// The flat list's sections: Pinned, Working, then `rest` by the day it last changed (each row's `updated_ms`),
 /// every section keeping the order given; empty ones are left out. Shared by this machine's sidebar and another's.
+/// T3's Snoozed and Settled shelves, those with rows; Settled lists a page at a time.
+pub(super) fn shelves(
+    snoozed: Vec<SidebarItem>,
+    settled: Vec<SidebarItem>,
+) -> Vec<super::panels::Shelf> {
+    [("Snoozed", snoozed, false), ("Settled", settled, true)]
+        .into_iter()
+        .filter(|(_, rows, _)| !rows.is_empty())
+        .map(|(title, items, paged)| super::panels::Shelf {
+            title: title.into(),
+            items,
+            paged,
+        })
+        .collect()
+}
+
 pub(super) fn flat_sections(
     pinned: Vec<SidebarItem>,
     working: Vec<SidebarItem>,

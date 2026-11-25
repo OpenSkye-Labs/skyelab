@@ -1,7 +1,7 @@
 //! T3's settle and snooze: a settled thread is done and lists in the Settled shelf; a snoozed one hides in the
 //! Snoozed shelf until its time, then lists again as woke until it is opened. Both from the row's hover buttons and
 //! its menu; settling and snoozing show an Undo notice that puts the thread back where it was. Also the sidebar
-//! footer's and the subagent strip's actions. Local threads only.
+//! footer's and the subagent strip's actions. Another machine's threads go through its daemon (`remote_shelves.rs`).
 
 use super::super::Workspace;
 use super::super::manage::Job;
@@ -26,6 +26,8 @@ pub enum Shelf {
 pub struct ShelveThread {
     pub id: i64,
     pub to: Shelf,
+    /// The machine the thread is on; `None` for this one.
+    pub host: Option<SharedString>,
 }
 
 actions!(
@@ -63,12 +65,13 @@ impl Workspace {
                 } else {
                     Shelf::Settle
                 };
-                ws.shelve_thread(&ShelveThread { id, to }, window, cx);
+                let host = None;
+                ws.shelve_thread(&ShelveThread { id, to, host }, window, cx);
             }))
             .on_action(cx.listener(|ws, _: &SnoozeThread, window, cx| {
                 if let Some(id) = ws.shown_thread(cx) {
-                    let to = Shelf::SnoozeCustom;
-                    ws.shelve_thread(&ShelveThread { id, to }, window, cx);
+                    let (to, host) = (Shelf::SnoozeCustom, None);
+                    ws.shelve_thread(&ShelveThread { id, to, host }, window, cx);
                 }
             }))
             .on_action(cx.listener(|ws, _: &RefreshThreads, _, cx| ws.load_threads(cx)))
@@ -81,26 +84,36 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.is_remote() {
-            return;
-        }
         let id = a.id;
-        match a.to {
-            Shelf::Settle => self.settle(id, true, true, window, cx),
-            Shelf::Unsettle => self.settle(id, false, false, window, cx),
-            Shelf::Snooze(until) => self.snooze(id, Some(until), true, window, cx),
-            Shelf::Wake => self.snooze(id, None, false, window, cx),
-            Shelf::SnoozeCustom => self.prompt_text(
+        if let Shelf::SnoozeCustom = a.to {
+            let host = a.host.clone();
+            return self.prompt_text(
                 "Snooze until (45m, 3h, 18:30 or 2026-12-01 09:00)",
                 "3h".into(),
                 window,
                 cx,
                 move |ws, text, window, cx| match snooze::parse_custom(&text, &chrono::Local::now())
                 {
-                    Some(until) => ws.snooze(id, Some(until), true, window, cx),
+                    Some(until) => {
+                        let (to, host) = (Shelf::Snooze(until), host.clone());
+                        ws.shelve_thread(&ShelveThread { id, to, host }, window, cx)
+                    }
                     None => ws.say(format!("“{text}” isn't a time ahead."), window, cx),
                 },
-            ),
+            );
+        }
+        if let Some(host) = &a.host {
+            return self.shelve_on(host.clone(), id, a.to, window, cx);
+        }
+        if self.is_remote() {
+            return;
+        }
+        match a.to {
+            Shelf::Settle => self.settle(id, true, true, window, cx),
+            Shelf::Unsettle => self.settle(id, false, false, window, cx),
+            Shelf::Snooze(until) => self.snooze(id, Some(until), true, window, cx),
+            Shelf::Wake => self.snooze(id, None, false, window, cx),
+            Shelf::SnoozeCustom => {} // asked above
         }
     }
 
@@ -112,21 +125,52 @@ impl Workspace {
             .map_or((false, None), |t| (t.settled_at.is_some(), t.snoozed_until))
     }
 
-    fn restore(
+    fn restore(&mut self, id: i64, was: (bool, Option<i64>), cx: &mut Context<Self>) {
+        self.put_on_shelf(id, was.0, was.1, cx, |ws, done, cx| {
+            if let Err(e) = done {
+                ws.store_error = Some(format!("{e:#}").into());
+                cx.notify();
+            }
+        });
+    }
+
+    /// Puts thread `id` settled, snoozed until a time, or on neither shelf (a settle wins over a snooze), in the
+    /// store and then its row; `done` hears how the write went.
+    pub(in crate::workspace) fn put_on_shelf(
         &mut self,
         id: i64,
-        was: (bool, Option<i64>),
-        window: &mut Window,
+        settled: bool,
+        until: Option<i64>,
         cx: &mut Context<Self>,
+        done: impl FnOnce(&mut Self, anyhow::Result<()>, &mut Context<Self>) + 'static,
     ) {
-        match was {
-            (true, _) => self.settle(id, true, false, window, cx),
-            (false, Some(until)) => self.snooze(id, Some(until), false, window, cx),
-            (false, None) => {
-                self.settle(id, false, false, window, cx);
-                self.snooze(id, None, false, window, cx);
+        let until = until.filter(|_| !settled);
+        let store = self.backend.store.clone();
+        let write = cx.background_spawn(async move {
+            let s = super::super::lock(&store)?;
+            if settled {
+                return s.set_thread_settled(id, true);
             }
-        }
+            s.set_thread_settled(id, false)?;
+            s.set_thread_snoozed(id, until)
+        });
+        cx.spawn(async move |this, cx| {
+            let result = write.await;
+            let _ = this.update(cx, |ws, cx| {
+                if result.is_ok() {
+                    ws.update_row(
+                        id,
+                        |t| {
+                            t.settled_at = settled.then(crate::ui::now_ms);
+                            t.snoozed_until = until;
+                        },
+                        cx,
+                    );
+                }
+                done(ws, result, cx);
+            });
+        })
+        .detach(); // one short write; `this` is weak
     }
 
     fn settle(
@@ -152,7 +196,7 @@ impl Workspace {
             if undo {
                 ws.undo_notice(
                     format!("Settled “{title}”"),
-                    move |ws, window, cx| ws.restore(id, was, window, cx),
+                    move |ws, _, cx| ws.restore(id, was, cx),
                     window,
                     cx,
                 );
@@ -185,7 +229,7 @@ impl Workspace {
                 let when = snooze::wake_label(until, crate::ui::now_ms());
                 ws.undo_notice(
                     format!("Snoozed “{title}” for {when}"),
-                    move |ws, window, cx| ws.restore(id, was, window, cx),
+                    move |ws, _, cx| ws.restore(id, was, cx),
                     window,
                     cx,
                 );
@@ -223,10 +267,25 @@ impl Workspace {
     /// sleeps, so it wakes at least each minute to read the wall clock again.
     pub(in crate::workspace) fn arm_wake(&mut self, cx: &mut Context<Self>) {
         let now = crate::ui::now_ms();
+        // Other machines' snoozes wake here too: the row moves on this window's clock, as a local one does.
+        let envs = self
+            .remote_env()
+            .into_iter()
+            .chain(self.env.linked.iter().map(|l| l.env.clone()));
+        let remote: Vec<i64> = envs
+            .flat_map(|e| {
+                e.read(cx)
+                    .threads
+                    .iter()
+                    .filter_map(|t| t.snoozed_until)
+                    .collect::<Vec<_>>()
+            })
+            .collect();
         let next = self
             .threads
             .iter()
             .filter_map(|t| t.snoozed_until)
+            .chain(remote)
             .filter(|&u| u > now)
             .min();
         if self.previews.wake.as_ref().map(|w| w.0) == next {
@@ -251,13 +310,17 @@ impl Workspace {
 }
 
 /// The snooze choices (computed as the menu opens, so "Tonight" is only there while it's ahead), then Custom.
-pub(in crate::workspace) fn snooze_menu(mut menu: PopupMenu, id: i64) -> PopupMenu {
+pub(in crate::workspace) fn snooze_menu(
+    mut menu: PopupMenu,
+    id: i64,
+    host: Option<SharedString>,
+) -> PopupMenu {
     for c in snooze::presets(&chrono::Local::now()) {
-        let to = Shelf::Snooze(c.until_ms);
-        menu = menu.menu(c.label, Box::new(ShelveThread { id, to }));
+        let (to, host) = (Shelf::Snooze(c.until_ms), host.clone());
+        menu = menu.menu(c.label, Box::new(ShelveThread { id, to, host }));
     }
     let to = Shelf::SnoozeCustom;
-    menu.menu("Custom…", Box::new(ShelveThread { id, to }))
+    menu.menu("Custom…", Box::new(ShelveThread { id, to, host }))
 }
 
 /// The row menu's settle and snooze entries, by where the thread is now.
@@ -268,7 +331,11 @@ pub(in crate::workspace) fn shelf_menu(
     cx: &mut Context<PopupMenu>,
 ) -> PopupMenu {
     let id = s.id;
-    let entry = |label: &'static str, to| (SharedString::from(label), ShelveThread { id, to });
+    let host = s.host.clone();
+    let entry = |label: &'static str, to| {
+        let host = host.clone();
+        (SharedString::from(label), ShelveThread { id, to, host })
+    };
     let menu = menu.separator();
     let (label, action) = if s.settled {
         entry("Un-settle", Shelf::Unsettle)
@@ -281,9 +348,12 @@ pub(in crate::workspace) fn shelf_menu(
         return menu.menu(label, Box::new(action));
     }
     menu.submenu("Snooze", window, cx, move |menu, _, _| {
-        snooze_menu(menu, id)
+        snooze_menu(menu, id, host.clone())
     })
 }
+
+#[path = "remote_shelves.rs"]
+mod remote_shelves;
 
 #[cfg(test)]
 #[path = "settle_test.rs"]
