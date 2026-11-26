@@ -125,7 +125,8 @@ impl Settings {
                     .child(
                         v_flex()
                             .flex_1()
-                            .min_w_0()
+                            // Room for a short path ("~/work") before the account column gives way.
+                            .min_w(gpui::px(120.))
                             .gap_0p5()
                             .child(
                                 h_flex()
