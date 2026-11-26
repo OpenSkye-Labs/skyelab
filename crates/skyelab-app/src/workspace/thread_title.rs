@@ -9,6 +9,7 @@ use gpui::{App, AppContext as _, Context, Window};
 use skyelab_agent::{Block, Event};
 use skyelab_core::{AccountsConfig, Provider};
 use std::path::PathBuf;
+use std::time::Instant;
 
 /// The binaries a title call may run: `claude`, `codex`, `cursor-agent` and `agy` (or their fakes).
 #[derive(Clone)]
@@ -93,8 +94,22 @@ pub(in crate::workspace) fn generate(
         ),
     };
     let bin = bins.of(account.provider);
+    let provider = crate::posthog::ai_provider(account.provider);
     let prompt = skyelab_agent::title_prompt(&prompt, &reply);
-    let title = skyelab_agent::generate_title(bin, config, &account, &thread.cwd, &prompt)?;
+    let started = Instant::now();
+    let generated = skyelab_agent::generate_title(bin, config, &account, &thread.cwd, &prompt);
+    crate::posthog::capture_ai_generation(
+        &format!("thread-{id}"),
+        "thread_title",
+        provider,
+        None,
+        std::slice::from_ref(&prompt),
+        generated.as_deref().ok(),
+        started.elapsed().as_millis() as u64,
+        generated.is_err(),
+        None,
+    );
+    let title = generated?;
     Ok(lock(store)?
         .set_generated_title(id, &title, force)?
         .then_some(title))

@@ -56,6 +56,7 @@ dhat = { workspace = true, optional = true }
 tracing-tracy = { workspace = true, optional = true }
 console-subscriber = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["tracing"] }
+posthog-rs = "0.31"
 
 [features]
 # Function timing on the hot paths, report on quit: `cargo run -p skyelab-app --release --features hotpath`.

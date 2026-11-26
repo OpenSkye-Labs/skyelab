@@ -81,6 +81,8 @@ pub struct ThreadView {
     /// Prompts the session was sent that haven't had their result yet. The row says `idle` only at zero, so a
     /// follow-up queued behind a running turn keeps its child slot until that one is done too.
     pub(super) turns: Arc<std::sync::atomic::AtomicUsize>,
+    /// Inputs successfully delivered to the active agent session, consumed when its result arrives for AI Observability.
+    pub(super) ai_inputs: Arc<Mutex<Vec<String>>>,
     /// The folder was unbound at send time; the view shows the bind call to action.
     pub(super) needs_binding: bool,
     pub(super) items: super::thread_model::Items,
@@ -370,6 +372,7 @@ impl ThreadView {
             unsaved_events: 0,
             retrying_saves: false,
             turns: Arc::default(),
+            ai_inputs: Arc::default(),
             parent: None,
             required_account: None,
             compare_group: None,

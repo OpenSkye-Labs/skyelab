@@ -115,6 +115,14 @@ impl ThreadView {
             .try_global::<crate::workspace::AccountsFile>()
             .map(|f| f.0.clone());
         let is_new = resume.is_none();
+        let launch_kind = if again {
+            "rerun"
+        } else if is_new {
+            "new"
+        } else {
+            "resumed"
+        };
+        let attachment_count = attachments.len();
         let scheduled_task = self.scheduled_task.filter(|_| is_new);
         // Cleared once the launch succeeds, so a failed first send keeps it for the next.
         let link_pr = if is_new {
@@ -282,7 +290,13 @@ impl ThreadView {
                         // From here on, a closed tab can't leave the row running with nothing behind it.
                         let session = session
                             .map(|s| super::teardown::NewSession::new(s, store.clone(), thread.id));
-                        anyhow::Ok((thread, session, grant))
+                        anyhow::Ok((
+                            thread,
+                            session,
+                            grant,
+                            prompt,
+                            crate::posthog::ai_provider(account.provider),
+                        ))
                     })();
                     // A slot is never held by a thread that isn't running.
                     if let (Err(_), Some(id)) = (&started, claimed) {
@@ -294,7 +308,7 @@ impl ThreadView {
             let _ = this.update(cx, |this, cx| {
                 this.starting = false;
                 match started {
-                    Ok((thread, session, grant)) => {
+                    Ok((thread, session, grant, ai_input, ai_provider)) => {
                         this.composer.extras.pending_pr = None;
                         this.row_saved(&thread, cx);
                         this.thread = Some(thread.clone());
@@ -304,8 +318,23 @@ impl ThreadView {
                         }
                         match session.map(|s| s.take()) {
                             Ok(Some(session)) => {
+                                crate::posthog::capture(
+                                    "agent_session_started",
+                                    [
+                                        ("launch_kind", serde_json::json!(launch_kind)),
+                                        ("uses_worktree", serde_json::json!(use_worktree)),
+                                        ("attachment_count", serde_json::json!(attachment_count)),
+                                    ],
+                                );
                                 this.grant = grant;
-                                this.run(session, pump_store, thread.id, cx);
+                                this.run(
+                                    session,
+                                    pump_store,
+                                    thread.id,
+                                    ai_input,
+                                    ai_provider,
+                                    cx,
+                                );
                                 // Picked while it started: the agent (and a new row) began with the old mode.
                                 if this.mode != mode {
                                     this.write_mode(cx);

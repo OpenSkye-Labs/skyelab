@@ -6,6 +6,7 @@ mod debug_renders;
 mod environment;
 mod keymap;
 mod palette;
+mod posthog;
 #[cfg(test)]
 #[path = "quit_key_test.rs"]
 mod quit_key_test;
@@ -165,6 +166,8 @@ fn main() {
         settings::init(cx);
         debug_mode::init(&switches, AppSettings::default_path(), cx);
         debug_mode::finish_on_quit(cx);
+        posthog::init(cx);
+        posthog::shutdown(cx);
         skyelab_terminal::init(cx);
         workspace::init(cx);
         workspace::folder_watch::init(cx);
