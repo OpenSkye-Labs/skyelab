@@ -402,3 +402,18 @@ fn stop_ends_a_command_codex_leaves_running_but_not_what_it_started_before() {
     );
     session.kill().expect("kill");
 }
+
+#[test]
+fn killing_the_agent_ends_a_command_in_its_own_session() {
+    let f = bound();
+    let mut session = start(&f, None, "hang longcmd", None).expect("start");
+    let command = pid_in(&f.dir.join(".fake-cmd-pid"));
+    assert!(alive(&command), "the command runs");
+    session.kill().expect("kill");
+    let mut waited = Duration::ZERO;
+    while alive(&command) && waited < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(100));
+        waited += Duration::from_millis(100);
+    }
+    assert!(!alive(&command), "killing the agent ended its command");
+}

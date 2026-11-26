@@ -61,13 +61,17 @@ impl Session {
             .is_some())
     }
 
-    /// Ends the agent's process tree: SIGKILL to its process group on unix (the group is the agent's pid), closing
-    /// its kill-on-close Job Object on Windows.
+    /// Ends the agent's process tree: on unix every descendant (a command it started in a session of its own, as
+    /// Codex runs them, leaves its group), then SIGKILL to its process group (the group is the agent's pid); on
+    /// Windows, closing its kill-on-close Job Object.
     pub(crate) fn kill_group(&mut self) {
         #[cfg(windows)]
         drop(self.job.take());
         #[cfg(unix)]
-        launch::kill_group(self.child.id());
+        {
+            kill_started_within(self.child.id(), (0, u64::MAX));
+            launch::kill_group(self.child.id());
+        }
     }
 }
 
@@ -99,7 +103,7 @@ pub(crate) fn end_commands_after(
 }
 
 /// Kills each descendant of `agent` that started within `window` (seconds since the epoch, inclusive), and all
-/// below it.
+/// below it. Only while `agent` runs: an ended agent's children belong to init, so none are found.
 fn kill_started_within(agent: u32, window: (u64, u64)) {
     use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
     let Ok(mut sys) = System::new() else {
