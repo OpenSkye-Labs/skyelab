@@ -346,3 +346,59 @@ fn interrupt_ends_the_turn_and_the_thread_goes_on() {
     );
     session.kill().expect("kill");
 }
+
+/// Whether `pid` still runs (a zombie waiting for its parent's reap counts as ended).
+fn alive(pid: &str) -> bool {
+    let out = std::process::Command::new("ps")
+        .args(["-o", "stat=", "-p", pid.trim()])
+        .output()
+        .expect("ps runs");
+    let stat = String::from_utf8_lossy(&out.stdout);
+    !stat.trim().is_empty() && !stat.trim_start().starts_with('Z')
+}
+
+fn pid_in(file: &Path) -> String {
+    for _ in 0..600 {
+        if let Ok(pid) = std::fs::read_to_string(file)
+            && !pid.trim().is_empty()
+        {
+            return pid;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    panic!("no pid in {}", file.display());
+}
+
+#[test]
+fn stop_ends_a_command_codex_leaves_running_but_not_what_it_started_before() {
+    let f = bound();
+    std::fs::write(f.dir.join(".fake-helper"), "").expect("marker");
+    let mut session = start(&f, None, "hang longcmd", None).expect("start");
+    let rx = session.events().clone();
+    let helper = pid_in(&f.dir.join(".fake-helper-pid"));
+    let command = pid_in(&f.dir.join(".fake-cmd-pid"));
+    std::thread::sleep(Duration::from_millis(300)); // the item/started line reaches the session
+    assert!(alive(&command), "the command runs");
+    session.interrupt().expect("interrupt");
+    let mut reports = Vec::new();
+    turn(&rx, &mut reports);
+    let mut waited = Duration::ZERO;
+    while alive(&command) && waited < Duration::from_secs(15) {
+        std::thread::sleep(Duration::from_millis(100));
+        waited += Duration::from_millis(100);
+    }
+    assert!(
+        !alive(&command),
+        "Stop ended the command codex left running"
+    );
+    assert!(
+        alive(&helper),
+        "what the agent started before the command keeps running"
+    );
+    assert_eq!(
+        session.try_wait().expect("try_wait"),
+        None,
+        "the agent stays up"
+    );
+    session.kill().expect("kill");
+}

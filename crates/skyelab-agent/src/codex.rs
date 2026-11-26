@@ -47,6 +47,8 @@ pub(crate) struct Codex {
     asks: BTreeMap<String, Value>,
     /// The asks that are user-input requests: our id → the ids of their questions, in order.
     questions: BTreeMap<String, Vec<String>>,
+    /// Commands running, by item id, and when each started: what Stop ends if codex leaves them running.
+    commands: BTreeMap<String, std::time::SystemTime>,
     /// Each running file change's edits (path, kind, diff), by item id: its approval request names only the item.
     patches: BTreeMap<String, Value>,
     /// The thread's token totals so far, and what they were when the running turn started.
@@ -90,6 +92,7 @@ impl Codex {
             asks: BTreeMap::new(),
             questions: BTreeMap::new(),
             patches: BTreeMap::new(),
+            commands: BTreeMap::new(),
             tokens: None,
             turn_base: None,
             mode_change: None,
@@ -177,6 +180,11 @@ impl Codex {
                 Vec::new()
             }
         }
+    }
+
+    /// When the oldest command still running started (`None` with none running).
+    pub(crate) fn commands_since(&self) -> Option<std::time::SystemTime> {
+        self.commands.values().min().copied()
     }
 
     fn turn_known(&mut self, id: Option<&str>) -> Vec<String> {
@@ -272,6 +280,7 @@ impl Codex {
         match method {
             "turn/started" => {
                 self.turn_base = self.tokens;
+                self.commands.clear();
                 (Vec::new(), self.turn_known(p["turn"]["id"].as_str()))
             }
             "turn/completed" => {
@@ -323,12 +332,19 @@ impl Codex {
                 if let Some((id, changes)) = file_changes(item) {
                     self.patches.insert(id, changes);
                 }
+                if item["type"] == "commandExecution"
+                    && let Some(id) = item["id"].as_str()
+                {
+                    self.commands
+                        .insert(id.to_owned(), std::time::SystemTime::now());
+                }
                 (started(item).into_iter().collect(), Vec::new())
             }
             "item/completed" => {
                 let item = &p["item"];
                 if let Some(id) = item["id"].as_str() {
                     self.patches.remove(id);
+                    self.commands.remove(id);
                 }
                 if item["type"] == "agentMessage" {
                     self.last_text = item["text"].as_str().map(str::to_owned);

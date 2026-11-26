@@ -75,8 +75,18 @@ impl Session {
             return Ok(());
         }
         if let Some(state) = &self.codex {
-            let lines = lock(state).interrupt();
-            return lines.into_iter().try_for_each(|l| self.queue(l));
+            let (lines, since) = {
+                let mut s = lock(state);
+                (s.interrupt(), s.commands_since())
+            };
+            lines.into_iter().try_for_each(|l| self.queue(l))?;
+            // Codex can leave an interrupted command running: it gets a grace to end, then its process tree is killed.
+            if let Some(since) = since
+                && self.status.is_none()
+            {
+                crate::reap::end_commands_after(self.child.id(), since, crate::reap::COMMAND_GRACE);
+            }
+            return Ok(());
         }
         if let Some(state) = &self.acp {
             let lines = lock_acp(state).interrupt();
