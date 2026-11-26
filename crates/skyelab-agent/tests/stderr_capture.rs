@@ -30,6 +30,7 @@ fn start(prompt: &str, dir: &Path) -> Session {
         effort: None,
         attachments: &[],
         mode: Default::default(),
+        untrusted: false,
     };
     start_with_bin(&bin, &cfg, &launch).expect("start fake")
 }

@@ -69,6 +69,7 @@ impl Rig {
             effort: Some("high"),
             attachments: &[],
             mode,
+            untrusted: false,
         };
         start_with_bin(&fake_antigravity(), &self.config, &launch).expect("start")
     }

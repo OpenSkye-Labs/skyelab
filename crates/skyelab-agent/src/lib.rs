@@ -121,6 +121,8 @@ pub struct Launch<'a> {
     pub attachments: &'a [Attachment],
     /// Which tool calls go ahead without asking. An ask arrives as [`Event::Permission`].
     pub mode: Mode,
+    /// The thread was fed untrusted text (a GitHub-started bot run): Claude loads none of the account's allow rules.
+    pub untrusted: bool,
 }
 
 /// Starts the account's agent (`claude`, `codex`, `cursor-agent`, or `agy`) per `launch` and sends its prompt as the
@@ -152,6 +154,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         effort,
         attachments,
         mode,
+        untrusted,
     } = launch;
     if let Some(id) = resume
         && !valid_session_id(id)
@@ -195,7 +198,17 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     }
     let driver = match account.provider {
         Provider::Claude => {
-            launch::claude_args(&mut cmd, mcp_config, deny_mcp.as_deref(), resume, mode);
+            let untrusted = untrusted
+                .then(|| launch::untrusted_permissions(&account.config_dir))
+                .transpose()?;
+            launch::claude_args(
+                &mut cmd,
+                mcp_config,
+                deny_mcp.as_deref(),
+                resume,
+                mode,
+                untrusted,
+            );
             cmd.args(model.into_iter().flat_map(|m| ["--model", m]))
                 .args(effort.into_iter().flat_map(|e| ["--effort", e]));
             Driver::Claude

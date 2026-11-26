@@ -55,6 +55,9 @@ gpui-component moves to the official `gpui` crate; then we move with it.
   only for true fire-and-forget. Agent processes, PTYs and network streams belong to a stored task, never a detached one.
 - A callback that has no `Window` (an observer) but must call something that needs one (`submit_remote`): leave the
   callback with `cx.defer`, then `window_handle.update(cx, |_, window, cx| ..)` (`side_chat::ask_when_ready`).
+- A view built inside another entity's `update` (a page the workspace makes lazily) can't `read` that entity: it is
+  leased, and GPUI panics ("already being updated"). Do the read in `cx.defer` (`ScheduledPage::watch_runs` reads every
+  workspace's open threads that way).
 - Don't use tokio inside GPUI views. GPUI has its own executor. If a crate needs tokio (e.g. a server), run it on its
   own runtime thread and talk to the UI through channels.
 

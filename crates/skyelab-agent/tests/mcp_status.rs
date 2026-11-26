@@ -46,6 +46,7 @@ fn reports(provider: Provider, bin: &Path, setup: impl FnOnce(&Path)) -> Vec<Vec
         effort: None,
         attachments: &[],
         mode: Default::default(),
+        untrusted: false,
     };
     let session = start_with_bin(bin, &config, &launch).expect("start");
     // Without a grant the launch report is an empty list: it still clears an earlier process's.

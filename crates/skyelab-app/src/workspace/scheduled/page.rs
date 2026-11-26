@@ -14,7 +14,7 @@ use skyelab_core::AccountsConfig;
 use skyelab_core::bots::Trigger;
 use skyelab_store::Project;
 use skyelab_store::scheduled::{BotRun, ScheduledTask};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 
 /// History rows a card shows at first, and per "Show more".
@@ -73,6 +73,18 @@ pub(crate) struct ScheduledPage {
     seen: u64,
     focus: FocusHandle,
     _subs: Vec<Subscription>,
+    /// Tasks with an open run waiting on an approval, and the open run views watched for it.
+    pub(crate) waiting: BTreeSet<i64>,
+    _runs: Vec<Subscription>,
+}
+
+/// The bot runs open in any window: (task, view), as the rail counts them.
+fn open_runs(cx: &App) -> Vec<(i64, Entity<crate::workspace::thread::ThreadView>)> {
+    super::super::windows::workspaces(cx)
+        .iter()
+        .flat_map(|ws| ws.read(cx).open_threads.clone())
+        .filter_map(|v| Some((v.read(cx).scheduled_task?.task, v)))
+        .collect()
 }
 
 impl ScheduledPage {
@@ -100,6 +112,8 @@ impl ScheduledPage {
             seen: 0,
             focus: cx.focus_handle(),
             _subs: vec![sub],
+            waiting: BTreeSet::new(),
+            _runs: Vec::new(),
         };
         this.reload(cx);
         this
@@ -150,11 +164,35 @@ impl ScheduledPage {
             Ok((rows, projects))
         });
         super::count_paused(&self.store, cx);
+        // Deferred: a page made inside a workspace update can't read that workspace yet.
+        let page = cx.entity().downgrade();
+        cx.defer(move |cx| drop(page.update(cx, |this, cx| this.watch_runs(cx))));
         match read {
             Ok((rows, projects)) => (self.rows, self.projects) = (rows, projects),
             Err(e) => self.error = Some(format!("{e:#}").into()),
         }
         cx.notify();
+    }
+
+    /// Watches the open bot runs: re-checked on each one's notify, drawn again only when the set changes (they stream).
+    fn watch_runs(&mut self, cx: &mut Context<Self>) {
+        self._runs = open_runs(cx)
+            .into_iter()
+            .map(|(_, v)| cx.observe(&v, |this: &mut Self, _, cx| this.recheck_waiting(cx)))
+            .collect();
+        self.recheck_waiting(cx);
+    }
+
+    fn recheck_waiting(&mut self, cx: &mut Context<Self>) {
+        let waiting: BTreeSet<i64> = open_runs(cx)
+            .into_iter()
+            .filter(|(_, v)| crate::workspace::thread_rows::waiting_ask(v.read(cx)).is_some())
+            .map(|(task, _)| task)
+            .collect();
+        if waiting != self.waiting {
+            self.waiting = waiting;
+            cx.notify();
+        }
     }
 
     /// Opens the editor on `draft` (a new task, an edit, or a prompt from the composer).

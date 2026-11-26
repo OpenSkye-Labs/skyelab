@@ -37,6 +37,8 @@ pub struct PrRow {
     /// The head branch's name, and the description (capped like an issue's): bots' triggers read them.
     pub head_branch: Option<String>,
     pub body: String,
+    /// gh said `isCrossRepository: false`: the head is in this repo, not a fork. Missing reads as a fork.
+    pub same_repo: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -139,7 +141,7 @@ fn base_args(kind: &str, repo: &str, fields: &str) -> Vec<String> {
 }
 
 pub fn pr_list_args(repo: &str, filter: PrFilter) -> Vec<String> {
-    let fields = "number,title,url,author,isDraft,reviewDecision,statusCheckRollup,updatedAt,headRefOid,headRefName,body";
+    let fields = "number,title,url,author,isDraft,reviewDecision,statusCheckRollup,updatedAt,headRefOid,headRefName,isCrossRepository,body";
     let mut args = base_args("pr", repo, fields);
     match filter {
         PrFilter::Mine => args.extend(["--author".into(), "@me".into()]),
@@ -260,6 +262,7 @@ pub fn parse_pr_list(json: &[u8]) -> Result<Vec<PrRow>> {
                 head: head_sha(v),
                 head_branch: Some(text(v, "headRefName", MAX_NAME * 3)).filter(|b| !b.is_empty()),
                 body: text(v, "body", MAX_BODY),
+                same_repo: v["isCrossRepository"] == false,
             })
         })
         .take(MAX_ROWS)

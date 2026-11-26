@@ -43,11 +43,15 @@ pub(super) trait ItemsView: Sized + 'static {
     /// Whether an agent is there to answer a pending permission request.
     fn can_answer(&self, cx: &App) -> bool;
     fn answer(&mut self, id: &str, decision: Decision, window: &mut Window, cx: &mut Context<Self>);
+    /// Asks offer "Allow for this thread" (not where GitHub text went in).
+    fn offers_thread_allow(&self) -> bool {
+        true
+    }
     /// Whether a pending call to `tool` offers "Allow for this project" (a local thread's own agent).
     fn offers_project_rule(&self, _tool: &str) -> bool {
         false
     }
-    /// The words "Allow `…` for this thread" would allow commands by, for a pending Codex shell ask that can take one.
+    /// The words "Allow `…` for this thread" would allow commands by, for a Codex shell ask that can take one.
     fn thread_prefix(&self, _a: &super::thread_model::ApprovalItem) -> Option<String> {
         None
     }
@@ -94,13 +98,12 @@ pub(super) trait ItemsView: Sized + 'static {
     fn can_answer_questions(&self, _cx: &App) -> bool {
         false
     }
-    /// Pending questions and permission asks are answered in a panel docked on the composer (T3's), so the timeline
-    /// shows them as one line. Remote threads keep the cards in the timeline.
+    /// Pending questions and asks are answered in a panel docked on the composer (T3's): the timeline shows one line.
+    /// Remote threads keep the cards in the timeline.
     fn docks_asks(&self, _id: &str) -> bool {
         false
     }
-    /// Whether tool `id`, with no result yet, may still get one: an agent runs the turn it belongs to. Otherwise
-    /// (the agent died or was stopped mid-call) it shows as interrupted, not running.
+    /// Whether tool `id`, with no result yet, may still get one (its turn's agent runs); else it shows interrupted.
     fn tool_live(&self, _id: &str) -> bool {
         true
     }
@@ -132,8 +135,7 @@ pub(super) trait ItemsView: Sized + 'static {
     ) -> Option<gpui::Entity<gpui_component::input::InputState>> {
         None
     }
-    /// Whether files can go with a question's answer: only where the agent runs on this machine, since the agent
-    /// gets the files' paths.
+    /// Whether files can go with a question's answer: only where the agent runs here, as it gets their paths.
     fn can_attach_answer_files(&self, _cx: &App) -> bool {
         false
     }

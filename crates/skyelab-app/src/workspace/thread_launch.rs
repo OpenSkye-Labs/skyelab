@@ -102,20 +102,21 @@ impl ThreadView {
             self.cwd.clone(),
             self.project_id,
         );
-        // A resumed thread keeps the folder it started in (its worktree, if it had one).
-        let use_worktree = resume.is_none() && self.wt.use_worktree;
+        // Fed GitHub text (a bot run, or a resumed turn of one): none of SkyeLab's tools.
+        let untrusted = self.scheduled_task.is_some_and(|r| r.untrusted)
+            || resume.as_ref().is_some_and(|t| {
+                lock(&self.backend.store).map_or(true, |s| s.thread_untrusted(t.id).unwrap_or(true))
+            });
+        // It runs in a new worktree from the default branch: never the folder's checkout, which could be a PR's code.
+        let use_worktree = resume.is_none() && (self.wt.use_worktree || untrusted);
         let base_branch = self.branch_picker.read(cx).base.clone();
         let pin = self.wt.pin.clone();
         let parent = self.parent.as_ref().map(|p| p.0);
         let compare_group = self.compare_group.filter(|_| resume.is_none());
         // A side chat is a read-only helper: Plan mode and none of SkyeLab's tools, whatever its row or view says.
         let side = self.is_side_chat() || resume.as_ref().is_some_and(|t| t.side_of.is_some());
-        // A bot run fed GitHub text never gets them either, a resumed turn of it included (its history holds that text).
-        let untrusted = self.scheduled_task.is_some_and(|r| r.untrusted)
-            || resume.as_ref().is_some_and(|t| {
-                lock(&self.backend.store).map_or(true, |s| s.thread_untrusted(t.id).unwrap_or(true))
-            });
         let tools = crate::workspace::orchestrate::Tools::get(cx).filter(|_| !side && !untrusted);
+        self.untrusted = untrusted;
         let accounts_file = cx
             .try_global::<crate::workspace::AccountsFile>()
             .map(|f| f.0.clone());
@@ -159,6 +160,10 @@ impl ThreadView {
                     // The thread whose slot this launch took, so a failure below gives it back.
                     let mut claimed = None;
                     let started = (|| {
+                        let base_branch = match untrusted && use_worktree {
+                            true => Some(skyelab_git::default_branch(&cwd)?),
+                            false => base_branch,
+                        };
                         let worktree = use_worktree
                             .then(|| {
                                 crate::workspace::worktree::create(
@@ -279,6 +284,7 @@ impl ThreadView {
                             effort: pick.effort.as_deref(),
                             attachments: &attachments,
                             mode,
+                            untrusted,
                         };
                         // The binding as saved right now: a rebind may have landed while this launch ran. An
                         // unreadable file binds nothing, so the check below refuses.

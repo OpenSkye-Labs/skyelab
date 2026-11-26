@@ -107,6 +107,7 @@ fn run(f: &Fixture) -> (Vec<String>, Option<String>, Value) {
         effort: None,
         attachments: &[],
         mode: Default::default(),
+        untrusted: false,
     };
     let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh");
     let session = start_with_bin(&bin, &f.config, &launch).expect("start");

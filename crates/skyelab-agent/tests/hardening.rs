@@ -179,6 +179,7 @@ fn path_lookup_in_child() {
         effort: None,
         attachments: &[],
         mode: Default::default(),
+        untrusted: false,
     };
     let session = start(&cfg, &launch).expect("start");
     let which = next_unknown(session.events(), Some("which"));

@@ -28,6 +28,7 @@ fn start(saved: &Account, launched: &Account, dir: &Path) -> anyhow::Result<()> 
         effort: None,
         attachments: &[],
         mode: Default::default(),
+        untrusted: false,
     };
     let mut session = start_with_bin(&fake_bin(), &config(dir, saved.clone()), &launch)?;
     session.kill()

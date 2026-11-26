@@ -22,13 +22,14 @@ triage**, both in Plan mode.
   mine**: the account's own GitHub login), and **At most N an hour** (1 to 30, 6 by default). They need the project to
   have a github.com `origin` and its account's GitHub CLI to be signed in; otherwise they are off and say why, with a
   **Sign in** link. See [GitHub triggers](#github-triggers).
-- **Runs in**: the project's checkout, or a new worktree per run.
+- **Runs in**: the project's checkout, or a new worktree per run. A bot with a GitHub trigger always gets a new
+  worktree (Local checkout is off), branched from the default branch.
 - **Permissions**: Plan (the default for a new bot), Ask, Accept edits or Full access. A bot with a GitHub trigger
   runs only in Plan or Ask (only Plan on a Codex, Cursor or Antigravity account, whose Ask still edits files without
   asking): the editor offers only those, and a run is refused if the bot somehow has another. Full access needs its own confirm on the task, because a
   scheduled run has nobody watching; without it the task can't be saved. A run in Ask mode stops at the first
-  permission question until you answer it in the thread; an **Approval needed** notice says so. While it waits it
-  holds its slot.
+  permission question until you answer it in the thread; an **Approval needed** notice says so, and the bot's card
+  says **Waiting for approval**. While it waits it holds its slot.
 - **Model**: a model id, or empty for the agent's default.
 
 A task is saved under the account its project folder is bound to at that moment. An unbound folder can't get a task.
@@ -55,7 +56,8 @@ A task is saved under the account its project folder is bound to at that moment.
   the bot is paused and gh isn't run.
 - The first poll after a bot is saved or turned back on only records what is already open: nothing that existed before
   fires. After that, each new PR, new issue, or failing head commit of an open PR fires once. Draft PRs fire once
-  they are marked ready. PRs from a branch a bot run made never fire a bot.
+  they are marked ready. PRs from a branch a bot run made never fire a bot; a PR from a fork does, whatever its
+  branch is called.
 - Each hit waits in its bot's queue and starts like a scheduled run: one live run per bot, at most 2 bot runs app-wide.
   Over the bot's hourly cap, or with 5 hits already waiting, a hit is recorded as **rate limited** and dropped. A bot
   rate limited three hours in a row is paused; turned back on, it starts counting again.
@@ -63,11 +65,16 @@ A task is saved under the account its project folder is bound to at that moment.
   the list (because a newer one closed) fires as new.
 - A GitHub-started run gets the bot's prompt plus the item: its link, title, labels and description, inside a fenced
   block under a line saying it is the author's text, to be used as context and never as instructions. `@mentions` and a
-  leading `/command` are broken so they can't act as such. Put `{{item}}` in the prompt to place the block there;
+  leading `/command` (fullwidth `＠` and `／` too) are broken so they can't act as such, and zero-width characters
+  are dropped. Put `{{item}}` in the prompt to place the block there;
   otherwise it goes at the end. Comments are not read.
 - Those runs start without SkyeLab's own tools (starting threads in other projects, the browser, devices), and so does
-  any later turn in those threads. The run's worktree comes from the project's branch, never from the PR's head, so a
-  PR from a fork never runs its own code; the agent can read the diff with `gh pr diff`.
+  any later turn in those threads. The run's worktree comes from the project's default branch (the one `origin/HEAD`
+  names, else `main` or `master`), never from the folder's checkout or the PR's head, so a PR never runs its own code;
+  the agent can read the diff with `gh pr diff`.
+- A Claude run started by GitHub loads none of the account's settings, so its allow rules never let a tool run
+  unasked; the account's `permissions.deny` and `permissions.ask` rules still apply. Its asks offer only **Allow
+  once**: no **Allow for this thread**, command prefix or project rule, and saved project rules don't answer there.
 - Bots only report in their thread. They don't post reviews or comments; you do.
 
 ## Accounts

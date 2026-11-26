@@ -74,7 +74,7 @@ case "$1 $2" in
   if [ -f "$fixture" ]; then
     cat "$fixture"
   elif [ "$1" = pr ]; then
-    echo '[{"number":12,"title":"Add the release workflow","url":"https://github.com/acme/demo/pull/12","author":{"login":"ada"},"isDraft":false,"reviewDecision":"APPROVED","headRefOid":"'"$head_sha"'","statusCheckRollup":[{"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS"}],"updatedAt":"2026-11-23T09:00:00Z"},{"number":15,"title":"Draft: rework the sidebar","url":"https://github.com/acme/demo/pull/15","author":{"login":"bob"},"isDraft":true,"reviewDecision":"","statusCheckRollup":[],"updatedAt":"2026-11-22T09:00:00Z"}]'
+    echo '[{"number":12,"title":"Add the release workflow","url":"https://github.com/acme/demo/pull/12","author":{"login":"ada"},"isDraft":false,"isCrossRepository":false,"reviewDecision":"APPROVED","headRefOid":"'"$head_sha"'","statusCheckRollup":[{"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS"}],"updatedAt":"2026-11-23T09:00:00Z"},{"number":15,"title":"Draft: rework the sidebar","url":"https://github.com/acme/demo/pull/15","author":{"login":"bob"},"isDraft":true,"reviewDecision":"","statusCheckRollup":[],"updatedAt":"2026-11-22T09:00:00Z"}]'
   else
     echo '[{"number":31,"title":"Crash when the folder is renamed","url":"https://github.com/acme/demo/issues/31","author":{"login":"bob"},"labels":[{"name":"bug"}],"assignees":[{"login":"ada"}],"updatedAt":"2026-11-23T08:00:00Z","body":"Steps: rename the folder while a thread runs."}]'
   fi

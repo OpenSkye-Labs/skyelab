@@ -119,8 +119,7 @@ pub struct ThreadView {
     stop_requested: bool,
     /// Bumped by every launch; a pump from an earlier launch never ends a later one.
     pub(super) launches: u64,
-    /// Nothing to send to: the agent never reported a session id to resume, or a reopened
-    /// thread's row is still loading.
+    /// Nothing to send to: no session id to resume was reported, or a reopened thread's row is still loading.
     pub(super) read_only: bool,
     pub(super) wt: super::thread_worktree::WorktreeState,
     /// The header's branch picker, on the folder this view opened on.
@@ -129,8 +128,7 @@ pub struct ThreadView {
     pub(super) scripts: Entity<super::scripts::ScriptMenu>,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
-    /// Its owner window (`window`) shows another machine: actions that open a new local thread (Continue in …) can't
-    /// run there.
+    /// Its window shows another machine: actions opening a new local thread (Continue in …) can't run there.
     pub(in crate::workspace) remote_window: bool,
     /// Records the store refused, held for a retry, and how many there are (shown as a warning).
     unsaved: saves::Unsaved,
@@ -140,10 +138,12 @@ pub struct ThreadView {
     pub(super) parent: Option<(i64, SharedString)>,
     /// A delegated start runs only under the account its delegation was approved for.
     pub(super) required_account: Option<String>,
-    /// The multi-model send this draft is one model of: written on its row when the launch saves it.
+    /// The multi-model send this draft is one model of: saved on its row at launch.
     pub(super) compare_group: Option<i64>,
-    /// The scheduled task (bot) run this new thread is: written on its row (the sidebar's badge).
+    /// The bot run this new thread is: written on its row (the sidebar's badge).
     pub(super) scheduled_task: Option<super::scheduled::RunTag>,
+    /// Fed GitHub text: an ask allows one call, never a rule.
+    pub(super) untrusted: bool,
     pub(super) children: Vec<ChildLink>,
     /// The details card's state for this thread.
     pub(super) details: super::thread_details::Details,
@@ -151,8 +151,7 @@ pub struct ThreadView {
     pub(super) mode: Mode,
     /// Full access was picked and waits for the user to confirm it.
     pub(super) confirm_bypass: bool,
-    /// Mode writes (store row, running agent) run one at a time, each writing the newest pick, so two quick picks
-    /// can't land in the wrong order.
+    /// Mode writes (row, agent) run one at a time, each writing the newest pick, so quick picks can't reorder.
     mode_writes: Arc<Mutex<()>>,
     mode_now: Arc<std::sync::atomic::AtomicUsize>,
     /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
@@ -372,6 +371,7 @@ impl ThreadView {
             required_account: None,
             compare_group: None,
             scheduled_task: None,
+            untrusted: false,
             children: Vec::new(),
             details: Default::default(),
             mode: Mode::Default,
