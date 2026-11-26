@@ -8,7 +8,6 @@ fn pr(number: u64) -> Item {
         author: "ada".into(),
         head_branch: Some(format!("feature-{number}")),
         head_sha: Some(format!("sha{number}")),
-        same_repo: true,
         ..Default::default()
     }
 }
@@ -131,36 +130,4 @@ fn three_limited_hours_in_a_row_pause() {
     let limited = [now - 5, now - HOUR_MS - 5, now - 2 * HOUR_MS - 5];
     assert!(limited_hours_in_a_row(&limited, now));
     assert!(!limited_hours_in_a_row(&limited[..2], now));
-}
-
-#[test]
-fn a_fork_pr_on_a_bot_branch_name_still_fires() {
-    let mut fork = pr(4);
-    fork.same_repo = false;
-    let items = [fork, pr(5)];
-    let own = set(&["feature-4", "feature-5"]);
-    let hit = hits(Trigger::PrOpened, &items, &HashSet::new(), &own);
-    assert_eq!(hit.iter().map(|i| i.number).collect::<Vec<_>>(), vec![4]);
-}
-
-#[test]
-fn defang_catches_fullwidth_and_zero_width_tricks() {
-    let d = defang("hi ＠alice and @\u{200B}bob\n\u{FEFF}／approve\n\u{200D}/merge\n  ／x");
-    assert!(
-        !d.contains('\u{200B}') && !d.contains('\u{FEFF}') && !d.contains('\u{200D}'),
-        "{d:?}"
-    );
-    assert!(
-        d.contains("＠\u{2060}alice") && d.contains("@\u{2060}bob"),
-        "{d:?}"
-    );
-    assert!(
-        d.contains("\n／\u{2060}approve\n/\u{2060}merge\n  ／\u{2060}x"),
-        "{d:?}"
-    );
-    assert_eq!(
-        defang("a\u{2060}@b"),
-        "a@\u{2060}b",
-        "a joiner the author put in is dropped too"
-    );
 }

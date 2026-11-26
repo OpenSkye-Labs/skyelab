@@ -68,7 +68,6 @@ fn unbound_folder_errors() {
         effort: None,
         attachments: &[],
         mode: Default::default(),
-        untrusted: false,
     };
     let err = start_with_bin(&fake_bin(), &AccountsConfig::default(), &launch)
         .err()

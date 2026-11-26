@@ -51,7 +51,6 @@ fn env_check_in_child() {
         effort: None,
         attachments: &[],
         mode: Default::default(),
-        untrusted: false,
     };
     let session = start_with_bin(&bin, &config, &launch).expect("start");
     let env = loop {

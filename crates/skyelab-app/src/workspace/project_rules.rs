@@ -15,10 +15,9 @@ use skyelab_agent::Mode;
 use skyelab_core::project_rules::{self as rules, Kind, Rule};
 
 impl ThreadView {
-    /// Whether this thread may save or use project rules: a local thread's own agent, not a side chat, never one fed
-    /// GitHub text (a rule saved there would answer an injected ask).
+    /// Whether this thread may save or use project rules: a local thread's own agent, not a side chat.
     pub(in crate::workspace) fn takes_project_rules(&self) -> bool {
-        self.thread.is_some() && !self.is_side_chat() && !self.untrusted
+        self.thread.is_some() && !self.is_side_chat()
     }
 
     /// An ask just arrived: when one of the project's rules for this account covers it, allow it once by that rule.

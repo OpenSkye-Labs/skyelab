@@ -109,8 +109,6 @@ pub struct Item {
     pub head_branch: Option<String>,
     pub head_sha: Option<String>,
     pub failing: bool,
-    /// PRs: gh said the head is in this repo (`isCrossRepository: false`), not a fork.
-    pub same_repo: bool,
 }
 
 /// The `bot_seen` key an item fires under for `trigger`: a PR or issue once, a failing PR once per head commit.
@@ -129,8 +127,7 @@ pub fn key(trigger: Trigger, item: &Item) -> String {
 }
 
 /// The items `trigger` fires for: unseen, for a new PR not a draft (it fires once it's ready), failing for checks, and not
-/// on a branch a bot run made (a bot never triggers itself). Only a same-repo PR counts as a bot's branch: a fork can
-/// name its branch anything.
+/// on a branch a bot run made (a bot never triggers itself).
 pub fn hits<'a>(
     trigger: Trigger,
     items: &'a [Item],
@@ -145,34 +142,27 @@ pub fn hits<'a>(
             Trigger::ChecksFailed => i.failing && i.head_sha.is_some(),
         })
         .filter(|i| {
-            !(i.same_repo
-                && i.head_branch
-                    .as_ref()
-                    .is_some_and(|b| bot_branches.contains(b)))
+            i.head_branch
+                .as_ref()
+                .is_none_or(|b| !bot_branches.contains(b))
         })
         .filter(|i| !seen.contains(&key(trigger, i)))
         .collect()
 }
 
-/// GitHub text made inert for a prompt: zero-width characters are dropped, then `@mention`s (and fullwidth `＠`) and a
-/// leading `/command` (or `／`) are broken with a word joiner, so an agent never reads them as a mention or a slash
-/// command (T3's webhook template does the same).
+/// GitHub text made inert for a prompt: `@mention`s and a leading `/command` are broken with a word joiner, so an
+/// agent never reads them as a mention or a slash command (T3's webhook template does the same).
 pub fn defang(text: &str) -> String {
     const JOIN: char = '\u{2060}';
-    let text: String = text
-        .chars()
-        .filter(|c| !matches!(c, '\u{200B}'..='\u{200D}' | '\u{2060}' | '\u{FEFF}'))
-        .collect();
     let lines: Vec<String> = text
         .lines()
         .map(|l| {
-            let l = l.replace('@', "@\u{2060}").replace('＠', "＠\u{2060}");
+            let l = l.replace('@', "@\u{2060}");
             let indent = l.len() - l.trim_start().len();
-            match l[indent..].chars().next() {
-                Some(c @ ('/' | '／')) => {
-                    format!("{}{c}{JOIN}{}", &l[..indent], &l[indent + c.len_utf8()..])
-                }
-                _ => l,
+            if l[indent..].starts_with('/') {
+                format!("{}/{JOIN}{}", &l[..indent], &l[indent + 1..])
+            } else {
+                l
             }
         })
         .collect();

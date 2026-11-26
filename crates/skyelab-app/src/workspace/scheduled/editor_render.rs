@@ -36,8 +36,7 @@ impl ScheduledPage {
                 .child(control)
         };
         let page = cx.entity().downgrade();
-        let gh = !d.triggers.is_empty();
-        let menu = move |id: &'static str, label: String, items: Vec<(String, bool, Pick)>| {
+        let menu = |id: &'static str, label: String, items: Vec<(String, bool, Pick)>| {
             let page = page.clone();
             Button::new(id)
                 .outline()
@@ -47,15 +46,11 @@ impl ScheduledPage {
                 .dropdown_menu(move |mut menu, _, _| {
                     for (label, on, pick) in items.clone() {
                         let page = page.clone();
-                        let off = gh && matches!(pick, Pick::Worktree(false));
-                        menu = menu.item(
-                            PopupMenuItem::new(label)
-                                .checked(on)
-                                .disabled(off)
-                                .on_click(move |_, window, cx| {
-                                    let _ = page.update(cx, |this, cx| this.pick(pick, window, cx));
-                                }),
-                        );
+                        menu = menu.item(PopupMenuItem::new(label).checked(on).on_click(
+                            move |_, window, cx| {
+                                let _ = page.update(cx, |this, cx| this.pick(pick, window, cx));
+                            },
+                        ));
                     }
                     menu
                 })
@@ -73,6 +68,7 @@ impl ScheduledPage {
             .iter()
             .map(|&k| (k.label().to_owned(), d.kind == k, Pick::Kind(k)))
             .collect();
+        let gh = !d.triggers.is_empty();
         let modes = Mode::ALL
             .iter()
             .filter(|&&m| !gh || matches!(m, Mode::Plan | Mode::Default))
@@ -84,17 +80,11 @@ impl ScheduledPage {
                 )
             })
             .collect();
-        let local = if gh {
-            "Local checkout (not for GitHub runs)"
-        } else {
-            "Local checkout"
-        };
-        let worktree = d.worktree || gh;
-        let places = [(false, local), (true, "New worktree")]
+        let places = [(false, "Local checkout"), (true, "New worktree")]
             .iter()
-            .map(|&(w, l)| (l.to_owned(), worktree == w, Pick::Worktree(w)))
+            .map(|&(w, l)| (l.to_owned(), d.worktree == w, Pick::Worktree(w)))
             .collect();
-        let where_label = if worktree {
+        let where_label = if d.worktree {
             "New worktree"
         } else {
             "Local checkout"

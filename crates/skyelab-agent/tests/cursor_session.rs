@@ -66,7 +66,6 @@ fn start_with(
         effort: None,
         attachments,
         mode,
-        untrusted: false,
     };
     start_with_bin(&fake(), &f.config, &launch)
 }

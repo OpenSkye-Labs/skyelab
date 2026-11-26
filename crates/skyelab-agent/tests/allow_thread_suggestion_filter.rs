@@ -40,7 +40,6 @@ fn rules_sent(request: &str) -> Vec<Value> {
         effort: None,
         attachments: &[],
         mode: Mode::Default,
-        untrusted: false,
     };
     let mut s = start_with_bin(&bin, &cfg, &launch).expect("start");
     let id = loop {

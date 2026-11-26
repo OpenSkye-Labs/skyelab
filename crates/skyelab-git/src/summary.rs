@@ -206,29 +206,6 @@ pub fn pr_context(dir: &Path) -> Result<PrContext> {
     })
 }
 
-/// The repo's default branch as a local branch: the one `origin/HEAD` names, else `main`, else `master`. A run that
-/// must not start from whatever is checked out (a bot fed GitHub text) branches from it.
-pub fn default_branch(root: &Path) -> Result<String> {
-    let local = crate::branches(root)?.local;
-    let head = git(
-        root,
-        &["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
-    )
-    .ok()
-    .map(|h| {
-        lossy(&h)
-            .trim()
-            .trim_start_matches("refs/remotes/origin/")
-            .to_owned()
-    });
-    head.into_iter()
-        .chain(["main", "master"].map(String::from))
-        .find(|b| local.contains(b))
-        .ok_or_else(|| {
-            Error::Invalid("no default branch (origin/HEAD, main or master) here".into())
-        })
-}
-
 fn base_branch(root: &Path) -> Result<String> {
     let head = git(
         root,

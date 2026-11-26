@@ -9,9 +9,6 @@ use gpui::{App, AppContext as _, Context, Entity, Window};
 use gpui_component::input::InputState;
 use skyelab_agent::{Decision, Mode};
 
-/// Why a thread fed GitHub text takes no allow beyond one call: a rule could answer an injected ask.
-const UNTRUSTED_ONCE: &str = "A thread GitHub started allows one call at a time.";
-
 impl ThreadView {
     /// Answers the agent's permission request `id` (a click on its row).
     pub fn answer(&mut self, id: &str, decision: Decision, cx: &mut Context<Self>) {
@@ -32,9 +29,6 @@ impl ThreadView {
         // A side chat's agent may only be told no (Codex's Plan sandbox lets it ask to run outside).
         if self.is_side_chat() && !matches!(decision, Decision::Deny | Decision::Withdrawn) {
             return Err(crate::workspace::side_chat::PLAN_ONLY.into());
-        }
-        if self.untrusted && decision == Decision::AllowThread {
-            return Err(UNTRUSTED_ONCE.into());
         }
         // A no can't set the agent working, so only an allow re-checks the folder's binding.
         let session = if matches!(decision, Decision::Deny | Decision::Withdrawn) {
@@ -267,9 +261,6 @@ impl ItemsView for ThreadView {
     fn answer(&mut self, id: &str, decision: Decision, _: &mut Window, cx: &mut Context<Self>) {
         ThreadView::answer(self, id, decision, cx)
     }
-    fn offers_thread_allow(&self) -> bool {
-        !self.untrusted
-    }
     fn offers_project_rule(&self, tool: &str) -> bool {
         self.takes_project_rules() && skyelab_core::project_rules::offers(tool)
     }
@@ -279,10 +270,7 @@ impl ItemsView for ThreadView {
     fn thread_prefix(&self, a: &crate::workspace::thread_model::ApprovalItem) -> Option<String> {
         use skyelab_core::project_rules as rules;
         // Codex's shell only: Claude's own thread allow already takes its suggested rule.
-        let local = self.session.is_some()
-            && !self.is_side_chat()
-            && !self.untrusted
-            && self.mode != Mode::Plan;
+        let local = self.session.is_some() && !self.is_side_chat() && self.mode != Mode::Plan;
         (local && a.tool == "shell" && rules::propose(&a.tool, &a.raw, &self.cwd).is_some())
             .then(|| a.raw["command"].as_str().and_then(rules::suggested_prefix))
             .flatten()
@@ -296,9 +284,6 @@ impl ItemsView for ThreadView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.untrusted {
-            return self.show_error(anyhow::anyhow!(UNTRUSTED_ONCE), cx);
-        }
         let session = match self.answer_session(cx) {
             Ok(s) => s,
             Err(why) => return self.show_error(anyhow::anyhow!(why), cx),

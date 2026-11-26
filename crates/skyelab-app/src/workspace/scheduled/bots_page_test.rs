@@ -55,7 +55,6 @@ fn a_github_trigger_caps_the_editor_at_plan_or_ask(cx: &mut TestAppContext) {
         .scheduled_tasks()
         .expect("tasks");
     assert_eq!(saved.len(), 1);
-    assert!(saved[0].worktree, "a GitHub bot runs in a new worktree");
     assert_eq!(
         (saved[0].schedule.as_str(), saved[0].triggers.as_str()),
         ("", "pr_opened")

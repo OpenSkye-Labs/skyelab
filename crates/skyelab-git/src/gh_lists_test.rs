@@ -13,7 +13,6 @@ fn pr(n: u64, title: &str) -> serde_json::Value {
         "statusCheckRollup": [{"__typename": "CheckRun", "name": "ci", "status": "IN_PROGRESS", "conclusion": ""}],
         "updatedAt": "2026-11-20T10:00:00Z",
         "headRefName": format!("feature-{n}"),
-        "isCrossRepository": n == 8,
         "body": "Fixes \u{202E}it\nfor real"
     })
 }
@@ -34,10 +33,6 @@ fn parses_a_pr_list_with_every_column() {
     assert_eq!(r.review, Review::ChangesRequested);
     assert_eq!(r.updated_at, "2026-11-20T10:00:00Z");
     assert_eq!(r.head_branch.as_deref(), Some("feature-7"));
-    assert!(
-        r.same_repo && !rows[1].same_repo,
-        "a fork's head is not this repo's"
-    );
     assert_eq!(
         r.body, "Fixes it\nfor real",
         "bidi controls dropped, newlines kept"
@@ -148,9 +143,8 @@ fn list_args_name_the_repo_and_filter() {
     assert!(a.windows(2).any(|w| w == ["--author", "@me"]), "{a:?}");
     let a = pr_list_args("acme/demo", PrFilter::All);
     assert!(
-        a.iter().any(|x| x.contains("headRefName")
-            && x.contains("isCrossRepository")
-            && x.contains("body")),
+        a.iter()
+            .any(|x| x.contains("headRefName") && x.contains("body")),
         "{a:?}"
     );
     let a = issue_list_args("acme/demo", IssueFilter::Assigned);

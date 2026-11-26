@@ -34,7 +34,6 @@ fn killed_agent_withdraws_its_open_ask() {
         effort: None,
         attachments: &[],
         mode: Mode::Default,
-        untrusted: false,
     };
     let mut s = start_with_bin(&bin, &cfg, &launch).expect("start fake");
     let asked = loop {

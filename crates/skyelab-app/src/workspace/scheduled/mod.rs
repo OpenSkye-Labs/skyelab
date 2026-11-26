@@ -41,8 +41,6 @@ mod review_test;
 #[cfg(test)]
 mod test_util;
 #[cfg(test)]
-mod untrusted_run_test;
-#[cfg(test)]
 mod windows_test;
 
 use super::thread::ThreadView;

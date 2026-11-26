@@ -66,26 +66,18 @@ impl ScheduledPage {
             .filter(|_| !triggers.is_empty() && t.enabled)
             .map(|e| format!("GitHub: {e}"));
         let open = row.runs.is_some();
-        let waiting = self
-            .waiting
-            .contains(&id)
-            .then(|| ui::Pill::new("Waiting for approval").color(theme.warning));
-        let status = t
-            .last_status
-            .as_deref()
-            .filter(|_| waiting.is_none())
-            .map(|s| {
-                let color = match s {
-                    "started" => theme.success,
-                    "paused" | "failed" => theme.danger,
-                    _ => theme.warning,
-                };
-                let at = t
-                    .last_run_at
-                    .map(|at| format!(" {}", ui::ago(now, at)))
-                    .unwrap_or_default();
-                ui::Pill::new(format!("{}{at}", capitalize(s))).color(color)
-            });
+        let status = t.last_status.as_deref().map(|s| {
+            let color = match s {
+                "started" => theme.success,
+                "paused" | "failed" => theme.danger,
+                _ => theme.warning,
+            };
+            let at = t
+                .last_run_at
+                .map(|at| format!(" {}", ui::ago(now, at)))
+                .unwrap_or_default();
+            ui::Pill::new(format!("{}{at}", capitalize(s))).color(color)
+        });
         let link = row.thread.clone().map(|(thread, title)| {
             div()
                 .id(SharedString::from(format!("sched-thread-{id}")))
@@ -188,7 +180,7 @@ impl ScheduledPage {
                             ))
                             .child(when)
                             .children(chips)
-                            .children(waiting.or(status))
+                            .children(status)
                             .children(link),
                     )
                     .children(

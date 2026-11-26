@@ -36,7 +36,6 @@ fn run_prompt(prompt: &str) -> Vec<Event> {
         effort: None,
         attachments: &[],
         mode: Mode::Default,
-        untrusted: false,
     };
     let session = start_with_bin(&fake(), &config, &launch).expect("start");
     let mut events = Vec::new();

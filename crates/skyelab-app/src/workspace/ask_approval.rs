@@ -110,16 +110,14 @@ pub(super) fn render_approval<V: ItemsView>(
             .flex_wrap()
             .gap_2()
             .child(button("Allow once", "allow-once", Decision::AllowOnce).primary())
-            .when(this.offers_thread_allow(), |d| {
-                d.child(
-                    button(
-                        "Allow for this thread",
-                        "allow-thread",
-                        Decision::AllowThread,
-                    )
-                    .outline(),
+            .child(
+                button(
+                    "Allow for this thread",
+                    "allow-thread",
+                    Decision::AllowThread,
                 )
-            })
+                .outline(),
+            )
             .when_some(prefix, |d, prefix| {
                 let id = a.id.clone();
                 d.child(

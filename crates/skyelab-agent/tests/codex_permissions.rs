@@ -34,7 +34,6 @@ fn start(prompt: &str, mode: Mode) -> (Session, tempfile::TempDir) {
         effort: None,
         attachments: &[],
         mode,
-        untrusted: false,
     };
     (start_with_bin(&bin, &config, &launch).expect("start"), tmp)
 }

@@ -65,7 +65,6 @@ fn start(
         effort: None,
         attachments: &[],
         mode: Default::default(),
-        untrusted: false,
     };
     start_with_bin(&fake(), &f.config, &launch)
 }
@@ -216,7 +215,6 @@ fn unbound_or_rebound_folder_starts_nothing() {
         effort: None,
         attachments: &[],
         mode: Default::default(),
-        untrusted: false,
     };
     let err = start_with_bin(&fake(), &AccountsConfig::default(), &launch)
         .err()

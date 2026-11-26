@@ -84,7 +84,6 @@ pub fn launch<'a>(
         effort,
         attachments,
         mode: Default::default(),
-        untrusted: false,
     }
 }
 

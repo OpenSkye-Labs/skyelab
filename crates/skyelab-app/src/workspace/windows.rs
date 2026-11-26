@@ -110,7 +110,7 @@ pub(super) fn quitting(cx: &mut App) {
     cx.default_global::<Windows>().quitting = true;
 }
 
-/// Every open window's workspace, in the order the windows opened.
+#[cfg(test)]
 pub(super) fn workspaces(cx: &App) -> Vec<Entity<Workspace>> {
     let Some(reg) = cx.try_global::<Windows>() else {
         return Vec::new();

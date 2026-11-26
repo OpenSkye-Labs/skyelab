@@ -17,16 +17,6 @@ All notable changes to SkyeLab are listed here. The format follows
 
 - Settings → Scheduled tasks now links to the Bots page, and the rail's separate Scheduled tasks item is gone. Threads
   a bot started carry a **Bot** badge (was **Scheduled**). New tasks default to Plan.
-- A bot card says **Waiting for approval** while one of its runs waits on you.
-
-### Security
-
-- GitHub-started Claude runs load none of the account's allow rules (its deny and ask rules still apply), and offer
-  only **Allow once**: no thread allow, project rule or command prefix answers for you there.
-- GitHub-started runs always use a new worktree from the default branch, never the folder's current checkout; the
-  editor turns off **Local checkout** for a bot with a GitHub trigger.
-- A pull request from a fork fires a bot even when its branch is named like a bot run's branch.
-- Fullwidth `＠` and `／` are broken like `@` and `/`, and zero-width characters are dropped, in GitHub text.
 
 ## [0.1.6]
 
