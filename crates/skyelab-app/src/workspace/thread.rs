@@ -415,6 +415,7 @@ impl ThreadView {
             cx.emit(ThreadViewEvent::UsageReported);
         }
         self.note_model(record, true);
+        self.remember_default_model(record, cx);
         if matches!(record, Record::Agent(skyelab_agent::Event::Context { .. })) {
             self.note_context(record);
             cx.notify();

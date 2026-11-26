@@ -25,6 +25,14 @@ pub(super) fn section_button(s: &SidebarSection) -> Option<Button> {
     })
 }
 
+/// How the list draws its rows now: whether rows show their hover card, and whether a search is on (rows then show
+/// their matched line).
+#[derive(Clone, Copy)]
+pub(super) struct RowLook {
+    pub cards: bool,
+    pub searching: bool,
+}
+
 /// Where a thread's title starts, so it lines up under its project's name (T3's `ps-9`): row padding + monogram + gap.
 pub(super) const THREAD_INDENT: f32 = 36.;
 
@@ -32,13 +40,14 @@ pub(super) fn sidebar_row(
     item: &SidebarItem,
     marks: Option<&RowMarks>,
     indent: bool,
-    cards: bool,
+    look: RowLook,
     snooze: &SnoozeMenu,
     now: i64,
     theme: &gpui_component::Theme,
 ) -> AnyElement {
+    let RowLook { cards, searching } = look;
     let row = if item.project.is_some() {
-        thread_row(item, marks, snooze, now, theme)
+        thread_row(item, marks, searching, snooze, now, theme)
     } else {
         plain_row(item, marks, indent, now, theme)
     };
@@ -65,12 +74,14 @@ pub(super) fn sidebar_row(
     super::sidebar_card::with_card(&item.id, row, card)
 }
 
-/// A flat list's thread row, after T3's and Synara's: the title with its status or time, the agent's last reply in two
-/// muted lines, then a meta line with the project, the account its folder is bound to (SkyeLab's point), the pull
-/// request and the branch.
+/// A flat list's thread row, after T3's: the title with its status or time, then a meta line with the project, the
+/// account its folder is bound to (SkyeLab's point), the pull request and the branch. While searching, the matched
+/// line (or the last reply) sits between them in two muted lines, saying why the row matched; otherwise rows stay two
+/// lines tall, as T3's have no reply preview.
 fn thread_row(
     item: &SidebarItem,
     marks: Option<&RowMarks>,
+    searching: bool,
     snooze: &SnoozeMenu,
     now: i64,
     theme: &gpui_component::Theme,
@@ -227,7 +238,7 @@ fn thread_row(
                 .when(marks.scheduled, |this| this.child(scheduled_badge()))
                 .child(right),
         )
-        .children(marks.preview.clone().map(|p| {
+        .children(marks.preview.clone().filter(|_| searching).map(|p| {
             div()
                 .id("preview")
                 .text_size(ui::META)
@@ -244,9 +255,12 @@ fn thread_row(
                 .gap_1p5()
                 .text_size(ui::META)
                 .text_color(muted)
-                .child(ui::Monogram::new(&project))
-                // The account keeps its room (it is what SkyeLab is for); the project name gives way first.
-                .child(div().min_w(gpui::px(24.)).truncate().child(project))
+                // Empty under a one-project filter: every row would repeat it.
+                .when(!project.is_empty(), |el| {
+                    el.child(ui::Monogram::new(&project))
+                        // The account keeps its room (it is what SkyeLab is for); the project name gives way first.
+                        .child(div().min_w(gpui::px(24.)).truncate().child(project))
+                })
                 .children(marks.machine.clone().map(|m| {
                     h_flex()
                         .flex_shrink_0()
@@ -458,10 +472,8 @@ pub(super) fn scope_button(scope: ScopeMenu, focus: &FocusHandle) -> impl IntoEl
                     },
                 );
             }
-            menu.separator().menu_with_icon(
-                "Add project",
-                SkyeIcon::FolderPlus,
-                Box::new(super::super::AddProject),
-            )
+            // No icon: the check rows above have none, so one would push this label out of line.
+            menu.separator()
+                .menu("Add project", Box::new(super::super::AddProject))
         })
 }

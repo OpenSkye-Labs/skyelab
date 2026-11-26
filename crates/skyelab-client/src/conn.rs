@@ -1,14 +1,12 @@
 //! The tokio side: one task owns the connection, the request table and every watched thread's seq.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
 use rustls::ClientConfig;
-use skyelab_protocol::{
-    Call, Hello, Reply, Request, RequestId, SHELL_SINCE_MINOR, ServerMessage, Version,
-};
+use skyelab_protocol::{Call, Hello, Reply, Request, RequestId, SHELL_SINCE_MINOR, ServerMessage};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{Instant, sleep_until, timeout};
 use tokio_tungstenite::WebSocketStream;
@@ -17,6 +15,7 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::{Disconnect, DisconnectKind, Error, Options, Update, WatchId};
 
 mod connect;
+mod ctx;
 mod expire;
 mod fill;
 mod shell;
@@ -24,7 +23,7 @@ use shell::ShellStream;
 pub(crate) mod forward;
 mod forward_calls;
 mod watched;
-use connect::{Target, connect};
+use connect::connect;
 use forward::{Forward, Forwarding};
 use watched::Watched;
 
@@ -92,97 +91,6 @@ struct Ctx {
     forwarding: Forwarding,
     /// Tunnels being dialled, across every forward (the daemon's gate drops a 5th pending one per address).
     dials: Arc<tokio::sync::Semaphore>,
-}
-
-impl Ctx {
-    /// Whether the live connection's environment speaks an older minor than `minor`.
-    fn speaks_below(&self, minor: u32) -> bool {
-        let hello = self.hello.lock().unwrap_or_else(PoisonError::into_inner);
-        hello.as_ref().is_some_and(|h| h.protocol.minor < minor)
-    }
-
-    fn set_hello(&self, hello: Option<Hello>) {
-        *self.hello.lock().unwrap_or_else(PoisonError::into_inner) = hello;
-    }
-
-    /// A command while there is no connection. Returns false once the client is gone.
-    fn offline(&mut self, command: Result<Command, flume::RecvError>) -> bool {
-        match command {
-            Err(_) => return false,
-            Ok(Command::Call { reply, .. }) => reply(Err(Error::NotConnected)),
-            Ok(Command::Watch { id, after_seq }) => self.watch(id, after_seq),
-            Ok(Command::Unwatch(id)) => self.unwatch(id),
-            Ok(Command::Approve(_)) => {} // for a connection that has gone
-            Ok(Command::Forward { reply, .. }) => {
-                let _ = reply.send(Err(Error::NotConnected));
-            }
-            Ok(Command::SubscribeShell { reply }) => {
-                let _ = reply.send(Err(Error::NotConnected));
-            }
-        }
-        true
-    }
-
-    /// Starts the thread over from `after_seq`, keeping its other watches.
-    fn watch(&mut self, id: WatchId, after_seq: i64) {
-        let mut w = Watched::new(after_seq);
-        if let Some(old) = self.watched.remove(&id.thread_id) {
-            w.holders = old.holders;
-        }
-        w.holders.insert(id.n);
-        self.watched.insert(id.thread_id, w);
-    }
-
-    fn unwatch(&mut self, id: WatchId) {
-        if let Some(w) = self.watched.get_mut(&id.thread_id) {
-            w.holders.remove(&id.n);
-            if w.holders.is_empty() {
-                self.watched.remove(&id.thread_id);
-            }
-        }
-    }
-
-    fn allow_loopback(&self) -> bool {
-        #[cfg(any(test, feature = "test-support"))]
-        return self.options.allow_loopback;
-        #[cfg(not(any(test, feature = "test-support")))]
-        false
-    }
-
-    fn plaintext(&self) -> bool {
-        #[cfg(any(test, feature = "test-support"))]
-        return self.options.plaintext;
-        #[cfg(not(any(test, feature = "test-support")))]
-        false
-    }
-
-    fn resolve_to(&self) -> Option<std::net::IpAddr> {
-        #[cfg(any(test, feature = "test-support"))]
-        return self.options.resolve_to;
-        #[cfg(not(any(test, feature = "test-support")))]
-        None
-    }
-
-    fn target(&self) -> Target {
-        Target {
-            host: self.host.clone(),
-            options: self.options.clone(),
-            device_key: self.device_key.clone(),
-            tls: self.tls.clone(),
-            allow_loopback: self.allow_loopback(),
-            plaintext: self.plaintext(),
-            resolve_to: self.resolve_to(),
-            protocol: self.protocol(),
-            tunnel: false,
-        }
-    }
-
-    fn protocol(&self) -> Version {
-        #[cfg(any(test, feature = "test-support"))]
-        return self.options.protocol;
-        #[cfg(not(any(test, feature = "test-support")))]
-        skyelab_protocol::VERSION
-    }
 }
 
 pub(crate) async fn run(
@@ -353,6 +261,9 @@ impl Live {
         let mut heard_at = Instant::now();
         loop {
             let step = tokio::select! {
+                // The ping check goes last: after this thread stalls, a frame that arrived meanwhile must update
+                // heard_at before the overdue tick judges the server silent.
+                biased;
                 command = cx.commands.recv_async() => match command {
                     Err(_) => return End::Stopped,
                     Ok(command) => self.command(cx, command).await,

@@ -70,6 +70,7 @@ fn open_usage_compares_every_account(cx: &mut gpui::TestAppContext) {
             Some(7.5),
             "today's bar"
         );
+        assert_eq!(v.days.len(), 7, "the default range (7 days) charts 7 days");
         assert_eq!(v.projects.len(), 2, "one line per project and account");
         assert_eq!(v.projects[0].account_id, "other", "most first");
     });
@@ -84,6 +85,9 @@ fn open_usage_compares_every_account(cx: &mut gpui::TestAppContext) {
     // Derive is the same function render reads.
     let data = page.read_with(cx, |p, _| p.data.clone()).expect("data");
     assert_eq!(derive(&data, Range::Today, Metric::Cost).total.turns, 3);
+    // The chart follows the range: a month charts 30 days, Today a week.
+    assert_eq!(derive(&data, Range::Month, Metric::Cost).days.len(), 30);
+    assert_eq!(derive(&data, Range::Today, Metric::Cost).days.len(), 7);
 }
 
 /// Acceptance: while Usage is shown, each account's own CLI is asked for its limits (the fake answers from its account

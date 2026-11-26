@@ -43,7 +43,24 @@ impl SnoozeMenu {
     }
 }
 
+/// How long after a row's shelf button acted the next press is ignored: the rows below slid up, so a second click
+/// already on its way would land on another row's button (T3's `MOVED_ROW_PRESS_DELAY_MS`).
+const SHELF_PRESS_GUARD: std::time::Duration = std::time::Duration::from_millis(500);
+
 impl Sidebar {
+    /// Whether a shelf button press may act now; records it when it may.
+    pub(in crate::workspace) fn take_shelf_press(&mut self) -> bool {
+        let now = std::time::Instant::now();
+        if self
+            .shelf_pressed
+            .is_some_and(|at| now.duration_since(at) < SHELF_PRESS_GUARD)
+        {
+            return false;
+        }
+        self.shelf_pressed = Some(now);
+        true
+    }
+
     /// Opens thread `id`'s snooze menu at `at` (window coordinates), in the sidebar's action context so a pick
     /// reaches the workspace whatever held the focus.
     pub(in crate::workspace) fn open_snooze(
@@ -90,9 +107,16 @@ pub(super) fn hover_actions(
             .icon(Icon::new(icon).size_3())
             .tooltip(tip)
     };
+    let guard = snooze.sidebar.clone();
     let act = |to: Shelf| {
-        let host = host.clone();
+        let (host, guard) = (host.clone(), guard.clone());
         move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut App| {
+            if !guard
+                .update(cx, |s, _| s.take_shelf_press())
+                .unwrap_or(true)
+            {
+                return;
+            }
             let host = host.clone();
             crate::workspace::dispatch(Box::new(ShelveThread { id, to, host }), window, cx)
         }

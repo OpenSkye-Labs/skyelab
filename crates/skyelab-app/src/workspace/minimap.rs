@@ -42,6 +42,16 @@ pub(super) fn prompt_rows(items: &[Item]) -> Vec<usize> {
         .collect()
 }
 
+/// Whether a timeline `width` wide leaves the rail its own gutter left of the chat column (centered, at most
+/// `CHAT_MAX_W`, inside 24 px padding). 0 (not laid out yet) has none.
+pub(super) fn has_gutter(width: gpui::Pixels) -> bool {
+    let pad = px(24.);
+    let column = (width - pad * 2.).min(ui::CHAT_MAX_W);
+    let left = (width - column) / 2.;
+    // The rail's ticks reach 12 + TICK_W px from the edge; keep 4 px clear of the text.
+    left >= px(12. + TICK_W + 4.)
+}
+
 /// Tick `i` of `n`'s place down the rail, 0.0 (top) to 1.0 (bottom).
 pub(super) fn tick_at(i: usize, n: usize) -> f32 {
     if n <= 1 {
@@ -213,10 +223,19 @@ impl ThreadView {
             .item_ix;
         let now = current(&rows, top);
         let hovered = self.timeline.minimap_hover.filter(|&h| h < n);
+        // T3 draws the rail only where the chat column leaves a gutter for it; a narrower timeline keeps it hidden
+        // until the pointer finds it, so ticks never sit over the text.
+        let timeline_w = self
+            .list_in(window.window_handle())
+            .viewport_bounds()
+            .size
+            .width;
+        let hidden = hovered.is_none() && !has_gutter(timeline_w);
         let theme = cx.theme();
+        let fade = if hidden { 0. } else { 1. };
         let (dim, lit, card_bg, border, muted) = (
-            theme.muted_foreground.opacity(0.3),
-            theme.foreground.opacity(0.6),
+            theme.muted_foreground.opacity(0.3 * fade),
+            theme.foreground.opacity(0.6 * fade),
             theme.popover,
             theme.border,
             theme.muted_foreground,

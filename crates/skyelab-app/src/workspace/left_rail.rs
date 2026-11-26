@@ -6,7 +6,7 @@ use super::gh_pages::{Kind as GhKind, OpenIssues, OpenPullRequests};
 use super::{CONTEXT, OpenBots, OpenHome, OpenSettings, OpenSettingsSection, OpenUsage, Workspace};
 use crate::settings::Section;
 use crate::ui::{self, Button, SkyeIcon};
-use gpui::{Action, App, Context, IntoElement, div, prelude::*, px};
+use gpui::{Action, App, Context, IntoElement, SharedString, WeakEntity, div, prelude::*, px};
 use gpui_component::{ActiveTheme as _, Theme, dock::DockPlacement, v_flex};
 
 /// Which primary destination in the left rail is currently active.
@@ -53,12 +53,15 @@ pub(super) fn usage_alert(usage: &[AccountUsage], now_ms: i64) -> Option<UsageAl
     alert
 }
 
+/// A rail item. `close` (the item of the Settings section shown now): a second click closes Settings, as a page
+/// toggle would, instead of opening it again.
 fn rail_button(
     id: &'static str,
     icon: SkyeIcon,
-    tip: &'static str,
+    tip: SharedString,
     action: Box<dyn Action>,
     selected: bool,
+    close: Option<WeakEntity<Workspace>>,
     theme: &Theme,
 ) -> Button {
     Button::new(id)
@@ -74,7 +77,12 @@ fn rail_button(
             b.bg(theme.sidebar_accent)
                 .border_color(theme.sidebar_border.opacity(0.7))
         })
-        .on_click(move |_, window, cx| crate::workspace::dispatch(action.boxed_clone(), window, cx))
+        .on_click(move |_, window, cx| match &close {
+            Some(ws) => {
+                let _ = ws.update(cx, |ws, cx| ws.close_settings(window, cx));
+            }
+            None => crate::workspace::dispatch(action.boxed_clone(), window, cx),
+        })
 }
 
 impl Workspace {
@@ -106,15 +114,24 @@ impl Workspace {
             UsageAlert::Low => theme.warning,
             UsageAlert::Critical => theme.danger,
         });
+        // The dot says why in the tooltip.
+        let usage_tip: SharedString = match alert {
+            Some(UsageAlert::Critical) => "Usage · an account is at or near its limit".into(),
+            Some(UsageAlert::Low) => "Usage · an account is past 75% of a limit".into(),
+            None => "Usage".into(),
+        };
+        let ws = cx.entity().downgrade();
+        let close = |item: RailItem| (active == item && self.settings_open).then(|| ws.clone());
 
         let usage_btn = div()
             .relative()
             .child(rail_button(
                 "rail-usage",
                 SkyeIcon::ChartNoAxesColumn,
-                "Usage",
+                usage_tip,
                 Box::new(OpenUsage),
                 active == RailItem::Usage,
+                close(RailItem::Usage),
                 theme,
             ))
             .children(dot_color.map(|color| {
@@ -140,26 +157,29 @@ impl Workspace {
             .child(rail_button(
                 "rail-home",
                 SkyeIcon::Home,
-                "Home",
+                "Home".into(),
                 Box::new(OpenHome),
                 active == RailItem::Home,
+                None,
                 theme,
             ))
             .child(rail_button(
                 "rail-bots",
                 SkyeIcon::Bot,
-                "Bots",
+                "Bots".into(),
                 Box::new(OpenBots),
                 active == RailItem::Bots,
+                None,
                 theme,
             ))
             .child(
                 rail_button(
                     "rail-prs",
                     SkyeIcon::GitPullRequest,
-                    "Pull requests",
+                    "Pull requests".into(),
                     Box::new(OpenPullRequests),
                     active == RailItem::PullRequests,
+                    None,
                     theme,
                 )
                 .disabled(remote),
@@ -168,9 +188,10 @@ impl Workspace {
                 rail_button(
                     "rail-issues",
                     SkyeIcon::CircleDot,
-                    "Issues",
+                    "Issues".into(),
                     Box::new(OpenIssues),
                     active == RailItem::Issues,
+                    None,
                     theme,
                 )
                 .disabled(remote),
@@ -178,11 +199,12 @@ impl Workspace {
             .child(rail_button(
                 "rail-scheduled",
                 SkyeIcon::Clock,
-                "Scheduled tasks",
+                "Scheduled tasks".into(),
                 Box::new(OpenSettingsSection {
                     section: Section::Scheduled,
                 }),
                 active == RailItem::Scheduled,
+                close(RailItem::Scheduled),
                 theme,
             ))
             .child(div().flex_1())
@@ -191,9 +213,10 @@ impl Workspace {
                 rail_button(
                     "rail-settings",
                     SkyeIcon::Settings,
-                    "Settings",
+                    "Settings".into(),
                     Box::new(OpenSettings),
                     active == RailItem::Settings,
+                    close(RailItem::Settings),
                     theme,
                 )
                 .tooltip_with_action("Settings", &OpenSettings, Some(CONTEXT)),

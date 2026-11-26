@@ -33,6 +33,15 @@ pub(super) fn mode_label(mode: skyelab_agent::Mode) -> (&'static str, &'static s
     }
 }
 
+/// Under this card width the permission chip drops its name. It is short ("Ask"), and T3 hides a chip's name only once
+/// the row runs out of room, so it holds on longer than the model chip's effort (`composer::COMPACT_BELOW`).
+const ICON_ONLY_BELOW: gpui::Pixels = gpui::px(420.);
+
+/// Whether a composer card this wide (0: not measured yet) shows the permission chip as its icon alone.
+pub(in crate::workspace) fn icon_only(width: gpui::Pixels) -> bool {
+    width > gpui::px(0.) && width < ICON_ONLY_BELOW
+}
+
 impl ThreadView {
     /// The thread's permission mode as one chip, T3's: the mode's icon and name, a menu of the four with what each
     /// allows. Full access is drawn in the warning color. `compact` (a narrow composer) keeps only the icon.
@@ -60,7 +69,10 @@ impl ThreadView {
             .small()
             .icon(Icon::new(mode_icon(self.mode)))
             .when(!compact, |b| b.label(label).dropdown_caret(true))
-            .tooltip(format!("Permissions: {label}. {tip}"))
+            // A thread keeps its own mode; Settings → Chat only sets where a new one starts.
+            .tooltip(format!(
+                "Permissions: {label}. {tip}. This thread's own: new threads start as Settings → Chat says."
+            ))
             .when(self.mode == skyelab_agent::Mode::Bypass, |b| {
                 b.text_color(ui::ink(theme, theme.warning))
             })

@@ -253,11 +253,20 @@ impl ScheduledPage {
                         })),
                 )
             })
-            .children(e.error.clone().map(|why| div().text_size(ui::META).text_color(danger).child(why)))
+            // Beside the buttons, not above them: showing it never moves Create task from under the pointer.
             .child(
                 h_flex()
                     .gap_2()
                     .justify_end()
+                    .child(
+                        div()
+                            .id("sched-error")
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(ui::META)
+                            .text_color(danger)
+                            .children(e.error.clone()),
+                    )
                     .child(Button::new("sched-cancel").ghost().small().label("Cancel").on_click(cx.listener(|this, _, _, cx| this.cancel(cx))))
                     .child(
                         Button::new("sched-save")
@@ -333,12 +342,18 @@ impl Render for ScheduledPage {
             .enumerate()
             .map(|(i, r)| self.render_row(i == 0, r, now, cx))
             .collect();
-        let list = if rows.is_empty() {
-            ui::group(cx.theme())
-                .p_6()
+        // The open New task form is the empty state's answer: the card would only repeat "No scheduled tasks" under it.
+        let list = if rows.is_empty() && self.editor.is_some() {
+            div().into_any_element()
+        } else if rows.is_empty() {
+            div()
+                .debug_selector(|| "sched-empty".into())
                 .child(
-                    ui::EmptyState::new("No scheduled tasks")
-                        .hint("Create one, or pick \"Schedule this prompt…\" from a composer."),
+                    ui::group(cx.theme())
+                        .p_6()
+                        .child(ui::EmptyState::new("No scheduled tasks").hint(
+                            "Create one, or pick \"Schedule this prompt…\" from a composer.",
+                        )),
                 )
                 .into_any_element()
         } else {

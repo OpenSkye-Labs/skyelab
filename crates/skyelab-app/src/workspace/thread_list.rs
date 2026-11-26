@@ -69,6 +69,7 @@ impl Workspace {
             .thread_search
             .as_ref()
             .and_then(|(_, hits)| hits.as_ref());
+        let one_project = self.scope.len() == 1;
         let mut marks = std::collections::HashMap::new();
         let mut item = |t: &Thread| {
             let id: SharedString = format!("thread-{}", t.id).into();
@@ -160,9 +161,11 @@ impl Workspace {
                     Some(None) => RowAccount::Unbound,
                     None => RowAccount::Hidden,
                 }),
+                // Empty under a one-project filter: the row's meta line leaves it out.
                 project: Some(
                     projects
                         .get(&t.project_id)
+                        .filter(|_| !one_project)
                         .map(|p| p.name.clone())
                         .unwrap_or_default()
                         .into(),
@@ -257,6 +260,7 @@ impl Workspace {
         sections.extend(linked_state);
         self.sidebar.update(cx, |sidebar, cx| {
             sidebar.marks = marks;
+            sidebar.searching = searching;
             sidebar.archived = Some(archived);
             sidebar.shelves = shelves;
             sidebar.searchable = true;

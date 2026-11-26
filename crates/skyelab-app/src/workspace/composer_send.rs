@@ -228,6 +228,12 @@ impl ThreadView {
         if (text.is_empty() && !has_files) || self.read_only || self.starting {
             return;
         }
+        // T3's `/model`, `/plan` and `/default` act here and send nothing.
+        if !external && !self.is_side_chat() && self.local_command(&text, window, cx) {
+            self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+            self.restore_draft(window, cx); // set_value emits no Change
+            return cx.notify();
+        }
         // `/side <question>` (or `/btw`) asks it in a side chat instead (not from a side chat itself).
         if let Some(question) = crate::workspace::side_chat::side_question(&text)
             && !external
@@ -367,5 +373,23 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         self.submit(Submit::External, window, cx);
+    }
+}
+
+impl ThreadView {
+    /// Runs `text` when it is one of SkyeLab's own commands with no argument: `/model` opens the model picker,
+    /// `/plan` and `/default` switch the permission mode (T3's slash commands). False for anything else.
+    fn local_command(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        match text {
+            "/model" => {
+                if self.composer.picker.is_none() {
+                    self.toggle_picker(window, cx);
+                }
+            }
+            "/plan" => self.set_mode(skyelab_agent::Mode::Plan, cx),
+            "/default" => self.set_mode(skyelab_agent::Mode::Default, cx),
+            _ => return false,
+        }
+        true
     }
 }

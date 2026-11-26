@@ -305,14 +305,22 @@ fn caption(text: &'static str, theme: &Theme) -> impl IntoElement {
 }
 
 /// One row per account: its color, name and provider, whether it is limited (in the warning color), and on the
-/// right a compact bar per window, each dated by its own reading; "—" when its agents haven't reported anything.
+/// right a compact bar per window, each dated by its own reading; "No reading yet" when its agents haven't reported
+/// anything (as the Usage page says).
 fn render_usage(usage: &[AccountUsage], theme: &Theme, cx: &App) -> AnyElement {
     let now = ui::now_ms();
     v_flex()
         .children(usage.iter().map(|a| {
             let limit = limit_text(a.limited, a.limited_ms, now);
             let windows = if a.windows.is_empty() && limit.is_none() {
-                vec![div().child("—").into_any_element()]
+                vec![
+                    div()
+                        .debug_selector(|| "usage-no-reading".into())
+                        .font_weight(FontWeight::NORMAL)
+                        .text_color(theme.muted_foreground)
+                        .child("No reading yet")
+                        .into_any_element(),
+                ]
             } else {
                 a.windows.iter().map(|w| usage_bar(w, now, theme)).collect()
             };

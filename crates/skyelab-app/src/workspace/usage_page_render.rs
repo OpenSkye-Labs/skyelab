@@ -10,7 +10,7 @@ use gpui::{
     prelude::*, px,
 };
 use gpui_component::{ActiveTheme as _, Theme, h_flex, v_flex};
-use skyelab_store::usage::{DAYS, Range, Spend};
+use skyelab_store::usage::{Range, Spend};
 
 const CHART_H: f32 = 140.;
 
@@ -180,7 +180,7 @@ fn account_line(
         .into_any_element()
 }
 
-/// 30 stacked columns, one per day (today on the right), each account in its own color.
+/// One stacked column per day of the chosen range (today on the right), each account in its own color.
 fn chart(view: &UsageView, colors: &[Hsla], theme: &Theme) -> AnyElement {
     let peak = view.peak;
     let bars =
@@ -221,7 +221,7 @@ fn chart(view: &UsageView, colors: &[Hsla], theme: &Theme) -> AnyElement {
                 .justify_between()
                 .text_size(ui::MICRO)
                 .text_color(theme.muted_foreground)
-                .child(format!("{} days ago", DAYS - 1))
+                .child(format!("{} days ago", view.days.len().saturating_sub(1)))
                 .child("Today"),
         )
         .into_any_element()
@@ -319,10 +319,14 @@ impl Render for UsagePage {
             .min_w(px(280.))
             .gap_3()
             .child(section_title(
-                match metric {
-                    Metric::Cost => "Daily cost · 30 days",
-                    Metric::Tokens => "Daily tokens · 30 days",
-                },
+                format!(
+                    "Daily {} · {} days",
+                    match metric {
+                        Metric::Cost => "cost",
+                        Metric::Tokens => "tokens",
+                    },
+                    super::usage_page::chart_days(range)
+                ),
                 theme,
             ))
             .child(chart(view, &colors, theme));
