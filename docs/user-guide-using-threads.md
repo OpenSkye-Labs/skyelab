@@ -26,12 +26,13 @@ to a default account: no pick, no thread. Remove the project or its binding like
 - **Images you sent** show as thumbnails on your message while the thread stays open in this window (SkyeLab doesn't
   store image files). Click one to view it large: **+** and **−** zoom, **Fit** fits it to the window again, and
   <kbd>Esc</kbd> or a click outside closes it.
-- **`@`** lists the files git tracks in the folder (ignored and untracked files don't show). Type to narrow it,
+- **`@`** lists the folder's files: the ones git tracks and new ones it would add (ignored files don't show). Type to narrow it,
   then <kbd>↩</kbd> or <kbd>Tab</kbd> inserts `@path`; <kbd>Esc</kbd> closes it. Two or more letters that start a
   model's name (`@son`, `@gpt-cod`) also list up to eight of the thread's provider's models above the files: picking
   one inserts a reference such as `model:claude/sonnet` into the prompt, for the agent to read (to name a model for
   a thread it delegates, say). It doesn't change the thread's own model; the model chip does that.
-- **`/`** at the start lists commands: the CLI's own (`/compact`, `/context`, `/cost`, `/init`, `/review`, …), your
+- **`/`** at the start lists commands: SkyeLab's own (`/side`, below; `/model` opens the model picker; `/plan` and
+  `/default` switch the thread to Plan or Ask; these three run in the composer and send nothing), the CLI's own (`/compact`, `/context`, `/cost`, `/init`, `/review`, …), your
   account's `commands/` folder (in its config dir) and the project's `.claude/commands/`. SkyeLab starts Claude
   with only your user settings, so a project command may not run. Codex has no slash commands.
 - **`$`** lists your account's skills (`skills/<name>/SKILL.md` in its config dir). Picking one inserts `/name` for
@@ -40,7 +41,8 @@ to a default account: no pick, no thread. Remove the project or its binding like
   in the accent color, `model:…` as the model's name with its provider's logo, `$name` and a leading `/name` with
   their own icon. A chip acts as one character: the arrow keys step over it, <kbd>⌫</kbd> or <kbd>⌦</kbd> removes it
   whole, and copying it copies its text. What is sent, saved as a draft, stashed or queued is the same plain text.
-- **`#`** lists this project's other threads and the pull requests linked to them. Picking a thread adds a chip with
+- **`#`** (titled **Threads and their pull requests**) lists this project's other threads and the pull requests
+  linked to them. Picking a thread adds a chip with
   its title and last reply (up to 2,000 characters); picking a pull request adds a chip with its link and the title
   of the thread it belongs to. Each chip is sent after your message as a code block, like a terminal excerpt; click
   it to read the text, × to drop it. Hover a thread or pull request chip for the same card its sidebar row shows. Only threads that ran on this composer's account, in a folder still bound to

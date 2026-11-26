@@ -56,12 +56,19 @@ pub struct ProjectLine {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct UsageView {
     pub accounts: Vec<AccountLine>,
-    /// Per day of the window (today last): each account's value in the chosen metric, in `accounts` order.
+    /// Per day of the chart (today last): each account's value in the chosen metric, in `accounts` order. As many
+    /// days as the chosen range ([`chart_days`]).
     pub days: Vec<Vec<f64>>,
     /// The tallest day's total, for the chart's scale.
     pub peak: f64,
     pub projects: Vec<ProjectLine>,
     pub total: Spend,
+}
+
+/// How many daily bars the chart draws for `range`: the range's own days, and a week for Today (the store keeps days,
+/// not hours, and one bar shows no trend).
+pub fn chart_days(range: Range) -> i64 {
+    range.days().max(7)
 }
 
 /// Builds the page's lines: accounts in accounts.toml order (each one, even with no turns), projects by the chosen
@@ -89,8 +96,13 @@ pub fn derive(data: &UsageData, range: Range, metric: Metric) -> UsageView {
         .iter()
         .map(|a| usage::daily(&data.rows, |r| r.account_id == a.usage.id))
         .collect();
-    let days: Vec<Vec<f64>> = (0..usage::DAYS as usize)
-        .map(|d| per_account.iter().map(|a| metric.of(&a[d])).collect())
+    let days: Vec<Vec<f64>> = (usage::DAYS - chart_days(range)..usage::DAYS)
+        .map(|d| {
+            per_account
+                .iter()
+                .map(|a| metric.of(&a[d as usize]))
+                .collect()
+        })
         .collect();
     let peak = days
         .iter()

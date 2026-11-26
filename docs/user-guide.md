@@ -59,8 +59,9 @@ The palette and the Welcome page show the keys in effect.
 ## Layout
 
 The sidebar lists the threads of all your projects in one list: **Pinned** first, then **Working** (agents running
-now, or waiting for your answer, even on a page you're not looking at), then the rest by when they last changed: **Today**, **Yesterday**, **Previous 7 days** and **Older**. Each row
-shows the title, then the agent's last reply in two muted lines, then a line with the project, the account the
+now, even on a page you're not looking at), then the rest by when they last changed: **Today**, **Yesterday**, **Previous 7 days** and **Older**. A thread
+waiting for your answer is your turn, not the agent's: it lists by time, its row saying what it waits for. Each row
+shows the title, then a line with the project (left out while the list is narrowed to one project), the account the
 project's folder is bound to (**No account** in the warning color if it has none), the pull request opened from the
 thread (**#24**, its icon and color showing open, draft, merged or closed, plus its checks while open) and the branch (the thread's worktree branch, else the branch the project folder has checked out).
 Beside the title is the thread's state (**Working 1m 12s**, counting up while the turn runs,
@@ -88,20 +89,14 @@ view…** asks for one (a name you already used replaces that view), picking a v
 view** removes one. The view the list shows now is checked. Views are kept in `settings.toml` (`[[sidebar_views]]`),
 projects by folder, so a project you remove is skipped. The **Working** header shows how many threads work now; click it to fold them away.
 
-**Settle and snooze.** Hover a thread row for two buttons where its time was: the check **settles** it (it's done:
-it moves to the **Settled** shelf at the bottom, folded, newest settle first, 25 at a time with **Show N more**), and
-the alarm clock **snoozes** it: **In 1 hour**, **Tonight** (18:00, while that's ahead), **Tomorrow** (09:00), **Next
-week** (Monday 09:00) or **Custom…**, where you type `45m`, `3h`, `2d`, `18:30` or `2026-12-01 09:00`. A snoozed
-thread waits in the folded **Snoozed** shelf with how long until it wakes; then it is back in the list marked
-**Woke** until you open it. Each notice has **Undo** for 5 seconds (it stays while the pointer is on it). A settled row's hover button un-settles it, and a snoozed row's
-wakes it now. The row's right-click menu has the same entries, and the palette has **Settle Thread** and **Snooze
-Thread** for the open thread. A thread that starts working shows under Working whatever its shelf, and a settled or
-snoozed thread leaves Pinned while it's shelved. Archived threads can't be settled or snoozed.
+**Settle and snooze** move a thread off the list until you need it again (a check and an alarm clock on the hovered
+row): see [user-guide-managing-threads.md](user-guide-managing-threads.md#settle-and-snooze).
 
 A slim rail on the far left of the window switches what the window shows: **Home** (your threads; it reopens the
 sidebar and the last thread you had open), **Bots** (coming soon), **Pull requests**, **Issues** and **Scheduled
-tasks** at the top, and **Usage** and **Settings** at the bottom. Usage shows a yellow dot when an account is at 75%
-of a usage window and a red one at 90% or when it is limited. The sidebar's bottom row keeps **Refresh**, which reloads
+tasks** at the top, and **Usage** and **Settings** at the bottom. Scheduled tasks, Usage and Settings open the Settings
+window; clicking the highlighted one again closes it. Usage shows a yellow dot when an account is at 75%
+of a usage window and a red one at 90% or when it is limited; its tooltip says which. The sidebar's bottom row keeps **Refresh**, which reloads
 the thread list.
 
 The center shows one page at a time: a thread, a new thread, Settings, or nothing open yet. Clicking a thread in the
@@ -163,7 +158,7 @@ you hide slides shut. With **Reduce motion** on in macOS (System Settings → Ac
 shows every change at once. It reads that setting when it starts.
 
 **Settings → Usage** compares every account: its 5-hour and weekly limits, and what its turns cost and used today,
-in 7 and in 30 days, per account and per project, with a daily chart. Each limit bar says how old its reading is.
+in 7 and in 30 days, per account and per project, with a daily chart of the chosen range (Today charts the last 7 days). Each limit bar says how old its reading is.
 Readings come from the agents during turns, and also, while Usage or the thread details card is open, from asking
 each account's own agent CLI every 5 minutes (`claude` or `codex`, with that account's config folder only; Cursor
 doesn't expose rate-limit polling; SkyeLab never reads a login token). An account with no limits to read (signed out, an API key) is asked once an hour. When

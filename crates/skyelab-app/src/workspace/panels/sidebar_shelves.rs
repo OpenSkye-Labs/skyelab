@@ -3,6 +3,9 @@
 use super::*;
 use crate::ui::SkyeIcon;
 
+/// The room an opened shelf needs below its head (about five rows); with less, opening scrolls it up.
+const SHELF_ROOM: gpui::Pixels = gpui::px(160.);
+
 impl Sidebar {
     pub(super) fn entries(&self) -> Vec<Entry> {
         let mut out = Vec::new();
@@ -44,10 +47,27 @@ impl Sidebar {
         } else {
             &mut self.folded
         };
-        if !set.remove(title) {
+        let opening = !set.remove(title);
+        if opening {
             set.insert(title.clone());
         }
+        // An opened shelf near the list's bottom edge would open out of sight: bring its head to the top. Read where
+        // it is before the rebuild, which forgets the drawn rows' bounds. Rows before it don't change.
+        let head = self
+            .entries
+            .iter()
+            .position(|e| matches!(*e, Entry::ShelfHead(k) if &self.shelves[k].title == title));
+        let near_bottom = head
+            .filter(|_| opening && shelf)
+            .and_then(|h| self.list.bounds_for_item(h))
+            .is_some_and(|b| b.bottom() + SHELF_ROOM > self.list.viewport_bounds().bottom());
         self.rows_changed(cx);
+        if let Some(head) = head.filter(|_| near_bottom) {
+            self.list.scroll_to(gpui::ListOffset {
+                item_ix: head,
+                offset_in_item: gpui::px(0.),
+            });
+        }
     }
 
     /// How many rows section or shelf `title` draws now, and whether a "Show N more" row follows.
@@ -131,4 +151,34 @@ pub(super) fn footer(update: Option<gpui::AnyElement>) -> impl IntoElement {
                     crate::workspace::dispatch(Box::new(RefreshThreads), window, cx)
                 }),
         )
+}
+
+/// The archived toggle and rows, then the bottom padding.
+fn entries(archived: Option<&ArchivedRows>) -> Vec<Entry> {
+    let mut out = Vec::new();
+    // "Archived" at the end of the list, as the user guide says.
+    if let Some(a) = archived.filter(|a| !a.items.is_empty()) {
+        out.push(Entry::ArchivedHead);
+        if a.open {
+            out.extend((0..a.items.len()).map(Entry::Archived));
+        }
+    }
+    out.push(Entry::End);
+    out
+}
+
+/// One line of the sidebar's list: section `s`'s header, its row `i` or its empty state, the archived toggle and
+/// rows, then the bottom padding.
+#[derive(Clone, Copy)]
+pub(super) enum Entry {
+    Header(usize),
+    Row(usize, usize),
+    Empty(usize),
+    /// Shelf `k`'s toggle row, its row `i`, its "Show N more" row.
+    ShelfHead(usize),
+    ShelfRow(usize, usize),
+    ShelfMore(usize),
+    ArchivedHead,
+    Archived(usize),
+    End,
 }

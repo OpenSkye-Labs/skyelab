@@ -66,7 +66,8 @@ impl ThreadView {
     }
 
     /// The model the account runs with no pick: what this thread's last run on the default reported, else the account's own config,
-    /// else Codex's listed default, else "Claude default" / "Codex default".
+    /// else what another thread's run on this account's default reported this session, else Codex's listed default,
+    /// else "Claude default" / "Codex default".
     pub(in crate::workspace) fn default_model_name(&self) -> String {
         let c = &self.composer;
         let listed = self.listed();
@@ -84,6 +85,7 @@ impl ThreadView {
             });
         reported
             .or(account)
+            .or(c.last_default.as_deref())
             .map(|id| label_for(id, listed))
             .or_else(|| {
                 listed?
@@ -114,6 +116,28 @@ impl ThreadView {
         {
             self.composer.reported_model = Some(model.clone());
             self.composer.reported_pick = live.then(|| self.composer.pick.model.clone());
+        }
+    }
+
+    /// A live run on the account's default named its model: later new threads of this account start from it.
+    pub(in crate::workspace) fn remember_default_model(
+        &self,
+        record: &crate::workspace::thread_model::Record,
+        cx: &mut gpui::App,
+    ) {
+        use crate::workspace::thread_model::Record;
+        if !matches!(record, Record::Agent(skyelab_agent::Event::Init { .. })) {
+            return;
+        }
+        let c = &self.composer;
+        if let (Some(model), Some(None), Some(account)) = (
+            c.reported_model.clone(),
+            c.reported_pick.clone(),
+            self.composer_account(),
+        ) {
+            cx.default_global::<DefaultModels>()
+                .0
+                .insert(account.id, model);
         }
     }
 
@@ -181,6 +205,9 @@ impl ThreadView {
             return;
         };
         let provider = account.provider;
+        self.composer.last_default = cx
+            .try_global::<DefaultModels>()
+            .and_then(|d| d.0.get(&account.id).cloned());
         let task =
             cx.background_spawn(async move { skyelab_agent::account_default_model(&account) });
         cx.spawn(async move |this, cx| {
@@ -319,3 +346,8 @@ fn label_for(id: &str, listed: Option<&[ModelInfo]>) -> String {
         .and_then(|l| l.iter().find(|m| m.id == id))
         .map_or_else(|| model_label(id), |m| m.label.clone())
 }
+
+/// Per account id, the model its agent last reported running with no pick, this session.
+#[derive(Default)]
+struct DefaultModels(std::collections::HashMap<String, String>);
+impl gpui::Global for DefaultModels {}

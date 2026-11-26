@@ -155,7 +155,7 @@ use super::super::thread_list::SETTLED_PAGE;
 mod shelves;
 #[cfg(test)]
 pub(crate) use shelves::FOOTER_BUTTON_IDS;
-use shelves::footer;
+use shelves::{Entry, footer};
 
 /// The selected project's archived threads, listed apart under a toggle row.
 pub struct ArchivedRows {
@@ -206,36 +206,13 @@ pub struct Sidebar {
     _tick: Option<gpui::Task<()>>,
     /// A row's snooze menu, drawn by the sidebar above its list: a popover inside a list row never paints.
     pub(in crate::workspace) snooze: SnoozeMenu,
-}
-
-/// One line of the sidebar's list: section `s`'s header, its row `i` or its empty state, the archived toggle and
-/// rows, then the bottom padding.
-#[derive(Clone, Copy)]
-enum Entry {
-    Header(usize),
-    Row(usize, usize),
-    Empty(usize),
-    /// Shelf `k`'s toggle row, its row `i`, its "Show N more" row.
-    ShelfHead(usize),
-    ShelfRow(usize, usize),
-    ShelfMore(usize),
-    ArchivedHead,
-    Archived(usize),
-    End,
-}
-
-/// The archived toggle and rows, then the bottom padding.
-fn entries(archived: Option<&ArchivedRows>) -> Vec<Entry> {
-    let mut out = Vec::new();
-    // "Archived" at the end of the list, as the user guide says.
-    if let Some(a) = archived.filter(|a| !a.items.is_empty()) {
-        out.push(Entry::ArchivedHead);
-        if a.open {
-            out.extend((0..a.items.len()).map(Entry::Archived));
-        }
-    }
-    out.push(Entry::End);
-    out
+    /// The thread filter has text: rows show their matched line.
+    pub searching: bool,
+    /// When a row's settle, snooze or wake button last acted: the row under the pointer just moved (T3's shift
+    /// guard), so a press soon after is ignored.
+    pub(super) shelf_pressed: Option<std::time::Instant>,
+    /// The last thread action's Undo, in the footer (T3's `SidebarThreadUndoNotice`).
+    pub(in crate::workspace) undo: Option<super::sidebar_undo::UndoNote>,
 }
 
 impl EventEmitter<SidebarSearch> for Sidebar {}
@@ -272,6 +249,9 @@ impl Sidebar {
             _updates: cx.observe_global::<crate::updates::Updates>(|_, cx| cx.notify()),
             _tick: None,
             snooze: SnoozeMenu::new(&focus, cx),
+            searching: false,
+            shelf_pressed: None,
+            undo: None,
         };
         this.rows_changed(cx);
         this
@@ -387,7 +367,10 @@ impl Sidebar {
             item,
             self.marks.get(&item.id),
             indent,
-            !self.cards_held,
+            super::sidebar_rows::RowLook {
+                cards: !self.cards_held,
+                searching: self.searching,
+            },
             &self.snooze,
             now,
             theme,
@@ -508,8 +491,8 @@ impl Render for Sidebar {
                 .min_h_0()
                 .w_full(),
             )
-            // T3's footer, with the update pill.
-            .child(footer(pill))
+            // T3's footer: the last thread action's Undo, else the update pill.
+            .child(footer(self.render_undo(cx).or(pill)))
             .children(self.snooze.render())
     }
 }

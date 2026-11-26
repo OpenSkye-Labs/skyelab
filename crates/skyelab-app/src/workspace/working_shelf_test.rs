@@ -1,5 +1,6 @@
 //! The Working shelf follows each thread's session state: a thread whose stored row says it is running is there with
-//! no view open, and one waiting on an approval is there after its turn ended.
+//! no view open, and one waiting on the user's answer is not (T3's `isThreadWorking`): it lists by time, its row
+//! naming what it waits for.
 
 use super::manage_harness::{Rig, rig};
 use super::threads_test::wait_until;
@@ -59,7 +60,7 @@ fn the_only_thread_working_leaves_no_empty_state(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn approval_after_turn_is_working(cx: &mut TestAppContext) {
+fn a_thread_waiting_on_the_user_is_not_working(cx: &mut TestAppContext) {
     let (r, cx) = rig(cx);
     let view = new_thread(&r, cx);
     view.update_in(cx, |v, window, cx| v.submit_remote("timeline", window, cx))
@@ -74,7 +75,12 @@ fn approval_after_turn_is_working(cx: &mut TestAppContext) {
     });
     cx.run_until_parked();
     let title = view.read_with(cx, |v, _| v.title().to_string());
-    assert_eq!(section(&r, "Working", cx), vec![title]);
+    assert!(section(&r, "Working", cx).is_empty(), "the user's turn, not the agent's");
+    let listed: Vec<String> = skyelab_agent::thread_list::DAYS
+        .iter()
+        .flat_map(|t| section(&r, t, cx))
+        .collect();
+    assert!(listed.contains(&title), "listed by time: {listed:?}");
 }
 
 /// A new thread tab in the rig's project; its row is stored with its first prompt.

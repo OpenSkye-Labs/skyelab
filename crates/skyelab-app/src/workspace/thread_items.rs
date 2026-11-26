@@ -185,7 +185,10 @@ fn render_row<V: ItemsView>(
         Item::Done { at_ms, .. } => at_ms,
         _ => None,
     });
-    let divider_folded = timeline_fold::fold_head(this.items(), ix).is_some();
+    // The turn's "Worked for …" line is drawn above its work or its reply (`timeline_fold`): the divider row keeps only
+    // its changed files.
+    let divider_folded =
+        matches!(this.items()[ix], Item::Done { .. }) && timeline_fold::headed(this.items(), ix);
     // Element ids by row key, not index: rows go in above others, and element state must stay with its row.
     let key = this.items().key(ix);
     let root = this.files_root().map(std::path::Path::to_path_buf);

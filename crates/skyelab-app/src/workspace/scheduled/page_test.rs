@@ -163,3 +163,38 @@ fn an_open_list_links_a_run_once_its_row_exists(cx: &mut TestAppContext) {
     let linked = page.read_with(cx, |p, _| p.rows[0].thread.as_ref().map(|t| t.0));
     assert_eq!(linked, Some(runs(&rig, t.id)[0].id));
 }
+
+/// The form's error is about what was typed before: typing again clears it, and while the form is open the empty
+/// list card ("No scheduled tasks") isn't drawn under it.
+#[gpui::test]
+fn typing_clears_the_error_and_the_form_replaces_the_empty_card(cx: &mut TestAppContext) {
+    let rig = rig(true);
+    let (ws, cx) = open(&rig, cx);
+    let page = page(&ws, cx);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("sched-empty").is_some(),
+        "no tasks, no form: the empty card"
+    );
+    page.update_in(cx, |p, window, cx| {
+        p.new_task(None, Some(rig.project), window, cx)
+    });
+    page.update(cx, |p, cx| p.save(cx));
+    let why = |cx: &mut VisualTestContext| {
+        page.read_with(cx, |p, _| p.editor.as_ref().and_then(|e| e.error.clone()))
+    };
+    assert!(why(cx).is_some(), "an empty prompt is refused");
+    page.update_in(cx, |p, window, cx| {
+        let prompt = p.editor.as_ref().expect("editor").prompt.clone();
+        prompt.update(cx, |s, cx| s.insert("tidy up", window, cx));
+    });
+    cx.run_until_parked();
+    assert!(why(cx).is_none(), "typing cleared it");
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("sched-empty").is_none(),
+        "no empty card under the form"
+    );
+}

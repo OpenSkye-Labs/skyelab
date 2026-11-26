@@ -194,7 +194,7 @@ fn shelves_beat_the_pin_and_undo_puts_a_thread_back_where_it_was(cx: &mut TestAp
     assert_eq!(r.row(a).expect("row").snoozed_until, Some(later));
 }
 
-/// The notice's own Undo button, clicked: the thread is back in the list and the store.
+/// The footer note's own Undo button, clicked: the thread is back in the list and the store.
 #[gpui::test]
 fn clicking_the_notice_undo_unsettles_in_the_store(cx: &mut TestAppContext) {
     let (r, cx) = rig(cx);
@@ -203,7 +203,9 @@ fn clicking_the_notice_undo_unsettles_in_the_store(cx: &mut TestAppContext) {
     shelve(a, Shelf::Settle, cx);
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
-    let undo = cx.debug_bounds("toast-action").expect("undo drawn");
+    let undo = cx
+        .debug_bounds("sidebar-undo")
+        .expect("undo drawn in the sidebar footer");
     cx.simulate_click(undo.center(), gpui::Modifiers::none());
     cx.run_until_parked();
     assert_eq!(r.listed(cx), ["beta", "alpha"]);
@@ -237,4 +239,20 @@ fn the_row_snooze_menu_opens_and_snoozes(cx: &mut TestAppContext) {
     assert_eq!(r.listed(cx), ["beta"]);
     let open = sidebar(&r, cx).read_with(cx, |s, _| s.snooze.open.is_some());
     assert!(!open, "closed with the pick");
+}
+
+/// T3's shift guard: after a row's settle button acted, the row below slides under the pointer; a second press within
+/// half a second (a double click) is ignored instead of settling that row too.
+#[gpui::test]
+fn a_quick_second_shelf_press_is_ignored(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    let s = sidebar(&r, cx);
+    assert!(
+        s.update(cx, |s, _| s.take_shelf_press()),
+        "the first press acts"
+    );
+    assert!(
+        !s.update(cx, |s, _| s.take_shelf_press()),
+        "an immediate second one doesn't"
+    );
 }

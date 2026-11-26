@@ -228,8 +228,9 @@ impl Onboarding {
                     })
                     .child(
                         div().debug_selector(|| "onboarding-next".into()).child(
+                            // The one way on: primary, as T3's onboarding draws it.
                             Button::new("onboarding-next")
-                                .secondary()
+                                .primary()
                                 .rounded_full()
                                 .px_4()
                                 .label(self.next_label(step))

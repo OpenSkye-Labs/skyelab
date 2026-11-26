@@ -83,7 +83,7 @@ impl Workspace {
                     ),
                     None => format!("Settled “{title}”"),
                 };
-                ws.undo_notice(
+                ws.thread_undo_notice(
                     text,
                     move |ws, window, cx| {
                         ws.shelve_remote(host.clone(), id, was, false, window, cx)
