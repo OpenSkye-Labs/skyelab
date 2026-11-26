@@ -38,6 +38,7 @@ fn start(name: &str, prompt: &str, mode: Mode) -> (Session, tempfile::TempDir) {
         effort: None,
         attachments: &[],
         mode,
+        untrusted: false,
     };
     (
         start_with_bin(&fake_bin(), &cfg, &launch).expect("start fake"),

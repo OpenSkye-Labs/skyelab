@@ -76,6 +76,7 @@ fn run(f: &Fixture, bin: &str) -> (Vec<Event>, Value, String) {
         effort: None,
         attachments: &[],
         mode: Default::default(),
+        untrusted: false,
     };
     let bin = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")

@@ -53,7 +53,7 @@ pub use remote::{
     gh_logged_in, parse_pr_view, pr_status, pull_ff,
 };
 pub use status::{FileChange, Status, status, status_with_ignored};
-pub use summary::{MAX_DIFF, PrContext, TRUNCATED, commit_diff, pr_context};
+pub use summary::{MAX_DIFF, PrContext, TRUNCATED, commit_diff, default_branch, pr_context};
 pub use worktree::{Worktree, create_worktree, hook_folders, list_worktrees, remove_worktree};
 
 #[derive(Debug, thiserror::Error)]

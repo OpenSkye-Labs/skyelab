@@ -47,6 +47,7 @@ fn run_turn(prompt: &str) -> Vec<Event> {
         effort: None,
         attachments: &[],
         mode: Mode::Default,
+        untrusted: false,
     };
     let session = start_with_bin(&fake_antigravity(), &config, &launch).expect("start");
     let deadline = Instant::now() + Duration::from_secs(60);
@@ -78,6 +79,7 @@ fn hostile_live_session_streams_are_bounded() {
         effort: None,
         attachments: &[],
         mode: Mode::Default,
+        untrusted: false,
     };
     let session = start_with_bin(&fake_antigravity(), &config, &launch).expect("start");
     let deadline = Instant::now() + Duration::from_secs(30);

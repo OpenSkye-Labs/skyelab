@@ -158,6 +158,29 @@ fn is_executable(p: &Path) -> bool {
     p.is_file()
 }
 
+/// The account's own `permissions.deny` and `.ask` rules (its `settings.json`), for a run fed untrusted text: it loads
+/// no setting source, so none of the account's allow rules can run a tool unasked, but what the user denied stays denied.
+pub(crate) fn untrusted_permissions(config_dir: &Path) -> Result<serde_json::Value> {
+    let path = config_dir.join("settings.json");
+    let settings: serde_json::Value = match std::fs::read(&path) {
+        Ok(bytes) => serde_json::from_slice(&bytes)
+            .with_context(|| format!("reading {}; nothing was started", path.display()))?,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => json!({}),
+        Err(e) => return Err(e).with_context(|| format!("reading {}", path.display())),
+    };
+    let rules = |kind: &str| -> Vec<serde_json::Value> {
+        settings["permissions"][kind]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|r| r.is_string())
+            .cloned()
+            .collect()
+    };
+    Ok(json!({ "deny": rules("deny"), "ask": rules("ask") }))
+}
+
+/// `untrusted`: [`untrusted_permissions`] for a run fed GitHub text; it loads no setting source (`--setting-sources ""`).
 /// `deny_mcp`: `None` keeps `--strict-mcp-config` (only the `--mcp-config` file's servers); `Some(names)` lets Claude
 /// load the account's own MCP config, plugins and claude.ai connectors too, refusing those names (ones that would read
 /// as SkyeLab's server). Never the repo's: `--setting-sources user` keeps `.mcp.json` and local-scope servers out.
@@ -167,7 +190,20 @@ pub(crate) fn claude_args(
     deny_mcp: Option<&[String]>,
     resume: Option<&str>,
     mode: Mode,
+    untrusted: Option<serde_json::Value>,
 ) {
+    let mut settings = serde_json::Map::new();
+    if let Some(names) = deny_mcp.filter(|n| !n.is_empty()) {
+        let denied: Vec<_> = names.iter().map(|n| json!({ "serverName": n })).collect();
+        settings.insert("deniedMcpServers".into(), denied.into());
+    }
+    let sources = match untrusted {
+        Some(permissions) => {
+            settings.insert("permissions".into(), permissions);
+            ""
+        }
+        None => "user",
+    };
     cmd.args([
         "-p",
         "--input-format",
@@ -179,7 +215,7 @@ pub(crate) fn claude_args(
         "--include-partial-messages",
         // `-p` skips the trust dialog, so the project's own settings and .mcp.json must not load.
         "--setting-sources",
-        "user",
+        sources,
         // Every permission ask comes to us as a `can_use_tool` control request, answered in the thread.
         "--permission-prompt-tool",
         "stdio",
@@ -193,17 +229,18 @@ pub(crate) fn claude_args(
             "--allow-dangerously-skip-permissions",
         ],
     })
-    .args(match deny_mcp {
-        None => vec!["--strict-mcp-config".to_owned()],
-        Some([]) => Vec::new(),
-        Some(names) => {
-            let denied: Vec<_> = names.iter().map(|n| json!({ "serverName": n })).collect();
-            vec![
-                "--settings".to_owned(),
-                json!({ "deniedMcpServers": denied }).to_string(),
-            ]
-        }
-    })
+    .args(deny_mcp.is_none().then_some("--strict-mcp-config"))
+    .args(
+        (!settings.is_empty())
+            .then(|| {
+                [
+                    "--settings".to_owned(),
+                    serde_json::Value::from(settings).to_string(),
+                ]
+            })
+            .into_iter()
+            .flatten(),
+    )
     // Only our own server's tools are pre-allowed; they enforce their own rules. Every other server's tools ask.
     .args(mcp_config.into_iter().flat_map(|path| {
         [

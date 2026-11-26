@@ -96,6 +96,7 @@ fn launch(f: &Fixture, grant: bool) -> (Vec<McpServer>, Value) {
         effort: None,
         attachments: &[],
         mode: Default::default(),
+        untrusted: false,
     };
     let session = start_with_bin(&fake_claude(), &f.config, &launch).expect("start");
     let mut reported = Vec::new();

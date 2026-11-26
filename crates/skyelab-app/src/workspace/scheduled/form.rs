@@ -200,7 +200,8 @@ impl Draft {
             title,
             prompt: prompt.to_owned(),
             schedule: schedule.clone(),
-            worktree: self.worktree,
+            // A GitHub-started run always gets a new worktree from the default branch; the row says so too.
+            worktree: self.worktree || !self.triggers.is_empty(),
             permission_mode: self.mode.as_str().to_owned(),
             bypass_confirmed: self.mode == Mode::Bypass && self.bypass_confirmed,
             model: (!model.is_empty()).then(|| model.to_owned()),

@@ -23,6 +23,7 @@ pub fn start_in(
         effort: None,
         attachments: &[],
         mode: Default::default(),
+        untrusted: false,
     };
     start_with_bin(bin, cfg, &launch)
 }

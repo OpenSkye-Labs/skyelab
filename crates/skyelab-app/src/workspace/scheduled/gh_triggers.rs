@@ -152,6 +152,7 @@ fn items(listing: &Listing) -> Result<Vec<Item>, String> {
                 head_branch: d.row.head_branch.clone(),
                 head_sha: d.row.head.clone(),
                 failing: d.row.checks == Checks::Failing,
+                same_repo: d.row.same_repo,
                 ..Default::default()
             })
             .collect(),
