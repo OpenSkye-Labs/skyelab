@@ -35,7 +35,7 @@ mod toast_test;
 mod toggle;
 #[cfg(test)]
 mod toggle_test;
-mod tooltip;
+pub(crate) mod tooltip;
 pub mod window_controls;
 
 pub use button::{Button, Variant, icon_button};
