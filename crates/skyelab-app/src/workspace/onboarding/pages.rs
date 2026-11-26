@@ -19,6 +19,8 @@ const DOT_ON: f32 = 22.;
 const HERO: f32 = 72.;
 /// The column's width.
 const COLUMN: f32 = 600.;
+/// Below this window height the step's picture is left out.
+const SHORT: f32 = 820.;
 
 impl Onboarding {
     /// The row of progress dots: the current step's is wide, and morphs as the step changes.
@@ -53,6 +55,7 @@ impl Onboarding {
     /// old column sits under a layer that takes the mouse (the wheel still scrolls), so a click during the fade never reaches it.
     pub(super) fn frame(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let step = self.step;
+        let bg = cx.theme().background;
         let page = self.column(step, false, window, cx);
         let leaving = self.leaving.map(|s| (s, self.column(s, true, window, cx)));
         let centered = || {
@@ -74,44 +77,65 @@ impl Onboarding {
             )
             .child(
                 div()
-                    .id("onboarding-scroll")
+                    .relative()
                     .flex_1()
                     .min_h_0()
-                    .overflow_y_scroll()
                     .child(
                         div()
-                            .relative()
-                            .w_full()
-                            .min_h_full()
-                            .flex()
-                            .flex_col()
-                            .children(leaving.map(|(s, old)| {
-                                motion::fade_out(
-                                    centered()
-                                        .absolute()
-                                        .inset_0()
-                                        .debug_selector(|| "onboarding-leaving".into())
-                                        .child(old),
-                                    ("onboarding-leaving", s as usize),
-                                )
-                            }))
-                            .children(
-                                self.leaving.map(|_| {
-                                    div().absolute().inset_0().block_mouse_except_scroll()
-                                }),
-                            )
-                            .child(motion::fade_in(
-                                centered()
-                                    .flex_1()
-                                    .debug_selector(|| "onboarding-page".into())
-                                    .child(page),
-                                ("onboarding-page", step as usize),
-                            )),
-                    ),
+                            .id("onboarding-scroll")
+                            .track_scroll(&self.scroll)
+                            .size_full()
+                            .overflow_y_scroll()
+                            .child(
+                                div()
+                                    .relative()
+                                    .w_full()
+                                    .min_h_full()
+                                    .flex()
+                                    .flex_col()
+                                    .children(leaving.map(|(s, old)| {
+                                        motion::fade_out(
+                                            centered()
+                                                .absolute()
+                                                .inset_0()
+                                                .debug_selector(|| "onboarding-leaving".into())
+                                                .child(old),
+                                            ("onboarding-leaving", s as usize),
+                                        )
+                                    }))
+                                    .children(self.leaving.map(|_| {
+                                        div().absolute().inset_0().block_mouse_except_scroll()
+                                    }))
+                                    .child(motion::fade_in(
+                                        centered()
+                                            .flex_1()
+                                            .debug_selector(|| "onboarding-page".into())
+                                            .child(page),
+                                        ("onboarding-page", step as usize),
+                                    )),
+                            ),
+                    )
+                    // Says there is more below: it lies over the page's bottom padding, so with nothing hidden it covers
+                    // only empty space, and it takes no mouse.
+                    .child(div().absolute().bottom_0().left_0().right_0().h_6().bg(
+                        linear_gradient(
+                            180.,
+                            linear_color_stop(bg.opacity(0.), 0.),
+                            linear_color_stop(bg, 1.),
+                        ),
+                    )),
+            )
+            // The step's actions stay in view under the page however tall it is.
+            .child(
+                h_flex()
+                    .flex_shrink_0()
+                    .justify_center()
+                    .pb_4()
+                    .child(self.actions(step, cx)),
             )
     }
 
-    /// One step's column: hero, title and line, the panel, then the actions. `leaving`: the copy fading out.
+    /// One step's column: hero (tall windows), title and line, then the panel. `leaving`: the copy fading out.
     fn column(
         &self,
         step: Step,
@@ -131,7 +155,7 @@ impl Onboarding {
             ),
             Step::Agents => (
                 "Agents and accounts",
-                "Each Claude, Codex, or Antigravity login keeps its own config folder. Add the ones you use.".into(),
+                "Each Claude, Codex, Cursor or Antigravity login keeps its own config folder. Add the ones you use.".into(),
             ),
             Step::Import => (
                 "Bring in your projects",
@@ -147,15 +171,17 @@ impl Onboarding {
             Step::Import => self.import_page(cx).into_any_element(),
             Step::Done => self.done_page(window, cx).into_any_element(),
         };
+        // A short window keeps its height for the panel: the picture goes, the title stays.
+        let tall = window.viewport_size().height >= px(SHORT);
         let theme = cx.theme();
         v_flex()
             .w_full()
             .max_w(px(COLUMN))
             .items_center()
-            .child(hero(step, leaving, cx))
+            .when(tall, |d| d.child(hero(step, leaving, cx)))
             .child(
                 div()
-                    .mt_5()
+                    .when(tall, |d| d.mt_5())
                     .text_size(ui::HERO)
                     .font_weight(FontWeight::BOLD)
                     .text_center()
@@ -178,7 +204,6 @@ impl Onboarding {
                     .text_color(ui::ink(theme, theme.danger))
                     .child(e)
             }))
-            .child(self.actions(step, cx))
             .into_any_element()
     }
 
@@ -213,9 +238,9 @@ impl Onboarding {
             ),
         };
         v_flex()
-            .mt_6()
+            .pt_3()
             .items_center()
-            .gap_3()
+            .gap_2()
             .child(
                 h_flex()
                     .gap_2()
