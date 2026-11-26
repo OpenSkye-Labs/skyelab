@@ -86,13 +86,17 @@ impl ThreadView {
                 )
                 .child(
                     h_flex()
-                        .flex_1()
-                        .min_w(px(160.))
+                        // A definite basis: the row wraps only when about the title's width and the buttons
+                        // don't fit side by side.
+                        .flex_grow_1()
+                        .flex_basis(px(120.))
+                        .min_w_0()
                         .gap_2()
                         .items_baseline()
                         .child(
                             div()
-                                .flex_shrink_0()
+                                .min_w_0()
+                                .truncate()
                                 .text_size(ui::BODY)
                                 .font_weight(FontWeight::MEDIUM)
                                 .child("Usage limit reached"),
@@ -109,8 +113,10 @@ impl ThreadView {
                 )
                 .when(actions, |el| {
                     el.child(
+                        // Alone on its line and still too wide: Snooze goes under Resume.
                         h_flex()
-                            .flex_shrink_0()
+                            .min_w_0()
+                            .flex_wrap()
                             .gap_0p5()
                             .child(
                                 div().debug_selector(|| "limit-resume".into()).child(

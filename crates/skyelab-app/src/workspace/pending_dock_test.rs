@@ -39,3 +39,28 @@ fn pending_cards_leave_the_plan_in_view(cx: &mut TestAppContext) {
         "Approve ({approve:?}) is above the stack (top {stack_top:?})"
     );
 }
+
+/// A thread too narrow for the limit banner's text and buttons side by side wraps the buttons under the text
+/// instead of drawing one over the other.
+#[gpui::test]
+fn a_narrow_limit_banner_wraps_its_buttons(cx: &mut TestAppContext) {
+    let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh");
+    let (one, cx) = one_view(cx, Provider::Claude, bin, None);
+    cx.simulate_resize(size(px(320.), px(840.)));
+    one.view
+        .update_in(cx, |v, window, cx| v.submit_remote("timeline", window, cx))
+        .expect("started");
+    wait_until(cx, "the limit banner", |cx| {
+        one.view.read_with(cx, |v, _| v.limited.is_some() && v.dock_step().is_some())
+    });
+    cx.run_until_parked();
+    let reset = cx.debug_bounds("limit-banner-reset").expect("the reset line");
+    let resume = cx.debug_bounds("limit-resume").expect("Resume at reset");
+    let banner = cx.debug_bounds("limit-banner").expect("the banner");
+    assert!(
+        reset.intersect(&resume).size.width <= px(0.) || reset.bottom() <= resume.top(),
+        "the reset line {reset:?} runs into Resume {resume:?}"
+    );
+    let snooze = cx.debug_bounds("limit-snooze").expect("Snooze");
+    assert!(snooze.right() <= banner.right(), "Snooze {snooze:?} leaves the banner {banner:?}");
+}
