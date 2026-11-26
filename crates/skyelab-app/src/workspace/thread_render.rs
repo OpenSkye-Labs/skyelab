@@ -16,7 +16,7 @@ use gpui_component::{
 };
 
 #[path = "thread_mode_picker.rs"]
-mod mode_picker;
+pub(super) mod mode_picker;
 #[path = "subagent_strip.rs"]
 mod subagent_strip;
 

@@ -100,6 +100,9 @@ pub(crate) struct Composer {
     pub reported_pick: Option<Option<String>>,
     /// The account's own default model, from its config dir.
     pub account_model: Option<String>,
+    /// The model this account's agent last reported on its default (no pick) in this session, from any thread: a
+    /// new thread's chip names it before its own first run.
+    pub last_default: Option<String>,
     pub footer: Footer,
     /// The footer read in flight: a newer one drops it, so an older read never lands last.
     pub footer_read: Option<gpui::Task<()>>,
@@ -110,6 +113,9 @@ pub(crate) struct Composer {
     pub dock_placeholder: Option<&'static str>,
     /// The docked question whose answers were sent (a second Submit waits).
     pub dock_sent: Option<String>,
+    /// When a pick last moved the docked question on: the Next/Submit button under the pointer changed meaning, so
+    /// a click soon after is ignored (T3 guards its swapped Stop button the same way).
+    pub dock_advanced: Option<std::time::Instant>,
     /// The docked question panel's focus: 1–9 pick while it has it (T3 leaves digits typed in a field alone).
     pub dock_focus: Option<gpui::FocusHandle>,
     /// The docked question the focus last moved to on its arrival, so it moves once per question.

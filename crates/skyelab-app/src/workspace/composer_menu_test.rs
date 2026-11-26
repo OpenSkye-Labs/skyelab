@@ -139,6 +139,50 @@ fn commands_and_skills_come_from_the_given_account_dir() {
     assert!(command_items(Provider::Codex, &account, &project, false).is_empty());
 }
 
+/// T3's /model, /plan and /default are listed; the /btw alias isn't, so it never leads the menu as the first row.
+#[test]
+fn slash_menu_lists_t3_commands_and_no_alias() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    for provider in [Provider::Claude, Provider::Codex] {
+        let items = command_items(provider, tmp.path(), tmp.path(), true);
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        for want in ["/side", "/model", "/plan", "/default"] {
+            assert!(labels.contains(&want), "{provider:?}: {labels:?}");
+        }
+        assert!(!labels.contains(&"/btw"), "{provider:?}: {labels:?}");
+    }
+}
+
+/// `/plan` and `/default` switch the thread's mode and send nothing; the composer empties.
+#[gpui::test]
+fn plan_and_default_switch_the_mode(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    let thread = project_thread(&f, &ws, cx);
+    for (text, want) in [
+        ("/plan", skyelab_agent::Mode::Plan),
+        ("/default", skyelab_agent::Mode::Default),
+    ] {
+        thread.update_in(cx, |t, window, cx| {
+            t.prompt.update(cx, |p, cx| p.set_value(text, window, cx));
+            t.send_prompt(&super::thread::SendPrompt, window, cx);
+        });
+        cx.run_until_parked();
+        thread.read_with(cx, |t, cx| {
+            assert_eq!(t.mode, want, "{text}");
+            assert!(
+                t.prompt.read(cx).value().is_empty(),
+                "{text}: the composer empties"
+            );
+            assert!(
+                t.thread.is_none(),
+                "{text}: nothing was sent, so no thread started"
+            );
+        });
+    }
+}
+
 #[gpui::test]
 fn slash_commands_come_from_the_bound_account_dir_only(cx: &mut TestAppContext) {
     setup(cx);
@@ -185,7 +229,7 @@ fn slash_commands_come_from_the_bound_account_dir_only(cx: &mut TestAppContext) 
 }
 
 #[gpui::test]
-fn at_menu_lists_tracked_files_and_inserts_a_mention(cx: &mut TestAppContext) {
+fn at_menu_lists_project_files_and_inserts_a_mention(cx: &mut TestAppContext) {
     setup(cx);
     let f = fixture(true);
     let git = |args: &[&str]| {
@@ -215,6 +259,7 @@ fn at_menu_lists_tracked_files_and_inserts_a_mention(cx: &mut TestAppContext) {
     git(&["add", "."]);
     git(&["commit", "-q", "-m", "init"]);
     fs::write(f.project_dir.join("ignored.rs"), "").expect("write");
+    fs::write(f.project_dir.join("new.rs"), "").expect("write"); // untracked, not ignored
     let (ws, cx) = open_workspace(&f, cx);
     let thread = project_thread(&f, &ws, cx);
     thread.update_in(cx, |t, window, cx| t.focus_prompt(window, cx));
@@ -233,10 +278,10 @@ fn at_menu_lists_tracked_files_and_inserts_a_mention(cx: &mut TestAppContext) {
     });
     assert_eq!(
         labels,
-        ["tracked.rs"],
-        "ignored and untracked files stay out"
+        ["new.rs", "tracked.rs"],
+        "a new file is listed; an ignored one stays out"
     );
-    cx.simulate_keystrokes("tab");
+    cx.simulate_keystrokes("down tab");
     cx.run_until_parked();
     thread.read_with(cx, |t, cx| {
         assert_eq!(t.prompt.read(cx).value().as_ref(), "see @tracked.rs ");
