@@ -1,4 +1,4 @@
-//! Acceptance: macOS keeps SkyeLab running with every window closed, and the hidden hub window takes the app-wide
+//! Acceptance: in background mode (and on macOS with every window closed), the hidden hub window takes the app-wide
 //! work. A task that comes due then runs there without opening a window (the opener stays a fallback).
 
 use super::super::threads_test::{fake_bin, wait_until};
@@ -49,7 +49,7 @@ fn a_due_task_runs_in_the_hidden_hub(cx: &mut TestAppContext) {
             cx,
         )
     });
-    cx.update(|window, _| window.remove_window());
+    TestAppContext::update(cx, super::super::background::enter);
     cx.run_until_parked();
     let handles =
         |cx: &mut gpui::VisualTestContext| TestAppContext::update(cx, |cx| window_handles(cx));
