@@ -16,7 +16,7 @@ if [ "$1 $2" = "auth status" ]; then
 fi
 # Stand-in for `claude` (tests and SKYELAB_CLAUDE_BIN): replays a recorded session, reports the
 # account dir and args it got, then echoes every stdin line so tests can see what was sent.
-# A prompt starting "permit" asks to run `make deploy` (a can_use_tool control request; under bypassPermissions it
+# A prompt starting "permit" asks to run `make deploy` ("permit tool" streams the Bash call first) (a can_use_tool control request; under bypassPermissions it
 # runs without asking and reports `fake_answer` "bypassed"), waits for the answer,
 # reports it as `fake_answer` and ends the turn ("permit write" asks a 2,000-line Write, "permit edit" an Edit and "permit multi" a two-edit MultiEdit
 # instead); one starting "crash" writes to stderr and exits 3, and one starting
@@ -163,6 +163,10 @@ while IFS= read -r line; do
         printf '{"type":"fake_answer","reply":"bypassed"}\n'
         printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"deployed without asking"}\n'
         continue ;;
+      esac
+      # "permit tool" first streams the call, as real Claude does before it asks.
+      case "$line" in *'"content":"permit tool'*)
+        printf '{"type":"assistant","message":{"id":"msg_p","role":"assistant","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"toolu_p","name":"Bash","input":{"command":"make deploy","description":"Deploy the site"}}]},"session_id":"fake-sess-1"}\n' ;;
       esac
       printf '{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"make deploy","description":"Deploy the site"},"tool_use_id":"toolu_p"}}\n'
       IFS= read -r reply
