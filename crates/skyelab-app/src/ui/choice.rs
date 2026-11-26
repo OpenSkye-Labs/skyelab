@@ -88,14 +88,21 @@ impl RenderOnce for SegmentedControl {
         let theme = cx.theme();
         let c = self.0;
         let h = c.size.height() - px(4.);
-        let (lift, hover, ring) = if theme.is_dark() {
+        // Light: T3's white lift alone barely shows on a white dialog, so the selected item also gets a hairline.
+        let (lift, hover, ring, edge) = if theme.is_dark() {
             (
                 theme.input.opacity(0.72),
                 theme.input.opacity(0.32),
                 theme.ring,
+                gpui::transparent_black(),
             )
         } else {
-            (theme.background, theme.background.opacity(0.55), theme.ring)
+            (
+                theme.background,
+                theme.background.opacity(0.55),
+                theme.ring,
+                theme.input,
+            )
         };
         h_flex()
             .id(c.id)
@@ -131,7 +138,10 @@ impl RenderOnce for SegmentedControl {
                     .cursor_pointer()
                     .map(|d| {
                         if on {
-                            d.bg(lift).text_color(theme.foreground).shadow_xs()
+                            d.bg(lift)
+                                .border_color(edge)
+                                .text_color(theme.foreground)
+                                .shadow_xs()
                         } else {
                             d.text_color(theme.muted_foreground)
                                 .hover(move |s| s.bg(hover))

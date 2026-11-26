@@ -14,6 +14,7 @@ use gpui_component::{
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{InputEvent, InputState},
+    menu::{PopupMenu, PopupMenuItem},
 };
 
 actions!(skyelab, [CancelTerminalRename]);
@@ -220,5 +221,28 @@ impl Panel for TerminalPanel {
     }
     fn title_suffix(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         Some(self.controls(cx))
+    }
+    /// The "…" menu (gpui-component always draws it, with Zoom) also holds the drawer's own controls, so it is
+    /// never a menu of one item.
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        use skyelab_core::terminal_layout::Axis;
+        type Event = fn() -> TabEvent;
+        let items: [(&str, Event); 4] = [
+            ("Split right", || TabEvent::Split(Axis::Row)),
+            ("Split down", || TabEvent::Split(Axis::Column)),
+            ("New terminal", || TabEvent::New),
+            ("Close terminal", || TabEvent::CloseActive),
+        ];
+        items.into_iter().fold(menu, |menu, (label, event)| {
+            let panel = cx.weak_entity();
+            menu.item(PopupMenuItem::new(label).on_click(move |_, _, cx| {
+                let _ = panel.update(cx, |_, cx| cx.emit(event()));
+            }))
+        })
     }
 }

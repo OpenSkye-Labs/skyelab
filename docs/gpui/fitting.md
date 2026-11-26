@@ -35,3 +35,16 @@ Lessons from the sidebar's update pill (`workspace/update_notice.rs`).
   center (the thread) 0 px wide. Fit it yourself from the viewport (`dock_fit.rs`): on restore, on
   `observe_window_bounds` and after a toggle, shrink the dock to leave the center its minimum, and close it (or hide
   the other dock) when even its own minimum doesn't fit.
+
+## Rows that must never draw text over text
+
+- **A child's `min_w(..)` overflows a `flex_1().min_w_0()` parent instead of shrinking it**: the thread header's title
+  (min 72 px) spilled over the account chip once the breadcrumb itself reached 0. Put the floor on the shrinking
+  container (`min_w(px(72.)).overflow_hidden()`), let the text inside truncate to 0, and let the next item (the chip)
+  shrink after it. A chip forced `flex_shrink_0` was the other half of the overlap.
+- **A one-line banner with buttons wraps them under the text when there's no room**: `flex_wrap()` on the row and a
+  `flex_1().min_w(px(160.))` text group (the min is what decides the wrap; `flex_1`'s zero basis alone never wraps).
+- **A meta line that can't fit moves its last item to a second line**: `flex_wrap()` with `gap_x_*`, and the item
+  keeps `min_w_0().truncate()` as the last resort. Its hypothetical width is its content, so it wraps before it truncates.
+- **Tiles that should span a fixed-width card**: `div().grid().grid_cols(n)` spreads them evenly; `flex_wrap` leaves a
+  ragged gap on the right.

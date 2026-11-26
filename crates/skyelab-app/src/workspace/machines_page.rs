@@ -204,7 +204,7 @@ impl Render for MachinesPage {
                             .child(e)
                     })),
             );
-        let section = |title: &'static str| ui::section_title(title, theme);
+        let section = |title: &'static str| ui::subsection_title(title, theme);
         div()
             .id("machines")
             .size_full()
@@ -240,6 +240,8 @@ impl Render for MachinesPage {
                                     .justify_between()
                                     .child(section("Your machines"))
                                     .child(
+                                        // Its label's end lines up with the card's edge.
+                                        div().mr(-ui::Size::Xs.pad_x()).child(
                                         Button::new("machines-refresh")
                                             .xsmall()
                                             .ghost()
@@ -247,6 +249,7 @@ impl Render for MachinesPage {
                                             .on_click(cx.listener(|this, _, _, cx| {
                                                 this.picker.update(cx, |p, cx| p.load_peers(cx))
                                             })),
+                                        ),
                                     ),
                             )
                             .child(ui::group(theme).children(rows))

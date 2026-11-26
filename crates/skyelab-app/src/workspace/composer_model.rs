@@ -208,11 +208,28 @@ impl ThreadView {
         self.composer.last_default = cx
             .try_global::<DefaultModels>()
             .and_then(|d| d.0.get(&account.id).cloned());
-        let task =
-            cx.background_spawn(async move { skyelab_agent::account_default_model(&account) });
+        // Nothing reported this session: the newest stored run on the default names it (a relaunch).
+        let store = self
+            .composer
+            .last_default
+            .is_none()
+            .then(|| self.backend.store.clone());
+        let task = cx.background_spawn(async move {
+            let stored = store.and_then(|store| {
+                lock(&store)
+                    .ok()?
+                    .last_default_model(&account.id)
+                    .ok()
+                    .flatten()
+            });
+            (skyelab_agent::account_default_model(&account), stored)
+        });
         cx.spawn(async move |this, cx| {
-            let model = task.await;
+            let (model, stored) = task.await;
             let _ = this.update(cx, |this, cx| {
+                if this.composer.last_default.is_none() {
+                    this.composer.last_default = stored;
+                }
                 if model.is_none() {
                     match provider {
                         Provider::Codex => this.list_codex_models(cx),

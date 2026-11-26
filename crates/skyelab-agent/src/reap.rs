@@ -102,8 +102,12 @@ pub(crate) fn end_commands_after(
     }
 }
 
+#[cfg(not(feature = "process-tree"))]
+fn kill_started_within(_agent: u32, _window: (u64, u64)) {}
+
 /// Kills each descendant of `agent` that started within `window` (seconds since the epoch, inclusive), and all
 /// below it. Only while `agent` runs: an ended agent's children belong to init, so none are found.
+#[cfg(feature = "process-tree")]
 fn kill_started_within(agent: u32, window: (u64, u64)) {
     use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
     let Ok(mut sys) = System::new() else {

@@ -69,10 +69,11 @@ impl Settings {
                             .child(
                                 h_flex()
                                     .debug_selector(move || selector)
-                                    // A narrow dialog cuts the sign-in status short instead of running it under
-                                    // the buttons.
+                                    // A narrow dialog moves the sign-in status to a second line instead of
+                                    // running it under the buttons; truncation is the last resort.
                                     .min_w_0()
-                                    .gap_1p5()
+                                    .flex_wrap()
+                                    .gap_x_1p5()
                                     .text_size(ui::META)
                                     .text_color(theme.muted_foreground)
                                     .child(ui::StatusDot::new(color))
@@ -102,7 +103,12 @@ impl Settings {
                                 .label(if signed_in { "Log in again" } else { "Log in" })
                                 .tooltip(format!("Opens a terminal running {login_cmd}"))
                                 .small()
-                                .map(|b| if signed_out { b.primary() } else { b.outline() })
+                                // Signed in: a quiet ghost, since it isn't the row's next step.
+                                .map(|b| match (signed_out, signed_in) {
+                                    (true, _) => b.primary(),
+                                    (_, true) => b.ghost(),
+                                    _ => b.outline(),
+                                })
                                 .on_click(
                                     cx.listener(move |this, _, _, cx| this.log_in(&login_id, cx)),
                                 ),

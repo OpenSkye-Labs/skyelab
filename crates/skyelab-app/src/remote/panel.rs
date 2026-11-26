@@ -184,7 +184,7 @@ impl Render for RemotePanel {
         let section = |title: &'static str, rows: Vec<gpui::AnyElement>| {
             v_flex()
                 .gap_2p5()
-                .child(ui::section_title(title, theme))
+                .child(ui::subsection_title(title, theme))
                 .child(ui::group(theme).children(rows))
         };
         div()
@@ -238,7 +238,6 @@ impl Render for RemotePanel {
                                 .child(
                                     Switch::new("share-on-tailnet")
                                         .checked(remote.enabled)
-                                        .label(if remote.enabled { "On" } else { "Off" })
                                         .accessibility_label("Share this machine on my tailnet")
                                         .on_click(|_, window, cx| {
                                             crate::workspace::dispatch(Box::new(ToggleSharing), window, cx)
@@ -250,7 +249,7 @@ impl Render for RemotePanel {
                         el.child(
                             v_flex()
                                 .gap_2p5()
-                                .child(ui::section_title("Waiting for approval", theme))
+                                .child(ui::subsection_title("Waiting for approval", theme))
                                 .child(div().px_1().text_size(ui::META).text_color(theme.muted_foreground).child(
                                     "Allow a device only if it shows the same code. Another program on one of your \
                                      devices can ask too.",
