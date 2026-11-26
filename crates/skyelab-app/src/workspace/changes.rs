@@ -37,7 +37,6 @@ use std::path::PathBuf;
 pub(super) use find::bind_keys;
 #[cfg(test)]
 pub(super) use rows::file_rows_built;
-pub(super) use rows::{diff_line, diff_line_wrapped};
 
 actions!(skyelab, [RefreshChanges]);
 

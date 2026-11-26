@@ -2,12 +2,11 @@
 //! agent output. The question and plan cards are in `ask_cards.rs`. Plain data in, elements out; state lives in the
 //! thread view.
 
-use super::changes::diff_line;
-use super::changes_model::LineKind;
+use super::diff_view;
 use super::thread_items::{ItemsView, clip};
 use super::thread_model::ToolItem;
 use crate::ui;
-use crate::ui::SkyeIcon;
+use crate::ui::{Button, SkyeIcon};
 use gpui::{AnyElement, Context, FontWeight, IntoElement, SharedString, div, prelude::*, px};
 use gpui_component::{ActiveTheme as _, Icon, clipboard::Clipboard, h_flex, v_flex};
 use skyelab_agent::{Todo, TodoStatus};
@@ -172,21 +171,28 @@ pub(super) fn render_todo(todos: &[Todo], cx: &Context<impl ItemsView>) -> AnyEl
         .into_any_element()
 }
 
-/// An edit, T3's inline diff: the file (click to show it in Changes) with `+N −N`, then its lines as the Changes tab
-/// draws them.
-pub(super) fn render_edit<V: ItemsView>(
+/// An edit, T3's inline diff: the file (click to show it in Changes) with `+N −N`, then its lines (`diff_view`).
+pub(super) fn render_edit<V: ItemsView + 'static>(
+    this: &V,
     tool: &ToolItem,
-    live: bool,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let theme = cx.theme();
+    let live = this.tool_live(&tool.id);
     let path = tool.raw["file_path"]
         .as_str()
         .unwrap_or_default()
         .to_owned();
-    let lines = edit_lines(tool);
-    let added = lines.iter().filter(|l| l.2 == LineKind::Added).count();
-    let removed = lines.iter().filter(|l| l.2 == LineKind::Removed).count();
+    // The input only grows while it streams, so its size tells a changed diff apart.
+    let size: usize = ["old_string", "new_string", "content"]
+        .iter()
+        .map(|k| tool.raw[k].as_str().map_or(0, str::len))
+        .chain(tool.raw["edits"].as_array().map(Vec::len))
+        .sum();
+    let p = diff_view::prepared(&format!("edit:{}:{size}", tool.id), &path, || {
+        edit_lines(tool)
+    });
+    let (added, removed) = (p.added, p.removed);
+    let theme = cx.theme();
     let (icon, color) = match (&tool.result, tool.is_error) {
         (None, _) if !live => (SkyeIcon::CircleAlert, theme.muted_foreground),
         (None, _) => (SkyeIcon::LoaderCircle, theme.info),
@@ -217,7 +223,9 @@ pub(super) fn render_edit<V: ItemsView>(
                 .id(SharedString::from(format!("path-{}", tool.id)))
                 .debug_selector(|| "card-path".into())
                 .min_w_0()
-                .truncate()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis_middle()
                 .cursor_pointer()
                 .text_color(theme.link)
                 .hover(|s| s.underline())
@@ -240,29 +248,44 @@ pub(super) fn render_edit<V: ItemsView>(
                         .child(format!("−{removed}")),
                 ),
         );
-    let (total, shown) = (lines.len(), lines.len().min(DIFF_LINES));
-    let rows = lines
-        .into_iter()
-        .take(DIFF_LINES)
-        .enumerate()
-        .map(|(ix, (o, n, k, t))| {
-            let base = h_flex()
-                .id(("edit-line", ix))
-                .h(px(20.))
-                .w_full()
-                .whitespace_nowrap()
-                .font_family(theme.mono_font_family.clone())
-                .text_xs();
-            diff_line(base, o, n, k, t.into(), theme)
-        });
-    let more = (total > shown).then(|| {
+    let error = tool.result.as_deref().filter(|_| tool.is_error).map(|why| {
         div()
             .px_3()
-            .py_1()
+            .py_1p5()
             .text_size(ui::META)
-            .italic()
+            .text_color(ui::ink(theme, theme.danger))
+            .child(clip(why))
+    });
+    // A Write past the lines a card holds (`input_lines` gives one more than it draws).
+    let cut = tool.name == "Write" && p.lines.len() > DIFF_LINES;
+    let (body, rows) = diff_view::body(this, &tool.id, p, cx);
+    let theme = cx.theme();
+    let all = this.is_expanded(&diff_view::all_key(&tool.id));
+    let key = diff_view::all_key(&tool.id);
+    let foot = (rows > diff_view::MAX_ROWS || cut).then(|| {
+        h_flex()
+            .px_2()
+            .h(px(28.))
+            .gap_2()
+            .border_t_1()
+            .border_color(theme.border)
+            .text_size(ui::META)
             .text_color(theme.muted_foreground)
-            .child("More lines: open the file in Changes.")
+            .when(rows > diff_view::MAX_ROWS, |d| {
+                d.child(
+                    Button::new(SharedString::from(format!("edit-all-{}", tool.id)))
+                        .debug_selector(|| "edit-show-all".into())
+                        .ghost()
+                        .xsmall()
+                        .label(if all {
+                            "Show less".to_owned()
+                        } else {
+                            "Show all".to_owned()
+                        })
+                        .on_click(cx.listener(move |this, _, _, cx| this.toggle_tool(&key, cx))),
+                )
+            })
+            .when(cut, |d| d.child("The rest of the file is in Changes."))
     });
     v_flex()
         .debug_selector(|| "edit-card".into())
@@ -273,23 +296,15 @@ pub(super) fn render_edit<V: ItemsView>(
         .border_color(theme.border)
         .overflow_hidden()
         .child(head)
-        .children(tool.result.as_deref().filter(|_| tool.is_error).map(|why| {
-            div()
-                .px_3()
-                .py_1p5()
-                .text_size(ui::META)
-                .text_color(ui::ink(theme, theme.danger))
-                .child(clip(why))
-        }))
+        .children(error)
         .child(
-            v_flex()
-                .id(SharedString::from(format!("edit-{}", tool.id)))
-                .max_h(px(384.))
-                .overflow_y_scroll()
+            div()
                 .bg(theme.background)
-                .children(rows)
-                .children(more),
+                .font_family(theme.mono_font_family.clone())
+                .text_size(theme.mono_font_size)
+                .child(body),
         )
+        .children(foot)
         .into_any_element()
 }
 

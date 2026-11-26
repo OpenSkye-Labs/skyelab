@@ -304,7 +304,7 @@ fn render_row<V: ItemsView>(
         Item::Tool(tool)
             if tool_cards::is_edit(&tool.name) && tool.raw["file_path"].is_string() =>
         {
-            tight(tool_cards::render_edit(tool, this.tool_live(&tool.id), cx))
+            tight(tool_cards::render_edit(this, tool, cx))
         }
         Item::Tool(tool) => match super::html_card::page_of(tool) {
             Some(page) => column(super::html_card::render(tool, page, window, cx)),

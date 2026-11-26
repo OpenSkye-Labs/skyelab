@@ -21,6 +21,7 @@ pub mod motion;
 #[cfg(test)]
 mod motion_test;
 mod surface;
+pub mod syntax;
 #[cfg(test)]
 mod terminal_colors_test;
 #[cfg(test)]
@@ -393,6 +394,25 @@ pub fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+}
+
+/// A file a tool touches as a row shows it: relative to the thread's folder `root` when inside it (macOS's
+/// `/private/tmp` counts as `/tmp`), else [`short_path`].
+pub fn folder_path(path: &str, root: Option<&Path>, home: Option<&Path>) -> String {
+    let p = Path::new(path);
+    // One side may carry macOS's `/private` and the other not; compare both without it.
+    let bare = |p: &Path| {
+        p.strip_prefix("/private")
+            .map_or(p.to_path_buf(), |r| Path::new("/").join(r))
+    };
+    let rest = root.and_then(|root| {
+        let rest = bare(p).strip_prefix(bare(root)).ok()?.to_path_buf();
+        (!rest.as_os_str().is_empty()).then_some(rest)
+    });
+    match rest {
+        Some(rest) => rest.display().to_string(),
+        None => short_path(p, home),
+    }
 }
 
 /// `path` with the home folder written `~`, for display only.

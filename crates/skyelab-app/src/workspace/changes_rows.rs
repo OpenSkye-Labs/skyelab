@@ -354,31 +354,6 @@ fn kind_badge(kind: ChangeKind, cx: &App) -> impl IntoElement {
         .child(letter)
 }
 
-/// One diff line on `base`: both line numbers, the sign, the text, tinted when added or removed. The Changes tab and
-/// the timeline's edit cards draw lines with it.
-pub(in crate::workspace) fn diff_line(
-    base: gpui::Stateful<gpui::Div>,
-    old: Option<u32>,
-    new: Option<u32>,
-    kind: LineKind,
-    text: SharedString,
-    theme: &gpui_component::Theme,
-) -> gpui::Stateful<gpui::Div> {
-    line_parts(base, old, Some(new), kind, text, false, theme)
-}
-
-/// [`diff_line`] with the text wrapping under itself: an approval must show a long line whole.
-pub(in crate::workspace) fn diff_line_wrapped(
-    base: gpui::Stateful<gpui::Div>,
-    old: Option<u32>,
-    new: Option<u32>,
-    kind: LineKind,
-    text: SharedString,
-    theme: &gpui_component::Theme,
-) -> gpui::Stateful<gpui::Div> {
-    line_parts(base, old, Some(new), kind, text, true, theme)
-}
-
 /// A line's number column(s), sign and text on `base`; `second` is the new-side number in a unified row (`None`:
 /// one column, a split half). `wrap` lets the text wrap under itself.
 fn line_parts<E: ParentElement + Styled>(
@@ -399,11 +374,14 @@ fn line_parts<E: ParentElement + Styled>(
             .text_color(theme.muted_foreground)
             .child(n.map(|n| n.to_string()).unwrap_or_default())
     };
-    let (sign, bg): (&str, Option<Hsla>) = match kind {
-        LineKind::Context => (" ", None),
-        LineKind::Added => ("+", Some(theme.success.opacity(0.12))),
-        LineKind::Removed => ("-", Some(theme.danger.opacity(0.12))),
+    // The timeline's diff colors, so a change reads the same in both.
+    let tint = crate::workspace::diff_view::colors(kind, theme);
+    let sign = match kind {
+        LineKind::Context => " ",
+        LineKind::Added => "+",
+        LineKind::Removed => "-",
     };
+    let bg: Option<Hsla> = tint.map(|t| t.0);
     let text = div()
         .flex_1()
         .min_w_0()
@@ -415,6 +393,12 @@ fn line_parts<E: ParentElement + Styled>(
     };
     base.child(num(first))
         .children(second.map(num))
-        .child(div().w(px(SIGN_W)).flex_none().child(sign))
+        .child(
+            div()
+                .w(px(SIGN_W))
+                .flex_none()
+                .when_some(tint, |d, t| d.text_color(t.2))
+                .child(sign),
+        )
         .child(text)
 }
