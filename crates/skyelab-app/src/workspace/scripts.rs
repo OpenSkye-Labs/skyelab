@@ -358,7 +358,8 @@ impl Render for ScriptMenu {
                     Button::new(("remove-script", s.id as u64))
                         .ghost()
                         .xsmall()
-                        .icon(gpui_component::Icon::new(crate::ui::SkyeIcon::Delete))
+                        .icon(gpui_component::Icon::new(crate::ui::SkyeIcon::Trash))
+                        .tooltip("Remove script")
                         .on_click(cx.listener(move |this, _, _, cx| this.remove(id, cx))),
                 )
         });
