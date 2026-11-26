@@ -83,6 +83,19 @@ impl Settings {
         options: Vec<(Option<String>, String)>,
         cx: &Context<Self>,
     ) -> AnyElement {
+        let pick: Pick = Rc::new(move |this, v, cx| this.set_shown_field(f, v, cx));
+        self.field_choice_with(id, f, options, pick, cx)
+    }
+
+    /// [`Self::field_choice`] with its own `pick` (a menu entry that saves nothing).
+    pub(super) fn field_choice_with(
+        &self,
+        id: &'static str,
+        f: ThreadField,
+        options: Vec<(Option<String>, String)>,
+        pick: Pick,
+        cx: &Context<Self>,
+    ) -> AnyElement {
         let app = prefs::get(cx);
         let label_of = |v: &Option<String>| {
             options
@@ -92,7 +105,6 @@ impl Settings {
                 .or_else(|| v.clone())
                 .unwrap_or_else(|| options.first().map(|(_, l)| l.clone()).unwrap_or_default())
         };
-        let pick: Pick = Rc::new(move |this, v, cx| this.set_shown_field(f, v, cx));
         if self.scope.is_none() {
             // Unset shows (and checks) the first option, as the agent treats it: Full access for the permission mode.
             let current = Some(app.field(f).clone())

@@ -10,6 +10,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   value you drew and return early (the sidebar keeps a `RowSig` per open thread).
 - A per-second tick lives in the smallest view that shows the time, runs only while something ticks, and only
   notifies. It never rebuilds a model.
+- A label that changes by the minute ("3m") gets a minute timer that hashes what the labels would read and notifies
+  only when that changed and the window is active, plus a re-check on window activation (`sidebar_clock.rs`). A
+  `fn() -> i64` clock on the view lets a test move time without sleeping.
 - `render` only reads. No `entity.update`, no `set_value`, no restoring state: do that where the state changes (an event
   handler, the task that got the result). To draw another entity's content, read it (`view.read(cx)`) and build its
   click handlers from a `WeakEntity` (see `thread_details::On`).

@@ -14,11 +14,20 @@ pub enum Event {
     Failed(String),
 }
 
+/// What the recognizer for the user's language can do, read before the microphone turns on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Capability {
+    /// The recognizer's locale (`en-US`, `de_DE`): what the server-dictation consent is kept per.
+    pub locale: String,
+    /// Audio stays on the Mac (false: Apple's servers would recognize it).
+    pub on_device: bool,
+}
+
 /// Whether this platform has dictation.
 pub const SUPPORTED: bool = cfg!(target_os = "macos");
 
 #[cfg(target_os = "macos")]
-pub use mac::{Session, authorize, start};
+pub use mac::{Session, authorize, probe, start};
 
 /// No dictation off macOS: the composer hides its button, so these are never called.
 #[cfg(not(target_os = "macos"))]
@@ -38,13 +47,18 @@ pub fn authorize(done: impl FnOnce(Result<(), Refusal>) + Send + 'static) {
 }
 
 #[cfg(not(target_os = "macos"))]
+pub fn probe() -> Result<Capability, Refusal> {
+    Err(Refusal::NoRecognizer)
+}
+
+#[cfg(not(target_os = "macos"))]
 pub fn start(_sink: impl Fn(Event) + Send + Sync + 'static) -> Result<Session, String> {
     Err(Refusal::NoRecognizer.to_string())
 }
 
 #[cfg(target_os = "macos")]
 mod mac {
-    use super::{Event, Refusal};
+    use super::{Capability, Event, Refusal};
     use block2::RcBlock;
     use objc2::AnyThread as _;
     use objc2::rc::Retained;
@@ -139,6 +153,31 @@ mod mac {
         });
         // SAFETY: the usage string is present (`packaged()`); the block is copied by the callee and Send + Sync.
         unsafe { AVAudioApplication::requestRecordPermissionWithCompletionHandler(&block) };
+    }
+
+    /// The default language's recognizer and whether it runs on the Mac, without touching the microphone: no engine,
+    /// no tap, no recognition task.
+    pub fn probe() -> Result<Capability, Refusal> {
+        if !packaged() {
+            return Err(Refusal::NotPackaged);
+        }
+        // SAFETY: init with the user's default language; nil (no recognizer for it) is handled.
+        let Some(recognizer) = (unsafe { SFSpeechRecognizer::init(SFSpeechRecognizer::alloc()) })
+        else {
+            return Err(Refusal::NoRecognizer);
+        };
+        // SAFETY: property reads on a recognizer we own.
+        let (available, locale, on_device) = unsafe {
+            (
+                recognizer.isAvailable(),
+                recognizer.locale().localeIdentifier().to_string(),
+                recognizer.supportsOnDeviceRecognition(),
+            )
+        };
+        if !available {
+            return Err(Refusal::Unavailable);
+        }
+        Ok(Capability { locale, on_device })
     }
 
     /// A running dictation. Dropping it cancels the recognition and turns the microphone off.

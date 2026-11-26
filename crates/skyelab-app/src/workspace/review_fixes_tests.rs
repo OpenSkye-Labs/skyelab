@@ -22,6 +22,9 @@ mod pr_poll_test;
 #[path = "panels/sidebar_card_test.rs"]
 mod sidebar_card_test;
 
+#[path = "panels/sidebar_menu_test.rs"]
+mod sidebar_menu_test;
+
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "git_menu_rebind_test.rs"]
 mod git_menu_rebind_test;

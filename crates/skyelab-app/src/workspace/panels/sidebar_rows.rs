@@ -10,7 +10,7 @@ use crate::ui::SkyeIcon;
 use crate::workspace::dispatch;
 use gpui::AnyElement;
 use gpui_component::Colorize as _;
-use gpui_component::menu::{ContextMenuExt as _, DropdownMenu as _};
+use gpui_component::menu::DropdownMenu as _;
 use skyelab_core::snooze;
 
 pub(super) fn section_button(s: &SidebarSection) -> Option<Button> {
@@ -60,16 +60,18 @@ pub(super) fn sidebar_row(
         .iter()
         .map(|(l, a)| (l.clone(), a.boxed_clone()))
         .collect();
-    let (focus, shelf) = (snooze.focus.clone(), menu.shelf.clone());
-    let row = row.context_menu(move |mut menu, window, cx| {
-        menu = menu.action_context(focus.clone());
-        for (label, action) in &entries {
-            menu = menu.menu(label.clone(), action.boxed_clone());
-        }
-        match &shelf {
-            Some(s) => super::super::thread_list::shelf_menu(menu, s, window, cx),
-            None => menu,
-        }
+    // The sidebar draws the menu above its list: a context menu inside a list row opens but never paints.
+    let (sidebar, shelf) = (snooze.sidebar.clone(), menu.shelf.clone());
+    let row = row.on_mouse_down(gpui::MouseButton::Right, move |e, window, cx| {
+        cx.stop_propagation();
+        let entries = entries
+            .iter()
+            .map(|(l, a)| (l.clone(), a.boxed_clone()))
+            .collect();
+        let shelf = shelf.clone();
+        let _ = sidebar.update(cx, |s, cx| {
+            s.open_row_menu(entries, shelf, e.position, window, cx)
+        });
     });
     super::sidebar_card::with_card(&item.id, row, card)
 }
@@ -149,8 +151,7 @@ fn thread_row(
             .child(icon.size_3().text_color(color))
             .child(word)
             .into_any_element(),
-        // shortcut: the time is computed when the sidebar draws, so an idle sidebar shows it as of its last redraw;
-        // add a minute timer if stale times get noticed.
+        // Moved on without a reload by the sidebar's clock (`sidebar_clock.rs`).
         None => div()
             .flex_shrink_0()
             .text_color(theme.muted_foreground)

@@ -34,7 +34,7 @@ pub mod snooze;
 pub use app_settings::{
     AppSettings, AppearanceSettings, ApprovedDevice, ColorMode, DiffSettings,
     MAX_RECENT_ENVIRONMENTS, MotionMode, ScheduledSettings, SendShortcut, SidebarView,
-    TerminalSettings, ThreadSettings, VisualReplySettings, WindowLayout,
+    TerminalSettings, ThreadSettings, VisualReplySettings, WindowLayout, same_locale,
 };
 mod repo_hooks;
 pub mod terminal_context;

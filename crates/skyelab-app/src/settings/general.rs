@@ -216,20 +216,24 @@ impl Settings {
                 let save = crate::ui::themes::set(Default::default(), cx);
                 self.report(save, "Appearance", cx);
             }
-            Section::Chat => self.set_threads(
-                move |t| {
-                    t.permission_mode = fresh.permission_mode.clone();
-                    t.claude_model = fresh.claude_model.clone();
-                    t.claude_effort = fresh.claude_effort.clone();
-                    t.codex_model = fresh.codex_model.clone();
-                    t.codex_effort = fresh.codex_effort.clone();
-                    t.cursor_model = fresh.cursor_model.clone();
-                    t.antigravity_model = fresh.antigravity_model.clone();
-                    t.antigravity_effort = fresh.antigravity_effort.clone();
-                    t.generate_titles = fresh.generate_titles;
-                },
-                cx,
-            ),
+            Section::Chat => {
+                let save = prefs::clear_server_dictation(cx);
+                self.report(save, "the dictation permissions", cx);
+                self.set_threads(
+                    move |t| {
+                        t.permission_mode = fresh.permission_mode.clone();
+                        t.claude_model = fresh.claude_model.clone();
+                        t.claude_effort = fresh.claude_effort.clone();
+                        t.codex_model = fresh.codex_model.clone();
+                        t.codex_effort = fresh.codex_effort.clone();
+                        t.cursor_model = fresh.cursor_model.clone();
+                        t.antigravity_model = fresh.antigravity_model.clone();
+                        t.antigravity_effort = fresh.antigravity_effort.clone();
+                        t.generate_titles = fresh.generate_titles;
+                    },
+                    cx,
+                )
+            }
             Section::Diffs => {
                 let save = prefs::save_diff(DiffSettings::default(), cx);
                 self.report(save, "Diffs", cx);

@@ -45,7 +45,8 @@ A thread's own choice always wins. They live in three Settings sections:
 - **Diffs & pull requests → Fetch remote**: Off, or every 1, 5 (the default), 15 or 30 minutes. While a thread is shown, its folder fetches
   its branch's upstream in the background under the thread's account's own GitHub login (the same rules as Push:
   https remotes only), so Details can say how far behind it is. Saved as `fetch_minutes`.
-- **Chat → Claude model** and effort, **Codex model** (an id, empty for the account's default) and effort: used by a new
+- **Chat → Claude model** and effort, **Codex model** (a menu of the models Codex lists for your
+  account, **Default model** for the account's own, or **Custom model id…** to type any other id) and effort: used by a new
   thread in a project that hasn't picked a model yet (the last model picked in a project stays its default).
 
 They are saved in `settings.toml` under `[threads]`. Threads an agent delegates start in Ask.
@@ -55,7 +56,7 @@ They are saved in `settings.toml` under `[threads]`. Threads an agent delegates 
 Work and personal projects often want different defaults. At the top of **Chat** and **Worktrees**, **Applying
 settings for** picks **All projects** (the app-wide defaults above) or one project. With a project picked, the same
 rows set that project's own default for permissions, Claude model and effort, Codex model and effort, and "start in a
-worktree". Each row offers **Inherit: …**, which follows All projects (the Codex model field inherits when empty).
+worktree". Each row offers **Inherit: …**, which follows All projects.
 **Restore defaults** sends the project's rows on that page back to Inherit. **Project settings…** in a project's
 sidebar menu opens Chat with that project already picked.
 

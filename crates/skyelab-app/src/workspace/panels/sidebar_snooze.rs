@@ -1,11 +1,13 @@
-//! A thread row's settle and snooze hover buttons, and the snooze menu the sidebar draws for them above its list.
+//! A thread row's settle and snooze hover buttons, and the menus the sidebar draws above its list (snooze, and a
+//! row's right-click menu): a popover inside a list row never paints.
 
 use super::sidebar::{RowShelf, Sidebar};
 use super::*;
 use crate::ui::SkyeIcon;
 use skyelab_core::snooze;
 
-/// The open snooze menu (its thread, where it opened, the menu), and the sidebar that owns it.
+/// The open snooze or row menu (its thread, 0 for a project row; where it opened; the menu), and the sidebar that
+/// owns it.
 #[derive(Clone)]
 pub(in crate::workspace) struct SnoozeMenu {
     pub open: Option<(
@@ -14,17 +16,13 @@ pub(in crate::workspace) struct SnoozeMenu {
         Entity<gpui_component::menu::PopupMenu>,
     )>,
     pub sidebar: gpui::WeakEntity<Sidebar>,
-    /// The sidebar's focus: the action context of its rows' menus.
-    pub focus: FocusHandle,
 }
 
 impl SnoozeMenu {
-    pub(super) fn new(focus: &FocusHandle, cx: &mut Context<Sidebar>) -> Self {
-        let sidebar = cx.entity().downgrade();
+    pub(super) fn new(cx: &mut Context<Sidebar>) -> Self {
         Self {
             open: None,
-            sidebar,
-            focus: focus.clone(),
+            sidebar: cx.entity().downgrade(),
         }
     }
 
@@ -79,6 +77,42 @@ impl Sidebar {
                 host.clone(),
             )
         });
+        self.show_menu(id, at, menu, window, cx);
+    }
+
+    /// A row's right-click menu at `at`: its entries, then (a thread row) settle and snooze.
+    pub(in crate::workspace) fn open_row_menu(
+        &mut self,
+        entries: Vec<(SharedString, Box<dyn gpui::Action>)>,
+        shelf: Option<RowShelf>,
+        at: gpui::Point<gpui::Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let focus = self.focus.clone();
+        let id = shelf.as_ref().map_or(0, |s| s.id);
+        let menu =
+            gpui_component::menu::PopupMenu::build(window, cx, move |mut menu, window, cx| {
+                menu = menu.action_context(focus.clone());
+                for (label, action) in &entries {
+                    menu = menu.menu(label.clone(), action.boxed_clone());
+                }
+                match &shelf {
+                    Some(s) => super::super::thread_list::shelf_menu(menu, s, window, cx),
+                    None => menu,
+                }
+            });
+        self.show_menu(id, at, menu, window, cx);
+    }
+
+    fn show_menu(
+        &mut self,
+        id: i64,
+        at: gpui::Point<gpui::Pixels>,
+        menu: Entity<gpui_component::menu::PopupMenu>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         menu.focus_handle(cx).focus(window, cx);
         cx.subscribe(&menu, |this, _, _: &gpui::DismissEvent, cx| {
             this.snooze.open = None;
