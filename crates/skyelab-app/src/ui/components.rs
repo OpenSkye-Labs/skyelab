@@ -243,6 +243,8 @@ impl RenderOnce for EmptyState {
             (BODY, FontWeight::MEDIUM, META)
         };
         v_flex()
+            // In a row it shrinks to the row, so the hint wraps instead of running past the card.
+            .min_w_0()
             .when(self.page, |this| this.max_w(px(384.)).gap_1())
             .when(!self.page, |this| this.gap_0p5().px_2().py_1p5())
             .child(
