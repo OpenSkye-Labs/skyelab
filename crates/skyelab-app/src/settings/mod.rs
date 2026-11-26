@@ -490,7 +490,7 @@ pub use page::Section;
 mod source_control;
 mod threads;
 mod visual_replies;
-mod widgets;
+pub(crate) mod widgets;
 
 #[cfg(test)]
 mod outside_edit_test;

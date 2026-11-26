@@ -259,17 +259,11 @@ impl Render for UsagePage {
             .justify_between()
             .gap_4()
             .flex_wrap()
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(ui::page_title("Usage", theme))
-                    .child(
-                        div()
-                            .text_size(ui::BODY)
-                            .text_color(theme.muted_foreground)
-                            .child("What this machine's agents reported, per account. Limits refresh from each account's own CLI while shown."),
-                    ),
-            )
+            .child(crate::settings::widgets::heading(
+                "Usage",
+                "What this machine's agents reported, per account. Limits refresh from each account's own CLI while shown.",
+                cx,
+            ))
             .child(toggles);
         let Some(_) = &self.data else {
             return v_flex()

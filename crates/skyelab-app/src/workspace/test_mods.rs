@@ -131,6 +131,8 @@ mod import_sessions_test;
 #[cfg(test)]
 mod layout_test;
 #[cfg(test)]
+mod dock_fit_test;
+#[cfg(test)]
 mod left_rail_test;
 #[cfg(all(test, unix))] // the fake claude is a shell script
 mod login_banner_test;

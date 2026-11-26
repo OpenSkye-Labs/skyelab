@@ -13,7 +13,8 @@ On a fresh install (no accounts or no projects), onboarding opens in place of th
 with progress dots on top. Opening it hides the terminal drawer and the right panel, so nothing covers it. **Return** or **Space** goes to the next page and **Esc** to the one before, while no field
 or button has the keyboard; **Back** and **Skip** do the same with the mouse. **Skip** or **Start building** on the last
 page saves `onboarded = true` in `settings.toml`, so it never opens by itself again. Run **Open Onboarding** from the
-command palette to go through it again. Pages slide in and lists fade up; with macOS **Reduce motion** on (read at
+command palette to go through it again. Back, Continue and Skip stay at the bottom of the window on every page; a
+page taller than the window scrolls above them, and each page opens at its top. Pages slide in and lists fade up; with macOS **Reduce motion** on (read at
 launch), they appear without moving.
 
 1. **Welcome**: the one idea, a folder bound to an account.

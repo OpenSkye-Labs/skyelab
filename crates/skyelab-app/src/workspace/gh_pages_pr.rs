@@ -21,6 +21,7 @@ impl GhPage {
         Some(super::super::pr_actions::Target {
             url,
             number,
+            title: Some(pr.title.clone()),
             checks: Some(pr.checks),
             head: pr.head.clone(),
             dir: source.path.clone(),

@@ -69,6 +69,9 @@ impl Settings {
                             .child(
                                 h_flex()
                                     .debug_selector(move || selector)
+                                    // A narrow dialog cuts the sign-in status short instead of running it under
+                                    // the buttons.
+                                    .min_w_0()
                                     .gap_1p5()
                                     .text_size(ui::META)
                                     .text_color(theme.muted_foreground)
@@ -81,6 +84,7 @@ impl Settings {
                                         div()
                                             .id(SharedString::from(status_id.clone()))
                                             .debug_selector(move || status_id)
+                                            .min_w_0()
                                             .truncate()
                                             .text_color(status_color)
                                             .child(status)

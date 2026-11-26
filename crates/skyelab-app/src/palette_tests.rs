@@ -69,6 +69,8 @@ fn humanize_drops_the_namespace_and_splits_camel_case() {
     assert_eq!(humanize("skyelab::OpenSettings"), "Open Settings");
     assert_eq!(humanize("skyelab::ToggleSidebar"), "Toggle Sidebar");
     assert_eq!(humanize("terminal::Paste"), "Paste");
+    assert_eq!(humanize("skyelab::BrowserCopyUrl"), "Browser Copy URL");
+    assert_eq!(humanize("skyelab::OpenPrDiff"), "Open PR Diff");
 }
 
 #[test]

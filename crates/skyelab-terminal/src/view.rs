@@ -440,7 +440,9 @@ impl Render for TerminalView {
                 }
             })
             .size_full()
-            .p_1()
+            // 8 px at the sides: with 4 the text sat against the drawer's edge.
+            .px_2()
+            .py_1()
             .bg(style.palette.background)
             .child(
                 canvas(

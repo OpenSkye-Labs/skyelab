@@ -12,8 +12,9 @@ use std::path::Path;
 /// A row description's size: 13 px at the default text size.
 pub(super) const DESC: gpui::Rems = ui::SUBTEXT;
 
-/// A section's heading: semibold title, then a muted line saying what it is for.
-pub(super) fn heading(title: &str, about: &str, cx: &App) -> gpui::Div {
+/// A section's heading: semibold title, then a muted line saying what it is for. Pages shown in the Settings dialog
+/// from elsewhere (Usage, Machines, Sharing & access) use it too, so every page's heading lines up.
+pub(crate) fn heading(title: &str, about: &str, cx: &App) -> gpui::Div {
     let theme = cx.theme();
     v_flex()
         .gap_1()

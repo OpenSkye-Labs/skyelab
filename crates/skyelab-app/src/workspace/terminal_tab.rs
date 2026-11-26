@@ -193,7 +193,7 @@ impl TerminalPanel {
             ))
             .child(button(
                 "terminal-close",
-                SkyeIcon::Delete,
+                SkyeIcon::Trash,
                 "Close terminal",
                 &super::terminal_panel::CloseTerminal,
                 "Terminal",

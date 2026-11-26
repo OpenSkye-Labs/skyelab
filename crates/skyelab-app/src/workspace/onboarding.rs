@@ -119,6 +119,8 @@ pub struct Onboarding {
     _scan: Option<Task<()>>,
     /// Drops `leaving` once its fade is over.
     _leave: Option<Task<()>>,
+    /// The page's scroll: each step starts at its top, not where the last one was left.
+    pub(super) scroll: gpui::ScrollHandle,
 }
 
 impl EventEmitter<OnboardingEvent> for Onboarding {}
@@ -153,6 +155,7 @@ impl Onboarding {
             _detect: None,
             _scan: None,
             _leave: None,
+            scroll: gpui::ScrollHandle::new(),
         }
     }
 
@@ -296,6 +299,7 @@ impl Onboarding {
         }
         (self.from, self.step) = (self.step, to);
         self.error = None;
+        self.scroll.set_offset(gpui::Point::default());
         // The old page fades out over the new one, then goes; with Reduce Motion there is nothing to fade.
         self.leaving = (!cx.reduce_motion()).then_some(self.from);
         self._leave = self.leaving.map(|_| {
