@@ -55,7 +55,7 @@ gpui-component.workspace = true
 skyelab-protocol = { path = "../crates/skyelab-protocol" }
 skyelab-client = { path = "../crates/skyelab-client" }
 # The desktop's timeline model (`timeline`) and thread-list text, so both apps read stored rows the same way.
-skyelab-agent = { path = "../crates/skyelab-agent" }
+skyelab-agent = { path = "../crates/skyelab-agent", default-features = false }
 anyhow = "1"
 flume = "0.12"
 serde_json = "1"
