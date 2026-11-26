@@ -1,9 +1,11 @@
-//! Acceptance: everything a thumb taps is at least 44 pt tall: thread rows, a turn's fold header, answer buttons.
+//! Acceptance: everything a thumb taps is at least 44 pt tall: thread rows, shelf fold headers, shelf/snooze
+//! actions, a turn's fold header, and answer buttons.
 
 use gpui::{TestAppContext, px, size};
 use skyelab_mobile::{
     app::{Connect, MobileApp},
     source::{FakeSource, ThreadSource},
+    thread_rows::now_ms,
 };
 
 const MIN: f32 = 44.;
@@ -39,10 +41,33 @@ fn tap_targets_are_44pt(cx: &mut TestAppContext) {
         );
     };
     tall(cx, "thread-row");
+    tall(cx, "shelf-toggle");
     tall(cx, "back");
 
+    // Expand shelf actions on the first thread: Settle and snooze preset buttons must be >= 44 pt.
+    let ids: Vec<i64> = app.read_with(cx, |a, _| a.threads().iter().map(|t| t.id).collect());
+    app.update(cx, |a, cx| a.toggle_shelf_actions(ids[0], cx));
+    draw(cx);
+    tall(cx, "shelf-settle");
+    tall(cx, "shelf-snooze");
+
+    // Put idle threads on the Snoozed and Settled shelves and verify fold headers, Wake, and Restore >= 44 pt.
+    app.update(cx, |a, cx| {
+        a.snooze_thread(ids[1], now_ms() + 3_600_000, cx);
+        a.settle_thread(ids[2], cx);
+    });
+    draw(cx);
+    tall(cx, "shelf-fold");
+    app.update(cx, |a, cx| {
+        a.toggle_snoozed_shelf(cx);
+        a.toggle_settled_shelf(cx);
+    });
+    draw(cx);
+    tall(cx, "shelf-wake");
+    tall(cx, "shelf-restore");
+
     // The demo's first thread has a folded turn and a waiting question, plan and permission.
-    let first = app.read_with(cx, |a, _| a.threads()[0].id);
+    let first = ids[0];
     app.update_in(cx, |a, window, cx| a.open_thread(first, window, cx));
     draw(cx);
     for selector in [

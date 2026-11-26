@@ -56,7 +56,10 @@ skyelab-protocol = { path = "../crates/skyelab-protocol" }
 skyelab-client = { path = "../crates/skyelab-client" }
 # The desktop's timeline model (`timeline`) and thread-list text, so both apps read stored rows the same way.
 skyelab-agent = { path = "../crates/skyelab-agent", default-features = false }
+# Shared snooze presets and wake-time helpers (`skyelab_core::snooze`).
+skyelab-core = { path = "../crates/skyelab-core" }
 anyhow = "1"
+chrono = "0.4"
 flume = "0.12"
 serde_json = "1"
 
@@ -77,6 +80,7 @@ skyelab-daemon = { path = "../crates/skyelab-daemon", features = ["test-support"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 skyelab-store = { path = "../crates/skyelab-store" }
 skyelab-tailnet = { path = "../crates/skyelab-tailnet" }
+tungstenite = "0.30"
 
 [lints]
 workspace = true

@@ -5,12 +5,14 @@ use appearance::follow_appearance;
 mod appearance;
 #[path = "ask_rows.rs"]
 pub mod ask_rows;
+#[path = "thread_list_screen.rs"]
+mod thread_list_screen;
 #[path = "thread_screen.rs"]
 mod thread_screen;
 use crate::{
     env_store,
     source::{Connection, ThreadSource},
-    thread_rows::{Usage, row_detail, sections},
+    thread_rows::Usage,
 };
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, ListAlignment, ListState, SharedString,
@@ -93,6 +95,12 @@ pub struct MobileApp {
     typed: HashMap<(String, usize), Entity<InputState>>,
     /// Event rows built so far, so tests can check a frame builds only the visible ones.
     pub rows_built: usize,
+    /// Thread whose inline shelf/snooze action bar is currently open on the thread list.
+    pub shelf_actions_for: Option<i64>,
+    /// Whether the folded Snoozed shelf is expanded.
+    pub show_snoozed: bool,
+    /// Whether the folded Settled shelf is expanded.
+    pub show_settled: bool,
     _subscriptions: [Subscription; 3],
 }
 
@@ -145,6 +153,9 @@ impl MobileApp {
             drafts: HashMap::new(),
             typed: HashMap::new(),
             rows_built: 0,
+            shelf_actions_for: None,
+            show_snoozed: false,
+            show_settled: false,
             _subscriptions,
         }
     }
@@ -175,15 +186,18 @@ impl MobileApp {
                     let applied = this.update(cx, |app, cx| {
                         if let Some(source) = app.source.as_mut() {
                             source.apply(msg);
-                            // Nothing of a refused machine stays open: back to its (now empty) list.
-                            if source.connection().is_untrusted()
-                                && matches!(app.screen, Screen::Thread { .. })
-                            {
+                            let cleared = source.connection().is_untrusted()
+                                || matches!(source.connection(), Connection::VersionMismatch(_));
+                            // Nothing of a refused or incompatible machine stays open: back to its (now empty) list.
+                            if cleared && matches!(app.screen, Screen::Thread { .. }) {
                                 app.screen = Screen::Threads;
                             }
                             // Its rows mean nothing on whatever node is trusted next.
-                            if source.connection().is_untrusted() {
+                            if cleared {
                                 app.shown = None;
+                                app.shelf_actions_for = None;
+                                app.show_snoozed = false;
+                                app.show_settled = false;
                             }
                         }
                         cx.notify();
@@ -196,6 +210,9 @@ impl MobileApp {
         });
         self.source = Some(source);
         self.shown = None;
+        self.shelf_actions_for = None;
+        self.show_snoozed = false;
+        self.show_settled = false;
     }
 
     pub fn open_thread(&mut self, thread_id: i64, window: &mut Window, cx: &mut Context<Self>) {
@@ -218,6 +235,9 @@ impl MobileApp {
                 // Leaving the environment closes its connection.
                 self._pump = None;
                 self.source = None;
+                self.shelf_actions_for = None;
+                self.show_snoozed = false;
+                self.show_settled = false;
                 Screen::Picker
             }
             Screen::Thread { .. } => {
@@ -310,17 +330,6 @@ impl MobileApp {
     }
 }
 
-/// A section title in the thread list.
-fn section_title(title: &'static str, cx: &App) -> impl IntoElement {
-    div()
-        .pt_3()
-        .pb_1()
-        .text_xs()
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(cx.theme().muted_foreground)
-        .child(title.to_uppercase())
-}
-
 impl MobileApp {
     fn picker(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
@@ -353,58 +362,6 @@ impl MobileApp {
                     .on_click(cx.listener(|this, _, window, cx| this.connect(window, cx))),
             )
             .into_any_element()
-    }
-
-    /// The flat list: section titles, then one tappable row per thread (title and status, then project, account
-    /// and preview).
-    fn thread_list(&self, cx: &mut Context<Self>) -> AnyElement {
-        let projects = self.projects();
-        let starts = skyelab_agent::thread_list::day_starts();
-        let mut list = v_flex().id("threads").size_full().overflow_y_scroll();
-        for (title, threads) in sections(self.threads(), starts) {
-            list = list.child(section_title(title, cx));
-            for t in threads {
-                let id = t.id;
-                let project = projects.iter().find(|p| p.id == t.project_id);
-                let detail = row_detail(&t, project);
-                let theme = cx.theme();
-                let dot = match t.status.as_str() {
-                    "starting" | "running" => theme.info,
-                    "idle" | "done" => theme.success,
-                    "failed" => theme.danger,
-                    "interrupted" => theme.warning,
-                    _ => theme.muted_foreground,
-                };
-                list =
-                    list.child(
-                        div()
-                            .id(("thread", id as u64))
-                            .debug_selector(|| "thread-row".into())
-                            .min_h(px(TAP))
-                            .py_2()
-                            .border_b_1()
-                            .border_color(theme.border)
-                            .child(
-                                h_flex()
-                                    .gap_2()
-                                    .child(div().size_2().rounded_full().bg(dot))
-                                    .child(div().flex_1().text_base().line_clamp(1).child(t.title)),
-                            )
-                            .child(
-                                div()
-                                    .pl_4()
-                                    .text_sm()
-                                    .line_clamp(3)
-                                    .text_color(theme.muted_foreground)
-                                    .child(detail),
-                            )
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.open_thread(id, window, cx)
-                            })),
-                    );
-            }
-        }
-        list.into_any_element()
     }
 
     fn title(&self) -> SharedString {

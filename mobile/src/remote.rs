@@ -1,35 +1,45 @@
 //! [`ThreadSource`] over `skyelab-client`: a connection to one environment, cached for the screens.
 //!
-//! Nothing here blocks the caller. Updates (connection changes, watched events) and request results all land in
-//! one inbox; the app keeps receiving from it and hands each message to [`ThreadSource::apply`].
+//! Nothing here blocks the caller. Updates (connection changes, watched events, shell stream snapshots/deltas) and
+//! request results all land in one inbox; the app keeps receiving from it and hands each message to
+//! [`ThreadSource::apply`].
 //!
-//! Node pinning trusts the server's word about itself: the phone has no local Tailscale to ask (docs/mobile.md,
-//! step 4).
+//! Protocol 1.7 machines stream projects and threads via `subscribe_shell` (`ShellSnapshot::apply`). Older machines
+//! (< 1.7) fall back to `list_projects` + `list_threads`. Node pinning trusts the server's word about itself: the
+//! phone has no local Tailscale to ask (docs/mobile.md, step 4).
+
+#[path = "remote_shell.rs"]
+mod shell;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use skyelab_client::{
-    Client, DisconnectKind, Error, Hello, Options, Pending, PermissionAnswer, Project, Thread,
-    ThreadEvent, Update, WatchId,
+    Client, DisconnectKind, Error, Hello, Options, Pending, PermissionAnswer, Project, ShellChange,
+    ShellSnapshot, Thread, ThreadEvent, Update, WatchId,
 };
+use skyelab_protocol::{SHELL_SINCE_MINOR, SHELVES_SINCE_MINOR};
 
 use crate::env_store;
 use crate::source::{Connection, Msg, ThreadSource};
 
 pub(crate) enum Inbound {
     Update(Update),
+    /// Initial 1.7 shell snapshot for subscription generation `.0`.
+    ShellSnapshot(u64, ShellSnapshot),
+    /// Incremental 1.7 shell delta for subscription generation `.0`.
+    ShellChange(u64, ShellChange),
+    /// The 1.7 shell stream ended for generation `.0` (gap or dropped connection); resubscribe if still connected.
+    ShellEnded(u64),
+    /// `subscribe_shell` failed for generation `.0`.
+    ShellError(u64, Error),
     Projects(Result<Vec<Project>, Error>),
     Threads(i64, Result<Vec<Thread>, Error>),
-    /// A send or stop finished; `what` names it for the error line.
+    /// A send, stop, answer or shelve finished; `what` names it for the error line.
     Done(&'static str, Result<(), Error>),
-    /// Time to retry the lists after one failed.
+    /// Time to retry subscribing or listing after a failure.
     Retry,
 }
-
-/// How long to wait before re-listing after a list request failed while connected.
-const LIST_RETRY: Duration = Duration::from_secs(2);
 
 pub struct RemoteSource {
     client: Client,
@@ -42,6 +52,15 @@ pub struct RemoteSource {
     inbox: flume::Receiver<Msg>,
     connection: Connection,
     error: Option<String>,
+    /// True when the current (or last) approved connection uses protocol 1.7 `subscribe_shell`.
+    streaming: bool,
+    /// True once a snapshot arrived on the current `shell_gen` and the stream has not ended.
+    shell_live: bool,
+    /// Bumped on every new subscribe, disconnect, fatal error, or refusal to drop stale stream messages.
+    shell_gen: u64,
+    /// Live projects and threads for protocol >= 1.7, updated via `ShellSnapshot::apply`.
+    shell: ShellSnapshot,
+    /// Legacy < 1.7 project and thread caches.
     projects: Vec<Project>,
     threads: HashMap<i64, Vec<Thread>>,
     watched: Option<i64>,
@@ -80,6 +99,10 @@ impl RemoteSource {
             inbox,
             connection: Connection::Connecting,
             error: None,
+            streaming: false,
+            shell_live: false,
+            shell_gen: 0,
+            shell: ShellSnapshot::default(),
             projects: Vec::new(),
             threads: HashMap::new(),
             watched: None,
@@ -106,35 +129,6 @@ impl RemoteSource {
         if let Err(e) = spawned {
             self.error = Some(format!("Couldn't start a request: {e}"));
         }
-    }
-
-    /// A list request failed: try again shortly, once, rather than wait for the next reconnect.
-    fn list_failed(&mut self, what: &str, e: Error) {
-        self.error = Some(format!("Couldn't list {what}: {e}"));
-        if self.retry_pending {
-            return;
-        }
-        self.retry_pending = true;
-        let tx = self.inbox_tx.clone();
-        let spawned = std::thread::Builder::new()
-            .name("skyelab-mobile-retry".into())
-            .spawn(move || {
-                std::thread::sleep(LIST_RETRY);
-                let _ = tx.send(Msg(Inbound::Retry));
-            });
-        if spawned.is_err() {
-            self.retry_pending = false; // the next failure tries again
-        }
-    }
-
-    /// Lists the projects; their threads follow once the projects arrive.
-    fn refresh(&mut self) {
-        self.request(self.client.list_projects(), Inbound::Projects);
-    }
-
-    fn list_threads(&mut self, project_id: i64) {
-        let pending = self.client.list_threads(project_id);
-        self.request(pending, move |r| Inbound::Threads(project_id, r));
     }
 
     /// Whether this hello's node may be trusted for the name: the pinned one, or the first one seen (then pinned).
@@ -171,13 +165,26 @@ impl RemoteSource {
         if let Some(hello) = &self.hello {
             self.client.approve(hello);
         }
-        self.refresh();
+        if self.speaks(SHELL_SINCE_MINOR) {
+            self.streaming = true;
+            self.subscribe_shell();
+        } else {
+            self.streaming = false;
+            self.shell_live = false;
+            self.shell_gen = self.shell_gen.wrapping_add(1);
+            self.shell = ShellSnapshot::default();
+            self.refresh_legacy();
+        }
     }
 
-    /// Nothing of this machine stays: its ids mean nothing on whatever node is trusted next. The watch ends too,
-    /// so reopening the thread later replays it from the start.
+    /// Nothing of this machine stays: its ids mean nothing on whatever node is trusted next. The watch and any
+    /// shell subscription end too, so reopening later starts fresh.
     fn refuse(&mut self, connection: Connection) {
         self.connection = connection;
+        self.shell_gen = self.shell_gen.wrapping_add(1);
+        self.streaming = false;
+        self.shell_live = false;
+        self.shell = ShellSnapshot::default();
         self.projects.clear();
         self.threads.clear();
         self.events.clear();
@@ -218,6 +225,8 @@ impl RemoteSource {
             }
             Update::Disconnected(d) => {
                 self.hello = None;
+                self.shell_gen = self.shell_gen.wrapping_add(1);
+                self.shell_live = false;
                 self.connection = Connection::Reconnecting(d.message);
             }
             // A thread we stopped watching may still have a few in flight, and re-watching replays from seq 1 while
@@ -232,9 +241,15 @@ impl RemoteSource {
             }
             Update::Event(_) => {}
             Update::Fatal(Error::UnsupportedVersion(why)) => {
-                self.connection = Connection::VersionMismatch(why);
+                self.hello = None;
+                self.refuse(Connection::VersionMismatch(why));
             }
-            Update::Fatal(e) => self.connection = Connection::Stopped(e.to_string()),
+            Update::Fatal(e) => {
+                self.hello = None;
+                self.shell_gen = self.shell_gen.wrapping_add(1);
+                self.shell_live = false;
+                self.connection = Connection::Stopped(e.to_string());
+            }
         }
     }
 }
@@ -249,10 +264,17 @@ impl ThreadSource for RemoteSource {
     }
 
     fn projects(&self) -> Vec<Project> {
-        self.projects.clone()
+        if self.streaming {
+            self.shell.projects.clone()
+        } else {
+            self.projects.clone()
+        }
     }
 
     fn threads(&self) -> Vec<Thread> {
+        if self.streaming {
+            return self.shell.threads.clone();
+        }
         // Only the projects still listed: a project removed there takes its threads with it.
         self.projects
             .iter()
@@ -270,10 +292,11 @@ impl ThreadSource for RemoteSource {
     }
 
     fn load_threads(&mut self) {
-        if self.connection == Connection::Connected {
-            let ids: Vec<i64> = self.projects.iter().map(|p| p.id).collect();
-            ids.into_iter().for_each(|id| self.list_threads(id));
+        if self.connection != Connection::Connected || self.streaming {
+            return;
         }
+        let ids: Vec<i64> = self.projects.iter().map(|p| p.id).collect();
+        ids.into_iter().for_each(|id| self.list_threads(id));
     }
 
     fn watch(&mut self, thread_id: i64) {
@@ -314,6 +337,30 @@ impl ThreadSource for RemoteSource {
         self.request(pending, |r| Inbound::Done("answer", r));
     }
 
+    fn shelve_thread(&mut self, thread_id: i64, settled: bool, snoozed_until: Option<i64>) {
+        self.error = None;
+        if self.connection != Connection::Connected {
+            self.error = Some(format!(
+                "{} is offline. Settle and snooze its threads once it is back.",
+                self.host
+            ));
+            return;
+        }
+        if !self.speaks(SHELVES_SINCE_MINOR) {
+            self.error = Some(format!(
+                "{} runs an older SkyeLab without settle and snooze: update SkyeLab on {}",
+                self.host, self.host
+            ));
+            return;
+        }
+        let pending = self.client.shelve_thread(thread_id, settled, snoozed_until);
+        self.request(pending, |r| Inbound::Done("shelve", r));
+    }
+
+    fn host(&self) -> Option<&str> {
+        Some(&self.host)
+    }
+
     fn speaks(&self, minor: u32) -> bool {
         self.hello
             .as_ref()
@@ -341,9 +388,13 @@ impl ThreadSource for RemoteSource {
     fn apply(&mut self, msg: Msg) {
         match msg.0 {
             Inbound::Update(update) => self.on_update(update),
-            // A reply that lands after a refusal (its thread raced the update) must not refill the screen.
+            Inbound::ShellSnapshot(epoch, snapshot) => self.on_shell_snapshot(epoch, snapshot),
+            Inbound::ShellChange(epoch, change) => self.on_shell_change(epoch, change),
+            Inbound::ShellEnded(epoch) => self.on_shell_ended(epoch),
+            Inbound::ShellError(epoch, e) => self.on_shell_error(epoch, e),
+            // A reply that lands after a refusal or while streaming must not refill the legacy cache.
             Inbound::Projects(Ok(_)) | Inbound::Threads(_, Ok(_))
-                if self.connection != Connection::Connected => {}
+                if self.connection != Connection::Connected || self.streaming => {}
             Inbound::Projects(Ok(projects)) => {
                 self.projects = projects;
                 self.error = None;
@@ -353,18 +404,24 @@ impl ThreadSource for RemoteSource {
                 self.threads.insert(project_id, threads);
                 self.error = None;
             }
-            Inbound::Retry => {
-                self.retry_pending = false;
-                // Not connected: the next Connected re-lists anyway.
-                if self.connection == Connection::Connected {
-                    self.refresh();
+            Inbound::Retry => self.on_retry(),
+            // On < 1.7, thread status and shelf state aren't pushed: re-list after mutations.
+            Inbound::Done(_, Ok(())) => {
+                self.error = None;
+                if !self.streaming {
+                    self.load_threads();
                 }
             }
-            // The thread's status changed; the protocol doesn't push that.
-            Inbound::Done(_, Ok(())) => self.load_threads(),
-            Inbound::Projects(Err(e)) => self.list_failed("projects", e),
-            Inbound::Threads(_, Err(e)) => self.list_failed("threads", e),
-            Inbound::Done(what, Err(e)) => self.error = Some(format!("Couldn't {what}: {e}")),
+            Inbound::Projects(Err(e)) if !self.streaming => self.list_failed("projects", e),
+            Inbound::Threads(_, Err(e)) if !self.streaming => self.list_failed("threads", e),
+            Inbound::Projects(Err(_)) | Inbound::Threads(_, Err(_)) => {}
+            Inbound::Done(what, Err(e)) => {
+                let message = match e {
+                    Error::Rpc(rpc) if what == "shelve" => rpc.message,
+                    other => format!("Couldn't {what}: {other}"),
+                };
+                self.error = Some(message);
+            }
         }
     }
 }

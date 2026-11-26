@@ -76,7 +76,14 @@ pub trait ThreadSource {
     /// Answers an AskUserQuestion the thread's agent waits on: one list of picked labels per question.
     fn answer_questions(&mut self, _thread_id: i64, _request_id: &str, _answers: Vec<Vec<String>>) {
     }
-    /// Whether the machine speaks protocol 1.`minor` or later (questions need 1.4).
+    /// Puts the thread on a shelf on the environment (protocol 1.6): settled, snoozed until `snoozed_until`
+    /// (Unix ms), or neither (restored / woken).
+    fn shelve_thread(&mut self, _thread_id: i64, _settled: bool, _snoozed_until: Option<i64>) {}
+    /// The MagicDNS host this source talks to, if any (for friendly version-mismatch hints).
+    fn host(&self) -> Option<&str> {
+        None
+    }
+    /// Whether the machine speaks protocol 1.`minor` or later (questions need 1.4, shelves 1.6, shell 1.7).
     fn speaks(&self, _minor: u32) -> bool {
         true
     }
@@ -240,5 +247,18 @@ impl ThreadSource for FakeSource {
 
     fn answer_questions(&mut self, thread_id: i64, request_id: &str, _answers: Vec<Vec<String>>) {
         self.resolve(thread_id, request_id, Decision::AllowOnce);
+    }
+
+    fn shelve_thread(&mut self, thread_id: i64, settled: bool, snoozed_until: Option<i64>) {
+        if settled && snoozed_until.is_some() {
+            return;
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as i64);
+        if let Some(t) = self.threads.iter_mut().find(|t| t.id == thread_id) {
+            t.settled_at = settled.then_some(now);
+            t.snoozed_until = snoozed_until.filter(|_| !settled);
+        }
     }
 }
