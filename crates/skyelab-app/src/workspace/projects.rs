@@ -87,6 +87,10 @@ impl Workspace {
 
     /// Every listed project's threads, for the sidebar's one list. A newer load replaces (cancels) an older one.
     pub(super) fn load_threads(&mut self, cx: &mut Context<Self>) {
+        // Only over the app's own backend (main.rs): a window's fallback one (tests) would start a stream per window.
+        if self._local_shell.is_none() && cx.try_global::<super::LocalBackend>().is_some() {
+            self.follow_local_shell(cx);
+        }
         let local = self.local.clone();
         let task = cx.background_spawn(async move { shell(&local).map(|s| s.threads) });
         self._threads = Some(cx.spawn(async move |this, cx| {

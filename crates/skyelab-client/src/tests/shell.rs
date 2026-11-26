@@ -141,3 +141,76 @@ fn an_older_environment_is_not_asked() {
         "nothing was sent"
     );
 }
+
+/// Two subscribes answered out of order: the newer one keeps its stream, the older one's ends at once.
+#[test]
+fn the_newest_subscribe_wins_when_replies_cross() {
+    use skyelab_protocol::{ShellChange, ShellSnapshot};
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    std::thread::spawn(move || {
+        let Ok((stream, _)) = listener.accept() else {
+            return;
+        };
+        let Ok(mut ws) = tungstenite::accept(stream) else {
+            return;
+        };
+        let read_id = |ws: &mut tungstenite::WebSocket<std::net::TcpStream>| loop {
+            if let Ok(Message::Text(t)) = ws.read() {
+                return serde_json::from_str::<Request>(&t).expect("request").id;
+            }
+        };
+        let hello = read_id(&mut ws);
+        let reply = |id, result| ServerMessage::Response { id, result }.to_json();
+        let hello_reply = Reply::Hello(Hello {
+            protocol: skyelab_protocol::VERSION,
+            capabilities: vec![],
+            node_id: None,
+        });
+        ws.send(Message::text(reply(hello, hello_reply)))
+            .expect("hello");
+        let (first, second) = (read_id(&mut ws), read_id(&mut ws));
+        let snap = |seq| {
+            Reply::Shell(ShellSnapshot {
+                seq,
+                ..ShellSnapshot::default()
+            })
+        };
+        ws.send(Message::text(reply(second, snap(10))))
+            .expect("second");
+        ws.send(Message::text(reply(first, snap(5))))
+            .expect("first, late");
+        let change = ServerMessage::Shell(ShellChange {
+            seq: 11,
+            delta: ShellDelta::ThreadRemoved { id: 1 },
+        });
+        ws.send(Message::text(change.to_json())).expect("change");
+        while ws.read().is_ok() {}
+    });
+    let client = Client::connect(
+        HOST,
+        Options {
+            plaintext: true,
+            ..options(port)
+        },
+    )
+    .expect("client");
+    connected(&client);
+    let (older, newer) = (client.subscribe_shell(), client.subscribe_shell());
+    let newer = newer.recv().expect("newer snapshot");
+    let older = older.recv().expect("older snapshot");
+    assert_eq!(
+        newer
+            .changes
+            .recv_timeout(Duration::from_secs(30))
+            .map(|c| c.seq),
+        Ok(11),
+        "the newer stream still delivers"
+    );
+    assert!(
+        older
+            .changes
+            .recv_timeout(Duration::from_millis(300))
+            .is_err()
+    );
+}

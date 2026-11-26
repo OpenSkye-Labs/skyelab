@@ -227,7 +227,7 @@ impl<A: Agents> Backend for StoreBackend<A> {
                     let accounts = accounts(path.as_deref());
                     match s.lock() {
                         Ok(s) => read_rows(&s, rows, &accounts),
-                        Err(_) => Vec::new(),
+                        Err(_) => None,
                     }
                 });
                 let hub = Hub::start(&self.store, read).map_err(|e| {
@@ -258,6 +258,7 @@ impl<A: Agents> Backend for StoreBackend<A> {
                         wire_thread(t, preview, &accounts)
                     })
                     .collect(),
+                truncated: false,
             })
         })
     }
@@ -332,7 +333,12 @@ fn wire_thread(
 }
 
 /// Changed rows as they read now: listed, or removed. A project listed again brings its threads back.
-fn read_rows(store: &Store, rows: &[RowChange], accounts: &AccountsConfig) -> Vec<ShellDelta> {
+/// `None` when one can't be read: its change would be lost, so the caller restarts every stream.
+fn read_rows(
+    store: &Store,
+    rows: &[RowChange],
+    accounts: &AccountsConfig,
+) -> Option<Vec<ShellDelta>> {
     let thread = |t: skyelab_store::Thread| {
         let preview = store.last_reply(t.id, PREVIEW_CHARS).ok().flatten();
         ShellDelta::ThreadUpdated(Box::new(wire_thread(t, preview, accounts)))
@@ -355,11 +361,13 @@ fn read_rows(store: &Store, rows: &[RowChange], accounts: &AccountsConfig) -> Ve
         };
         match read {
             Ok(deltas) => out.extend(deltas),
-            // Skipped: a later write to the row sends it again, and a resubscribe reads everything.
-            Err(e) => eprintln!("skyelab-daemon: shell read failed: {e:#}"),
+            Err(e) => {
+                eprintln!("skyelab-daemon: shell read failed, restarting the streams: {e:#}");
+                return None;
+            }
         }
     }
-    out
+    Some(out)
 }
 
 /// Store event → wire event, for [`crate::Daemon::push_event`]. One too big for [`MAX_REPLY_BYTES`] keeps its
@@ -387,6 +395,34 @@ pub fn event(e: skyelab_store::Event) -> ThreadEvent {
         };
     }
     ev
+}
+
+/// The snapshot as one message under [`MAX_REPLY_BYTES`], for the wire: the newest threads that fit, archived ones
+/// only after every active one, marked `truncated` when some were left out. This machine's own (in-process) snapshot
+/// is never cut.
+// shortcut: projects are never cut; a machine with megabytes of project rows alone would still overflow.
+pub(crate) fn bound(mut s: ShellSnapshot) -> ShellSnapshot {
+    let len = |v: serde_json::Result<Vec<u8>>| v.map_or(usize::MAX, |v| v.len());
+    // The envelope (`{"type":"response","id":…,"result":{"kind":"shell","data":{"seq":…}}}`) fits in this.
+    let mut bytes = 256 + len(serde_json::to_vec(&s.projects));
+    if bytes.saturating_add(len(serde_json::to_vec(&s.threads))) <= MAX_REPLY_BYTES {
+        return s;
+    }
+    let before = s.threads.len();
+    // Stable: newest first within active, then archived.
+    s.threads.sort_by_key(|t| t.row.archived_at.is_some());
+    let mut full = false;
+    s.threads.retain(|t| {
+        if !full {
+            bytes = bytes.saturating_add(len(serde_json::to_vec(t)) + 1);
+            full = bytes > MAX_REPLY_BYTES;
+        }
+        !full
+    });
+    s.threads
+        .sort_by_key(|t| (std::cmp::Reverse(t.updated_at), std::cmp::Reverse(t.id)));
+    s.truncated = s.threads.len() < before;
+    s
 }
 
 /// Bytes `ev` takes inside a reply.

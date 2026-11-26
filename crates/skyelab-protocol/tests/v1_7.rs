@@ -76,6 +76,7 @@ fn subscribe_snapshot_and_change_round_trip() {
             created_at: 5,
         }],
         threads: vec![thread(3, 1, 2)],
+        truncated: true,
     };
     let reply = ServerMessage::Response {
         id: 4,
@@ -108,6 +109,7 @@ fn apply_keeps_the_snapshot_order_and_is_idempotent() {
             ..Project::default()
         }],
         threads: vec![thread(1, 1, 10), thread(2, 1, 5)],
+        truncated: false,
     };
     s.apply(ShellDelta::ProjectUpdated(Project {
         id: 2,

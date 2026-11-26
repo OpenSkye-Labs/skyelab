@@ -25,3 +25,13 @@ snapshot and events:
 - A 1.6 machine is never sent `subscribe_shell` (`Client::subscribe_shell` fails it locally, "update SkyeLab on
   <machine>"): the app lists it per project and lists again a second after pushed events, as before. A 1.6 client of
   a 1.7 machine never subscribes and never gets a shell message.
+- Bounds and failures: on the wire a snapshot stays under 8 MiB (half the client's 16 MiB message limit). A store
+  with more sends the newest threads that fit, archived ones left out first, with `truncated: true`; a left-out
+  thread comes back as an update when it next changes. This machine's in-process snapshot is never cut. A changed row
+  the worker can't read ends every stream (each client resubscribes) rather than skip a change with no gap to show.
+  When two subscribes cross, the newest one keeps the stream and an older reply's changes end at once. The
+  1.7 check runs on the connection the call goes out on, so a reconnect to an older machine is refused locally.
+- This machine's own sidebar follows the same stream in-process (from the app's backend, set in `main.rs`): a thread
+  another writer adds (a remote call, an agent, another window) shows, and a deleted one goes, without a reload. A
+  row the window already holds is never replaced from the stream, since the window edits its rows before their
+  store writes land and a streamed row read in between would be older.

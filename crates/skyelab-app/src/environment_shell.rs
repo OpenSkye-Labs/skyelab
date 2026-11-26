@@ -40,6 +40,7 @@ impl RemoteEnv {
                         seq: change.seq,
                         projects: std::mem::take(&mut this.projects),
                         threads: std::mem::take(&mut this.threads),
+                        truncated: false,
                     };
                     shell.apply(change.delta);
                     (this.projects, this.threads) = (shell.projects, shell.threads);

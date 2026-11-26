@@ -363,12 +363,10 @@ impl Client {
     }
 
     /// The environment's projects and threads, then every change to them (protocol 1.7), so a list never polls.
-    /// One stream per client: subscribing again replaces it. An environment older than 1.7 is never asked: it fails
-    /// here with a `NotWired` error; list it with `list_projects` and `list_threads` instead.
+    /// One stream per client: the newest subscribe wins, an older one's changes end at once. An environment older
+    /// than 1.7 is never asked (checked on the connection the call goes out on): it fails with a `NotWired` error;
+    /// list it with `list_projects` and `list_threads` instead.
     pub fn subscribe_shell(&self) -> Pending<ShellFeed> {
-        if let Some(refused) = self.older_than(skyelab_protocol::SHELL_SINCE_MINOR, "a live list") {
-            return refused;
-        }
         let (reply, rx) = flume::bounded(1);
         self.command(conn::Command::SubscribeShell { reply });
         Pending(rx)
@@ -380,11 +378,7 @@ impl Client {
             return None;
         }
         let (tx, rx) = flume::bounded(1);
-        let message = format!(
-            "{} runs an older SkyeLab without {lacks}: update SkyeLab on {}",
-            self.host, self.host
-        );
-        let _ = tx.send(Err(Error::Rpc(RpcError::new(ErrorCode::NotWired, message))));
+        let _ = tx.send(Err(too_old(&self.host, lacks)));
         Some(Pending(rx))
     }
 
@@ -465,6 +459,12 @@ fn fail_stopped(command: conn::Command) {
         }
         _ => {}
     }
+}
+
+/// The `NotWired` error for a call `host` runs too old a SkyeLab for, naming what it lacks.
+fn too_old(host: &str, lacks: &str) -> Error {
+    let message = format!("{host} runs an older SkyeLab without {lacks}: update SkyeLab on {host}");
+    Error::Rpc(RpcError::new(ErrorCode::NotWired, message))
 }
 
 fn ok(reply: Reply) -> Option<()> {

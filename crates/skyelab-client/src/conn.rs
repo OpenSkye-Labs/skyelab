@@ -6,7 +6,9 @@ use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
 use rustls::ClientConfig;
-use skyelab_protocol::{Call, Hello, Reply, Request, RequestId, ServerMessage, Version};
+use skyelab_protocol::{
+    Call, Hello, Reply, Request, RequestId, SHELL_SINCE_MINOR, ServerMessage, Version,
+};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{Instant, sleep_until, timeout};
 use tokio_tungstenite::WebSocketStream;
@@ -93,6 +95,12 @@ struct Ctx {
 }
 
 impl Ctx {
+    /// Whether the live connection's environment speaks an older minor than `minor`.
+    fn speaks_below(&self, minor: u32) -> bool {
+        let hello = self.hello.lock().unwrap_or_else(PoisonError::into_inner);
+        hello.as_ref().is_some_and(|h| h.protocol.minor < minor)
+    }
+
     fn set_hello(&self, hello: Option<Hello>) {
         *self.hello.lock().unwrap_or_else(PoisonError::into_inner) = hello;
     }
@@ -271,6 +279,7 @@ async fn session(cx: &mut Ctx) -> End {
         retry_at: None,
         retry_delay: cx.options.backoff_min,
         shell: None,
+        shell_gen: 0,
         session_ended: tokio::sync::watch::channel(()).0,
     };
     let end = live.serve(cx).await;
@@ -284,7 +293,7 @@ async fn session(cx: &mut Ctx) -> End {
             Waiter::Forward(_, _, reply) => {
                 let _ = reply.send(Err(Error::ConnectionLost));
             }
-            Waiter::Shell(reply) => {
+            Waiter::Shell(_, reply) => {
                 let _ = reply.send(Err(Error::ConnectionLost));
             }
             Waiter::Fill(_) => {}
@@ -305,7 +314,8 @@ enum Waiter {
     /// `forward_port` for this port, under this reservation. Never expires: a reply after the caller gave up would
     /// leave the environment forwarding a port no `Forward` stops. The daemon's probe bounds it (10 s).
     Forward(u16, u64, flume::Sender<Result<Forward, Error>>),
-    Shell(flume::Sender<Result<crate::ShellFeed, Error>>),
+    /// `subscribe_shell` number `.0` on this connection: only the newest may install its stream.
+    Shell(u64, flume::Sender<Result<crate::ShellFeed, Error>>),
 }
 
 struct Live {
@@ -320,6 +330,8 @@ struct Live {
     retry_at: Option<Instant>,
     retry_delay: Duration,
     shell: Option<ShellStream>,
+    /// The newest `subscribe_shell` sent on this connection.
+    shell_gen: u64,
     /// Dropped with this connection: every forward started on it stops.
     session_ended: tokio::sync::watch::Sender<()>,
 }
@@ -419,11 +431,16 @@ impl Live {
                 let _ = reply.send(Err(Error::NotConnected));
                 Ok(())
             }
+            Command::SubscribeShell { reply } if cx.speaks_below(SHELL_SINCE_MINOR) => {
+                let _ = reply.send(Err(crate::too_old(&cx.host, "a live list")));
+                Ok(())
+            }
             Command::SubscribeShell { reply } => {
                 // The old stream ends now, so no change of it lands after the new snapshot.
                 self.shell = None;
-                self.request(cx, Call::SubscribeShell, Waiter::Shell(reply))
-                    .await
+                self.shell_gen += 1;
+                let waiter = Waiter::Shell(self.shell_gen, reply);
+                self.request(cx, Call::SubscribeShell, waiter).await
             }
         }
     }
@@ -473,8 +490,8 @@ impl Live {
                 self.forwarded(cx, port, reservation, reply, result);
                 Ok(())
             }
-            Some((_, Waiter::Shell(reply))) => {
-                self.shell_reply(reply, result);
+            Some((_, Waiter::Shell(generation, reply))) => {
+                self.shell_reply(generation, reply, result);
                 Ok(())
             }
             None => Ok(()), // timed out already, or an id we never sent

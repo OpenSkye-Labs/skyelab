@@ -22,7 +22,9 @@ pub struct ShellFeed {
 }
 
 /// Re-reads changed rows into deltas. It takes the store's lock itself, so it can read files before it does.
-pub(crate) type ReadRows = Box<dyn Fn(&Mutex<Store>, &[RowChange]) -> Vec<ShellDelta> + Send>;
+/// `None`: a row couldn't be read, so every subscriber must start over from a new snapshot.
+pub(crate) type ReadRows =
+    Box<dyn Fn(&Mutex<Store>, &[RowChange]) -> Option<Vec<ShellDelta>> + Send>;
 
 #[derive(Default)]
 struct Subs {
@@ -98,6 +100,11 @@ fn work(
         let deltas = read(&store, &rows);
         drop(store);
         let mut subs = subs.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(deltas) = deltas else {
+            // A change was written but can't be sent: ending every stream makes each client resubscribe.
+            subs.senders.clear();
+            continue;
+        };
         // Still behind by a whole backlog from earlier batches: drop it, so its stream ends and it resubscribes.
         subs.senders.retain(|s| s.len() <= BACKLOG);
         for delta in deltas {
@@ -108,5 +115,31 @@ fn work(
             };
             subs.senders.retain(|s| s.send(change.clone()).is_ok());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    /// A batch that can't be read ends every stream, instead of leaving clients a row behind with no gap to see.
+    #[test]
+    fn an_unreadable_change_ends_the_streams() {
+        let store = Arc::new(Mutex::new(Store::open_in_memory().expect("store")));
+        let hub =
+            Hub::start(&store, Box::new(|_: &Mutex<Store>, _: &[RowChange]| None)).expect("hub");
+        let feed = hub
+            .subscribe(|| Ok(ShellSnapshot::default()))
+            .expect("feed");
+        store
+            .lock()
+            .expect("lock")
+            .create_project("app", Path::new("/src/app"))
+            .expect("project");
+        assert_eq!(
+            feed.changes.recv_timeout(Duration::from_secs(10)),
+            Err(flume::RecvTimeoutError::Disconnected)
+        );
     }
 }

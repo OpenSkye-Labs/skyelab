@@ -28,7 +28,7 @@ impl Live {
                     }
                     self.mark_stale(cx, thread_id);
                 }
-                Some((_, Waiter::Shell(reply))) => {
+                Some((_, Waiter::Shell(_, reply))) => {
                     let _ = reply.send(Err(Error::Timeout));
                 }
                 Some((_, Waiter::Forward(..))) | None => {}

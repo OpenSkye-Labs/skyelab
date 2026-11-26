@@ -186,3 +186,71 @@ fn a_big_fan_out_keeps_the_stream() {
         .count();
     assert_eq!(got, 1101, "the project and each of its threads");
 }
+
+/// A store whose snapshot would pass the client's message limit sends the newest threads that fit, marked
+/// truncated, archived ones left out first; later changes still stream.
+#[test]
+fn a_snapshot_too_big_for_one_message_is_cut_to_the_newest() {
+    let (store, daemon, project, _) = served();
+    let title = "x".repeat(4000);
+    let mut last = 0;
+    {
+        let store = store.lock().expect("lock");
+        let archived = store
+            .create_thread(&NewThread {
+                project_id: project,
+                title: "archived but new",
+                cwd: Path::new("/src/app"),
+                account_id: "work",
+                status: "idle",
+            })
+            .expect("thread")
+            .id;
+        store.set_thread_archived(archived, true).expect("archive");
+        for _ in 0..2500 {
+            last = store
+                .create_thread(&NewThread {
+                    project_id: project,
+                    title: &title,
+                    cwd: Path::new("/src/app"),
+                    account_id: "work",
+                    status: "idle",
+                })
+                .expect("thread")
+                .id;
+        }
+    }
+    let mut ws = connect_hello(daemon.local_addrs()[0]);
+    send(&mut ws, 2, Call::SubscribeShell);
+    let reply = recv(&mut ws).expect("a reply");
+    assert!(
+        reply.to_json().len() <= skyelab_daemon::MAX_REPLY_BYTES,
+        "{} bytes",
+        reply.to_json().len()
+    );
+    let ServerMessage::Response {
+        result: Reply::Shell(snap),
+        ..
+    } = reply
+    else {
+        panic!("expected the snapshot");
+    };
+    assert!(snap.truncated);
+    assert!(snap.threads.len() > 1000 && snap.threads.len() < 2502);
+    assert!(
+        snap.threads.iter().any(|t| t.id == last),
+        "the newest is kept"
+    );
+    assert!(
+        !snap.threads.iter().any(|t| t.row.archived_at.is_some()),
+        "archived ones go first"
+    );
+    store
+        .lock()
+        .expect("lock")
+        .set_thread_title(last, "still streams")
+        .expect("rename");
+    assert!(
+        matches!(change(&mut ws).1, ShellDelta::ThreadUpdated(t) if t.title == "still streams")
+    );
+}

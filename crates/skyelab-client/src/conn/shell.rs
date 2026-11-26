@@ -27,9 +27,11 @@ impl Live {
         }
     }
 
-    /// The answer to `subscribe_shell`: the caller gets the snapshot and the changes after it.
+    /// The answer to `subscribe_shell` number `generation`: the caller gets the snapshot and the changes after it.
+    /// A reply to an older subscribe than the newest (answered late) gets a stream that has already ended.
     pub(super) fn shell_reply(
         &mut self,
+        generation: u64,
         reply: flume::Sender<Result<ShellFeed, Error>>,
         result: Result<Reply, Error>,
     ) {
@@ -41,8 +43,9 @@ impl Live {
         };
         let next = feed.as_ref().map(|(next, _)| *next).ok();
         let feed = feed.map(|(_, snapshot)| ShellFeed { snapshot, changes });
-        // A caller that gave up (a newer subscribe replaced it) gets no stream.
+        // A caller that gave up, or an older subscribe than the newest, gets no stream.
         if reply.send(feed).is_ok()
+            && generation == self.shell_gen
             && let Some(next) = next
         {
             self.shell = Some(ShellStream { next, tx });

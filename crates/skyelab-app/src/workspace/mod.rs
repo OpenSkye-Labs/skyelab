@@ -19,6 +19,7 @@ mod compare;
 mod compare_sidebar;
 mod compare_view;
 mod debug_hud;
+mod local_shell;
 pub(crate) use debug_hud::ToggleDebugOverlay;
 mod details_panel;
 mod device_agent;
@@ -281,6 +282,8 @@ pub struct Workspace {
     _load: Option<Task<()>>,
     _add: Option<Task<()>>,
     _threads: Option<Task<()>>,
+    /// This machine's shell stream (`local_shell.rs`), followed from the first thread load.
+    _local_shell: Option<Task<()>>,
     _settings_saved: Option<Subscription>,
     /// Answers delegated starts and sends (see `orchestrate_ui`).
     _orchestrate: Option<Task<()>>,
@@ -481,6 +484,7 @@ impl Workspace {
             _load: None,
             _add: None,
             _threads: None,
+            _local_shell: None,
             _settings_saved: None,
             _orchestrate: None,
             _settings_events: None,

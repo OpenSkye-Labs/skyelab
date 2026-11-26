@@ -381,9 +381,12 @@ fn on_call(
                             "this device was cut off",
                         )),
                         false if subscribe => gate.run(|| {
-                            backend
-                                .subscribe_shell()
-                                .map(|f| (Reply::Shell(f.snapshot), Some(f.changes)))
+                            backend.subscribe_shell().map(|f| {
+                                (
+                                    Reply::Shell(crate::backend::bound(f.snapshot)),
+                                    Some(f.changes),
+                                )
+                            })
                         }),
                         false => gate.run(|| dispatch(&*backend, call).map(|r| (r, None))),
                     };
