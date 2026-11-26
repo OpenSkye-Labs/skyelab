@@ -68,7 +68,7 @@ fn migration_20_fixes_stored_fork_turns() {
     let conn = Connection::open(&path).expect("open");
     conn.execute_batch(
         "UPDATE turn_usage SET cost_usd = 0.25 WHERE thread_id IN (SELECT id FROM threads WHERE forked_from IS NOT NULL);
-         DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id; ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark;
+         DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id; ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark;
          PRAGMA user_version = 19;",
     )
     .expect("downgrade");
