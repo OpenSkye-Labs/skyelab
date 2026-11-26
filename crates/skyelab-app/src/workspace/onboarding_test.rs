@@ -214,7 +214,7 @@ fn latest_versions(
     let calls = std::sync::Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
     let release: crate::updates::Fetch =
-        std::sync::Arc::new(|| Err(std::io::Error::other("unused")));
+        std::sync::Arc::new(|_| Err(std::io::Error::other("unused")));
     cx.update(|cx| {
         crate::updates::init(None, release, cx);
         crate::updates::set_agent_fetch(

@@ -1,0 +1,159 @@
+name: Package
+
+# The packaging matrix both release.yml (a stable tag) and nightly.yml call: each OS builds, signs when its secrets are
+# set, packages and uploads its files as an artifact (skyelab-<OS>) of the calling run.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The version to build as (a nightly's); empty builds Cargo.toml's as committed.
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PACKAGER_VERSION: 0.11.8
+  ARTIFACT_SIGNING_CLI_VERSION: 0.12.0
+
+jobs:
+  package:
+    name: package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            formats: app,dmg
+            artifacts: target/release/*.dmg
+          - os: windows-latest
+            formats: nsis
+            artifacts: target/release/*-setup.exe
+          # Pinned, not -latest: an AppImage only runs on glibc at least as new as the build host's.
+          - os: ubuntu-24.04
+            formats: deb,appimage
+            artifacts: |
+              target/release/*.deb
+              target/release/*.AppImage
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install
+      # A nightly build carries its own version, stamped here and never committed: the workspace version (every crate
+      # inherits it) and its entries in Cargo.lock, so the --locked build below still matches.
+      - name: Stamp the version
+        if: inputs.version != ''
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # A Windows checkout has CRLF lines; cargo reads LF as well, and the patterns below expect it.
+          perl -pi -e 's/\r$//' Cargo.toml Cargo.lock
+          old=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          perl -pi -e 'if (!$done && s/^version = ".*"/version = "$ENV{VERSION}"/) { $done = 1 }' Cargo.toml
+          # Workspace crates are the lock entries with no `source` line.
+          OLD="$old" perl -0pi -e 's/(\nname = "[^"]+"\nversion = )"\Q$ENV{OLD}\E"\n(?!source = )/$1"$ENV{VERSION}"\n/g' Cargo.lock
+          grep -qxF "version = \"$VERSION\"" Cargo.toml
+          cargo metadata --locked --format-version 1 > /dev/null
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libvulkan1 libfontconfig-dev clang cmake \
+            libwebkit2gtk-4.1-dev libgtk-3-dev
+      - name: Ensure Metal Toolchain
+        if: runner.os == 'macOS'
+        run: |
+          if xcodebuild -showComponent MetalToolchain 2>/dev/null | grep -q 'Status: installed'; then
+            echo "Metal Toolchain already installed"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: release
+      - run: cargo install cargo-packager --locked --version "$CARGO_PACKAGER_VERSION"
+        shell: bash
+      # Build here, with no secrets in env: cargo-packager's own build then has nothing left to compile.
+      - run: cargo build --release --locked -p skyelab-app
+
+      # ---- Code signing: secret-gated; without the secrets macOS stays ad hoc and Windows unsigned (CLAUDE.md "Release") ----
+      # secrets.* can't be read in a step `if:`, so this step turns "all set" into outputs.
+      - name: Detect signing secrets
+        id: signing
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE }}
+        run: |
+          all_set() { for v in "$@"; do [ -n "${!v}" ] || return 1; done; }
+          if all_set APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; then
+            echo "macos=true" >> "$GITHUB_OUTPUT"
+          fi
+          if all_set AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID AZURE_ARTIFACT_SIGNING_ENDPOINT \
+            AZURE_ARTIFACT_SIGNING_ACCOUNT AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE; then
+            echo "windows=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Swaps the committed ad-hoc identity ("-") for the Developer ID; cargo-packager then imports APPLE_CERTIFICATE
+      # into a temporary keychain and notarizes the .app with APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID.
+      - name: Enable macOS signing and notarization
+        if: runner.os == 'macOS' && steps.signing.outputs.macos == 'true'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          perl -pi -e 's/^signing-identity = .*$/signing-identity = "$ENV{APPLE_SIGNING_IDENTITY}"/' \
+            crates/skyelab-app/Cargo.toml
+          grep -qxF "signing-identity = \"$APPLE_SIGNING_IDENTITY\"" crates/skyelab-app/Cargo.toml
+      # Windows: Azure Artifact Signing (cloud HSM). cargo-packager runs the sign command on the exe and the installer.
+      - name: Enable Windows signing
+        if: runner.os == 'Windows' && steps.signing.outputs.windows == 'true'
+        shell: bash
+        env:
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+        run: |
+          cargo install artifact-signing-cli --locked --version "$ARTIFACT_SIGNING_CLI_VERSION"
+          printf '\n[package.metadata.packager.windows]\nsign-command = "artifact-signing-cli -e %s %%1"\n' \
+            "$AZURE_ARTIFACT_SIGNING_ENDPOINT" >> crates/skyelab-app/Cargo.toml
+      # ---- end code signing ----
+
+      - name: Package
+        shell: bash
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          FORMATS: ${{ matrix.formats }}
+          # Empty unless this leg signs (all of a set present), so no other OS sees these secrets.
+          APPLE_CERTIFICATE: ${{ runner.os == 'macOS' && steps.signing.outputs.macos == 'true' && secrets.APPLE_CERTIFICATE || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ runner.os == 'macOS' && steps.signing.outputs.macos == 'true' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ runner.os == 'macOS' && steps.signing.outputs.macos == 'true' && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ runner.os == 'macOS' && steps.signing.outputs.macos == 'true' && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && steps.signing.outputs.macos == 'true' && secrets.APPLE_TEAM_ID || '' }}
+          AZURE_CLIENT_ID: ${{ runner.os == 'Windows' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ runner.os == 'Windows' && secrets.AZURE_CLIENT_SECRET || '' }}
+          AZURE_TENANT_ID: ${{ runner.os == 'Windows' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ runner.os == 'Windows' && secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT || '' }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ runner.os == 'Windows' && secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE || '' }}
+        # cargo-packager takes a set-but-empty APPLE_* as a certificate or notarization login: unset the empty ones.
+        run: |
+          for v in ${!APPLE_*}; do
+            [ -n "${!v}" ] || unset "$v"
+          done
+          cargo packager --release -p skyelab-app -f "$FORMATS"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: skyelab-${{ runner.os }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error

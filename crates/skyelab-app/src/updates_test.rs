@@ -4,7 +4,7 @@ use crate::updates::{self, Fetch, UpdateStatus};
 use gpui::TestAppContext;
 use skyelab_client::release::Release;
 use skyelab_core::AppSettings;
-use skyelab_core::update::RELEASES_PAGE;
+use skyelab_core::update::{Channel, RELEASES_PAGE};
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -14,7 +14,7 @@ const DAY: u64 = 24 * 60 * 60;
 fn counting_fetch(tag: &'static str) -> (Fetch, Arc<AtomicUsize>) {
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    let fetch: Fetch = Arc::new(move || {
+    let fetch: Fetch = Arc::new(move |_| {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Release {
             tag: tag.into(),
@@ -102,7 +102,7 @@ fn start_check_daily_skip_manual_and_off(cx: &mut TestAppContext) {
 #[gpui::test]
 fn not_newer_or_foreign_page_shows_nothing(cx: &mut TestAppContext) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let foreign: Fetch = Arc::new(|| {
+    let foreign: Fetch = Arc::new(|_| {
         Ok(Release {
             tag: "v99.0.0".into(),
             url: "https://example.com/evil".into(),
@@ -135,7 +135,8 @@ fn no_published_release_is_not_a_failure(cx: &mut TestAppContext) {
 
 #[test]
 fn debug_fake_release_needs_no_network() {
-    let got = updates::fetcher(Some("v9.9.9".into()), None, true)().expect("fake");
+    let got =
+        updates::fetcher(Some("v9.9.9".into()), None, true)(Default::default()).expect("fake");
     assert_eq!(got.tag, "v9.9.9");
     assert!(
         skyelab_core::update::release_page_ok(&got.url),
@@ -161,7 +162,7 @@ fn installable(cx: &mut TestAppContext, dir: &Path, body: &'static [u8], sums_of
             url: format!("{RELEASES_PAGE}download/v99.0.0/{n}"),
         })
         .collect();
-    let fetch: Fetch = Arc::new(move || {
+    let fetch: Fetch = Arc::new(move |_| {
         Ok(Release {
             tag: "v99.0.0".into(),
             url: format!("{RELEASES_PAGE}tag/v99.0.0"),
@@ -295,4 +296,81 @@ fn a_failed_install_shows_on_the_next_start(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(step(cx), Some(updates::Step::Ready));
     assert!(downloads.join(deb).exists());
+}
+
+#[gpui::test]
+fn the_channel_decides_what_is_offered(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("settings.toml");
+    let fetch = updates::fetcher(
+        Some("v0.0.1,v99.0.0-nightly.20261128,v99.0.0-nightly.20261128.2".into()),
+        None,
+        true,
+    );
+    // A stable build follows Stable: the newest release is older, and no nightly is offered.
+    cx.update(|cx| updates::init(Some(path.clone()), fetch.clone(), cx));
+    cx.run_until_parked();
+    assert_eq!(status(cx), UpdateStatus::UpToDate);
+    assert_eq!(
+        cx.update(|cx| cx.global::<updates::Updates>().channel),
+        Channel::Stable
+    );
+
+    // Nightly: saved, checked again at once, and the newest nightly offered.
+    cx.update(|cx| updates::set_channel(Channel::Nightly, cx))
+        .detach();
+    cx.run_until_parked();
+    let tag = "v99.0.0-nightly.20261128.2";
+    assert_eq!(
+        status(cx),
+        UpdateStatus::Available {
+            tag: tag.into(),
+            url: format!("{RELEASES_PAGE}tag/{tag}"),
+        }
+    );
+    let saved = AppSettings::load(&path).expect("load").updates;
+    assert_eq!(saved.channel, Some(Channel::Nightly));
+
+    // Back to Stable: the nightly offer goes.
+    cx.update(|cx| updates::set_channel(Channel::Stable, cx))
+        .detach();
+    cx.run_until_parked();
+    assert_eq!(status(cx), UpdateStatus::UpToDate);
+}
+
+#[test]
+fn a_stable_fetch_never_returns_a_pre_release() {
+    let fetch = updates::fetcher(Some("v99.0.0-nightly.20261128".into()), None, true);
+    let err = fetch(Channel::Stable).expect_err("nothing stable");
+    assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    assert_eq!(
+        fetch(Channel::Nightly).expect("nightly").tag,
+        "v99.0.0-nightly.20261128"
+    );
+}
+
+#[gpui::test]
+fn a_check_on_the_old_channel_never_lands(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("settings.toml");
+    let fetch = updates::fetcher(Some("v0.0.1,v99.0.0-nightly.20261128".into()), None, true);
+    cx.update(|cx| updates::init(Some(path.clone()), fetch, cx));
+    cx.run_until_parked();
+    // Nightly then Stable before the Nightly check answers: its nightly offer must not show.
+    cx.update(|cx| {
+        updates::set_channel(Channel::Nightly, cx).detach();
+        assert_eq!(
+            cx.global::<updates::Updates>().status,
+            UpdateStatus::Checking
+        );
+        updates::set_channel(Channel::Stable, cx).detach();
+    });
+    cx.run_until_parked();
+    assert_eq!(status(cx), UpdateStatus::UpToDate);
+    let saved = AppSettings::load(&path).expect("load").updates;
+    assert_eq!(
+        saved.channel,
+        Some(Channel::Stable),
+        "the last click is saved"
+    );
 }
