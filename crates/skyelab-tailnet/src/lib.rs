@@ -258,7 +258,13 @@ impl TailscaleCli {
         deadline: Instant,
     ) -> Result<Output, Error> {
         for bin in &self.binaries {
-            let spawned = Captured::spawn(Command::new(bin).arg(command).args(args), None);
+            let mut cmd = Command::new(bin);
+            // A bare `tailscale` is looked up in this PATH (the login shell's, for a Dock-launched app).
+            cmd.arg(command)
+                .args(args)
+                .env_clear()
+                .envs(skyelab_core::env::inherited_agent_env(false));
+            let spawned = Captured::spawn(&mut cmd, None);
             match spawned {
                 Ok(child) => return self.wait(child, command, deadline),
                 Err(e) if e.kind() == ErrorKind::NotFound => continue,

@@ -1,7 +1,8 @@
 # Getting started: daily setup, coming from T3
 
 This page takes you from nothing to a normal workday in SkyeLab. It is written for people who use T3 Code today.
-Each step links to the full guide when you need more.
+Each step links to the full guide when you need more. The short checklist version is
+[daily setup](user-guide-daily-setup.md).
 
 ## 1. Install
 
@@ -124,5 +125,5 @@ The log leaves out prompts, environment values and tokens. More: [debugging](deb
   logins, and its pages can't open your system browser.
 - **GitHub over https only.** Push and Pull use the account's `gh` login over https. ssh remotes are refused, because
   an ssh key isn't tied to an account.
-- **Quitting stops agents.** There is no background service yet. When you quit SkyeLab, running agents stop.
-- **The Preview tab is read-only.** Edit files in your own editor; the diff follows within a second.
+- **Quitting stops agents.** There is no background service yet. When you quit SkyeLab, running agents stop; while
+  one works or waits for you, Quit asks first.
