@@ -6669,6 +6669,7 @@ name = "skyelab-daemon"
 version = "0.1.3"
 dependencies = [
  "anyhow",
+ "flume",
  "futures",
  "rcgen",
  "rustls",
