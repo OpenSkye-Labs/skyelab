@@ -39,6 +39,9 @@ pub(super) struct Registered {
     pub(super) window: AnyWindowHandle,
     pub(super) workspace: WeakEntity<Workspace>,
     store: SharedStore,
+    /// The hub window that keeps the app-wide work going with no visible window (`background`): never listed,
+    /// saved or shown.
+    pub(super) hidden: bool,
     /// Its frame, panel and page as last laid out: every layout save writes each open window's.
     layout: Option<WindowLayout>,
 }
@@ -55,6 +58,8 @@ pub(crate) struct Windows {
     watching: bool,
     /// The app is quitting: windows closing now stay in the saved list.
     quitting: bool,
+    /// The window being opened is the hidden hub (read by its `register_window`).
+    opening_hidden: bool,
 }
 
 impl Global for Windows {}
@@ -78,11 +83,20 @@ pub(super) fn hub_workspace(cx: &App) -> Option<(AnyWindowHandle, Entity<Workspa
     Some((r.window, r.workspace.upgrade()?))
 }
 
-/// The workspace windows, in the order they opened.
+/// The visible workspace windows, in the order they opened.
 pub fn window_handles(cx: &App) -> Vec<AnyWindowHandle> {
     cx.try_global::<Windows>()
-        .map(|w| w.workspaces.iter().map(|r| r.window).collect())
+        .map(|w| {
+            let shown = w.workspaces.iter().filter(|r| !r.hidden);
+            shown.map(|r| r.window).collect()
+        })
         .unwrap_or_default()
+}
+
+/// Window `window` is the hidden hub.
+pub(super) fn is_hidden(window: AnyWindowHandle, cx: &App) -> bool {
+    cx.try_global::<Windows>()
+        .is_some_and(|w| w.workspaces.iter().any(|r| r.window == window && r.hidden))
 }
 
 /// Every open window's layout, in the order the windows opened.
@@ -91,6 +105,7 @@ pub(super) fn open_layouts(cx: &App) -> Vec<WindowLayout> {
         .map(|reg| {
             reg.workspaces
                 .iter()
+                .filter(|r| !r.hidden)
                 .filter_map(|r| r.layout.clone())
                 .collect()
         })
@@ -171,16 +186,29 @@ pub fn open(
     make: impl FnOnce(&mut Window, &mut Context<Workspace>) -> Workspace + 'static,
     cx: &mut App,
 ) -> anyhow::Result<Entity<Workspace>> {
+    open_with(bounds, false, make, cx)
+}
+
+/// [`open`], `hidden`: never shown (the background hub).
+pub(super) fn open_with(
+    bounds: Bounds<Pixels>,
+    hidden: bool,
+    make: impl FnOnce(&mut Window, &mut Context<Workspace>) -> Workspace + 'static,
+    cx: &mut App,
+) -> anyhow::Result<Entity<Workspace>> {
     let kit = cx.try_global::<WindowKit>().cloned();
-    let options = match &kit {
+    let mut options = match &kit {
         Some(kit) => (kit.options)(bounds),
         None => WindowOptions {
             window_bounds: Some(gpui::WindowBounds::Windowed(bounds)),
             ..Default::default()
         },
     };
+    options.show &= !hidden;
+    options.focus &= !hidden;
+    cx.default_global::<Windows>().opening_hidden = hidden;
     let mut made = None;
-    cx.open_window(options, |window, cx| {
+    let opened = cx.open_window(options, |window, cx| {
         let view = cx.new(|cx| {
             let mut ws = make(window, cx);
             if let Some(kit) = &kit {
@@ -194,7 +222,9 @@ pub fn open(
         made = Some(view.clone());
         let shell = cx.new(|_| CachedWorkspace(view.into()));
         cx.new(|cx| gpui_component::Root::new(shell, window, cx))
-    })?;
+    });
+    cx.default_global::<Windows>().opening_hidden = false;
+    opened?;
     made.ok_or_else(|| anyhow::anyhow!("the window opened without its workspace"))
 }
 
@@ -250,10 +280,15 @@ fn window_closed(id: gpui::WindowId, cx: &mut App) {
         .into_iter()
         .filter(|v| v.read(cx).window == gone.window)
         .collect();
+    // The last window on its store: the hidden hub keeps the work going (macOS, or Keep running in background).
+    let next = match next {
+        None if !quitting => super::background::keep_hub(&gone.workspace, cx),
+        next => next,
+    };
     let Some((window, workspace)) = next else {
         return;
     };
-    if !quitting {
+    if !quitting && !gone.hidden && !super::background::is_on(cx) {
         save_open_layouts(&workspace, cx);
     }
     let _ = window.update(cx, |_, window, cx| {
@@ -293,8 +328,12 @@ impl Workspace {
             window: window.window_handle(),
             workspace: cx.weak_entity(),
             store: self.backend.store.clone(),
+            hidden: cx.default_global::<Windows>().opening_hidden,
             layout: None,
         };
+        if !me.hidden {
+            super::background::window_shown(cx);
+        }
         let reg = cx.default_global::<Windows>();
         reg.workspaces.push(me);
         let all = reg.threads.clone();

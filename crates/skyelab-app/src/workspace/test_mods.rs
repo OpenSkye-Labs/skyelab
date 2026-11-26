@@ -322,3 +322,11 @@ mod terminal_controls_test;
 mod onboarding_docks_test;
 #[cfg(all(test, unix))]
 mod drawer_review_test;
+#[cfg(all(test, unix))] // the fake claude is a shell script
+mod background_hub_test;
+#[cfg(all(test, unix))]
+mod background_idle_quit_test;
+#[cfg(all(test, unix))]
+mod background_keep_test;
+#[cfg(all(test, unix))]
+mod background_last_window_test;

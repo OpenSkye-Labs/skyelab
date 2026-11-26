@@ -138,7 +138,7 @@ SkyeLab remembers the window's size and position, the right panel's width and wh
 showed, in `settings.toml`. The first launch opens the window over most of the screen; a saved position on a display that is
 no longer connected is ignored.
 
-Several windows, and what quitting does while agents work: [user-guide-windows.md](user-guide-windows.md).
+Several windows, what quitting does while agents work, and keeping SkyeLab running with no window open: [user-guide-windows.md](user-guide-windows.md).
 
 ## Settings and themes
 

@@ -1,6 +1,7 @@
 //! The main window: sidebar, the center's one page, bottom terminals and a status bar, on gpui-component's dock.
 
 mod attention;
+pub(crate) mod background;
 mod bots_page;
 mod branch_picker;
 mod browser_agent;

@@ -2,7 +2,9 @@
 //! thread or side chat is working or waiting on the user, a thread holds diff comments or context chips not sent yet
 //! (kept in memory only), a Preview tab holds unsaved edits, or a terminal runs a command, since quitting stops or
 //! drops them all. Closing a window whose Preview tab holds unsaved edits asks Save / Discard / Cancel first. A second
-//! ⌘Q while the dialog is open quits; "Don't ask again" (Settings → General) quits at once from then on.
+//! ⌘Q while the dialog is open quits; "Don't ask again" (Settings → General) quits at once from then on. While a
+//! thread works or waits, the dialog also offers "Keep running in background" (`background`), which Settings →
+//! General can make the answer every time.
 
 use super::panels::Ask;
 use super::windows::{Windows, window_handles};
@@ -14,10 +16,12 @@ use std::cell::Cell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-/// The quit setting and the settings.toml it saves to.
+/// The quit settings and the settings.toml they save to.
 pub(crate) struct QuitPrefs {
     pub path: Option<PathBuf>,
     pub ask: bool,
+    /// Keep running in background instead of asking while work is in flight.
+    pub keep: bool,
 }
 
 impl Global for QuitPrefs {}
@@ -30,11 +34,15 @@ impl Global for Asking {}
 
 /// Loads the quit setting from `path` (missing or unreadable: ask).
 pub(crate) fn install(path: Option<PathBuf>, cx: &mut App) {
-    let quiet = path
-        .as_deref()
-        .and_then(|p| AppSettings::load(p).ok())
-        .is_some_and(|s| s.quit_without_asking);
-    cx.set_global(QuitPrefs { path, ask: !quiet });
+    let s = path.as_deref().and_then(|p| AppSettings::load(p).ok());
+    let (quiet, keep) = s.map_or((false, false), |s| {
+        (s.quit_without_asking, s.keep_running_in_background)
+    });
+    cx.set_global(QuitPrefs {
+        path,
+        ask: !quiet,
+        keep,
+    });
 }
 
 /// Whether quitting asks first (Settings → General); on with none installed.
@@ -42,15 +50,37 @@ pub(crate) fn asks(cx: &App) -> bool {
     cx.try_global::<QuitPrefs>().is_none_or(|p| p.ask)
 }
 
+/// Whether a quit while work is in flight keeps running in background instead of asking; off with none installed.
+pub(crate) fn keeps(cx: &App) -> bool {
+    cx.try_global::<QuitPrefs>().is_some_and(|p| p.keep)
+}
+
 /// Uses `ask` from now on and saves it into settings.toml as it is on disk.
 pub(crate) fn set_asks(ask: bool, cx: &mut App) -> anyhow::Result<()> {
-    let path = cx.try_global::<QuitPrefs>().and_then(|p| p.path.clone());
-    cx.set_global(QuitPrefs {
-        path: path.clone(),
-        ask,
-    });
-    match path {
-        Some(p) => AppSettings::update(&p, |s| s.quit_without_asking = !ask).map(drop),
+    save_prefs(|p| p.ask = ask, |s| s.quit_without_asking = !ask, cx)
+}
+
+/// Uses `keep` from now on and saves it into settings.toml as it is on disk.
+pub(crate) fn set_keeps(keep: bool, cx: &mut App) -> anyhow::Result<()> {
+    save_prefs(
+        |p| p.keep = keep,
+        |s| s.keep_running_in_background = keep,
+        cx,
+    )
+}
+
+fn save_prefs(
+    set: impl FnOnce(&mut QuitPrefs),
+    save: impl FnOnce(&mut AppSettings),
+    cx: &mut App,
+) -> anyhow::Result<()> {
+    if !cx.has_global::<QuitPrefs>() {
+        install(None, cx); // none installed (tests): asks, doesn't keep
+    }
+    let prefs = cx.global_mut::<QuitPrefs>();
+    set(prefs);
+    match prefs.path.clone() {
+        Some(p) => AppSettings::update(&p, save).map(drop),
         None => Ok(()),
     }
 }
@@ -65,6 +95,18 @@ pub(crate) enum Blocker {
     /// A Preview tab's unsaved edits.
     Unsaved,
     Terminal,
+}
+
+impl Blocker {
+    /// A thread or side chat working, starting or waiting on the user: what keeps a background copy running.
+    pub(crate) fn is_work(&self) -> bool {
+        matches!(self, Blocker::Working | Blocker::Waiting(_))
+    }
+}
+
+/// Whether "Keep running in background" fits `items`: work goes on, and no window holds unsaved edits it would drop.
+pub(crate) fn can_keep(items: &[(SharedString, Blocker)]) -> bool {
+    items.iter().any(|(_, b)| b.is_work()) && !items.iter().any(|(_, b)| *b == Blocker::Unsaved)
 }
 
 /// What quitting would stop or drop in thread `v`; `drafting`: a diff comment is being written for it.
@@ -222,6 +264,10 @@ pub fn request_quit(cx: &mut App) {
         return quit_now(cx);
     }
     let items = blockers(cx);
+    // In background already (no window shown), the setting would never let a quit through.
+    if keeps(cx) && can_keep(&items) && !window_handles(cx).is_empty() {
+        return super::background::enter(cx);
+    }
     if items.is_empty() || !asks(cx) {
         return quit_now(cx);
     }
@@ -247,6 +293,11 @@ pub fn request_quit(cx: &mut App) {
 
 /// Off macOS, closing the last window quits: it asks the same way and keeps the window while the dialog is open.
 pub(super) fn may_close(window: &mut Window, cx: &mut App) -> bool {
+    may_close_on(super::MAC, window, cx)
+}
+
+/// [`may_close`] as on macOS (`mac`) or elsewhere.
+pub(super) fn may_close_on(mac: bool, window: &mut Window, cx: &mut App) -> bool {
     let handle = window.window_handle();
     if let Some(preview) = unsaved_preview(handle, cx) {
         // Saved or dropped, the window closes; Cancel keeps it.
@@ -255,15 +306,20 @@ pub(super) fn may_close(window: &mut Window, cx: &mut App) -> bool {
         });
         return false;
     }
-    if super::MAC {
+    if mac {
         return true; // macOS keeps running with no window
     }
     let last = window_handles(cx).iter().all(|w| *w == handle);
-    if !last || asking(cx) || !asks(cx) {
+    if !last || asking(cx) {
         return true;
     }
     let items = blockers(cx);
-    if items.is_empty() {
+    if keeps(cx) && can_keep(&items) {
+        // The window closes as asked, and the hidden hub keeps the work going.
+        super::background::turn_on(cx);
+        return true;
+    }
+    if items.is_empty() || !asks(cx) {
         return true;
     }
     open(items, window, cx);
@@ -302,6 +358,7 @@ fn asking(cx: &mut App) -> bool {
 
 fn open(items: Vec<(SharedString, Blocker)>, window: &mut Window, cx: &mut App) {
     let (title, summary) = question(&items);
+    let keep = can_keep(&items);
     cx.set_global(Asking(Some(window.window_handle())));
     let quiet = Rc::new(Cell::new(false));
     crate::ui::open_dialog(window, cx, move |dialog, _, cx| {
@@ -314,6 +371,7 @@ fn open(items: Vec<(SharedString, Blocker)>, window: &mut Window, cx: &mut App) 
         let more = items.len().saturating_sub(SHOWN);
         let quiet_set = quiet.clone();
         let quiet_get = quiet.clone();
+        let quiet_keep = quiet.clone();
         dialog
             .w(gpui::px(440.))
             .title(title.clone())
@@ -354,6 +412,7 @@ fn open(items: Vec<(SharedString, Blocker)>, window: &mut Window, cx: &mut App) 
                     .child(
                         Button::new("quit-confirm")
                             .danger()
+                            .when(keep, |b| b.outline())
                             .small()
                             .label("Quit")
                             .on_click(move |_, _, cx| {
@@ -364,13 +423,35 @@ fn open(items: Vec<(SharedString, Blocker)>, window: &mut Window, cx: &mut App) 
                                 }
                                 quit_now(cx);
                             }),
-                    ),
+                    )
+                    .when(keep, |footer| {
+                        footer.child(
+                            gpui::div().debug_selector(|| "quit-keep".into()).child(
+                                Button::new("quit-keep")
+                                    .primary()
+                                    .small()
+                                    .label("Keep running in background")
+                                    .on_click(move |_, window, cx| {
+                                        if quiet_keep.get()
+                                            && let Err(e) = set_keeps(true, cx)
+                                        {
+                                            eprintln!(
+                                                "skyelab: couldn't save the quit setting: {e:#}"
+                                            );
+                                        }
+                                        cx.set_global(Asking(None));
+                                        window.close_dialog(cx);
+                                        super::background::enter(cx);
+                                    }),
+                            ),
+                        )
+                    }),
             )
     });
 }
 
 /// Quits: every view's quit hook saves what it holds (layout, drafts, stopped rows) on the way out.
-fn quit_now(cx: &mut App) {
+pub(super) fn quit_now(cx: &mut App) {
     #[cfg(test)]
     {
         cx.default_global::<TestQuits>().0 += 1;
