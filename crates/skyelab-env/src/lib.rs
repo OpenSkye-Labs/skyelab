@@ -4,9 +4,9 @@
 mod local;
 mod remote;
 
-pub use local::LocalSource;
+pub use local::{LocalSource, store_project, store_thread};
 pub use remote::RemoteSource;
-pub use skyelab_client::Error;
+pub use skyelab_client::{Error, ShellFeed};
 
 use skyelab_protocol::{PermissionAnswer, Project, Thread, ThreadEvent};
 
@@ -28,14 +28,6 @@ impl EnvironmentId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
-}
-
-/// One environment's sidebar: its projects and their threads, as the protocol carries them.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Shell {
-    pub projects: Vec<Project>,
-    /// Project by project, in `projects` order; each project's newest first.
-    pub threads: Vec<Thread>,
 }
 
 /// One environment's server API, a method per protocol call (`skyelab_protocol::Call`). Machine-bound features
@@ -73,13 +65,8 @@ pub trait Source: Send + Sync {
         snoozed_until: Option<i64>,
     ) -> Result<(), Error>;
 
-    /// Every project and its threads. shortcut: one listing per project until protocol 1.7's shell snapshot.
-    fn shell(&self) -> Result<Shell, Error> {
-        let projects = self.list_projects()?;
-        let mut threads = Vec::new();
-        for p in &projects {
-            threads.extend(self.list_threads(p.id)?);
-        }
-        Ok(Shell { projects, threads })
-    }
+    /// Every project and thread, then each change to them in seq order (protocol 1.7; T3's shell snapshot and
+    /// events). `changes` ends on a dropped connection or a missed change: subscribe again for a new snapshot.
+    /// A remote older than 1.7 fails with `NotWired`; list it per project instead.
+    fn subscribe_shell(&self) -> Result<ShellFeed, Error>;
 }

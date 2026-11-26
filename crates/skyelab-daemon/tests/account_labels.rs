@@ -95,6 +95,7 @@ fn the_label_round_trips_and_older_peers_still_parse() {
         snoozed_until: None,
         created_at: 0,
         updated_at: 0,
+        row: Default::default(),
     };
     let json = serde_json::to_string(&thread).expect("json");
     assert_eq!(

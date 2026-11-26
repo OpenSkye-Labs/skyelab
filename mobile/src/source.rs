@@ -107,6 +107,7 @@ impl FakeSource {
             id,
             name: name.into(),
             path: format!("/Users/me/code/{name}"),
+            created_at: 0,
         };
         let thread = |id, project_id, title: &str, status: &str, ago_h: i64| Thread {
             id,
@@ -127,6 +128,7 @@ impl FakeSource {
             snoozed_until: None,
             created_at: now - ago_h * 3_600_000,
             updated_at: now - ago_h * 3_600_000,
+            row: Default::default(),
         };
         let mut fake = Self {
             projects: vec![project(1, "skyelab"), project(2, "website")],

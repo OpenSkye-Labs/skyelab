@@ -16,6 +16,7 @@ mod forward;
 mod gate;
 mod peers;
 mod serve;
+mod shell;
 mod slots;
 #[cfg(feature = "test-support")]
 pub mod testing;
@@ -50,6 +51,7 @@ pub use gate::CallGate;
 pub use peers::Peer;
 use peers::{Entry, Peers, Registered, lock_peers};
 use serve::serve;
+pub use shell::ShellFeed;
 pub use skyelab_tailnet::ADMIN_DNS_URL;
 use slots::{Slot, Slots};
 pub use tls::CertInfo;

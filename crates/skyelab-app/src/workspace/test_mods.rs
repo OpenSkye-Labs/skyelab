@@ -105,6 +105,8 @@ mod env_queue_test;
 #[cfg(test)]
 mod env_states_test;
 #[cfg(test)]
+mod local_shell_test;
+#[cfg(test)]
 mod dock_motion_test;
 #[cfg(test)]
 mod sidebar_drag_test;

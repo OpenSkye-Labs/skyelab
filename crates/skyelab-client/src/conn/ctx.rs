@@ -10,6 +10,12 @@ use super::{Command, Ctx};
 use crate::{Error, WatchId};
 
 impl Ctx {
+    /// Whether the live connection's environment speaks an older minor than `minor`.
+    pub(super) fn speaks_below(&self, minor: u32) -> bool {
+        let hello = self.hello.lock().unwrap_or_else(PoisonError::into_inner);
+        hello.as_ref().is_some_and(|h| h.protocol.minor < minor)
+    }
+
     pub(super) fn set_hello(&self, hello: Option<Hello>) {
         *self.hello.lock().unwrap_or_else(PoisonError::into_inner) = hello;
     }
@@ -23,6 +29,9 @@ impl Ctx {
             Ok(Command::Unwatch(id)) => self.unwatch(id),
             Ok(Command::Approve(_)) => {} // for a connection that has gone
             Ok(Command::Forward { reply, .. }) => {
+                let _ = reply.send(Err(Error::NotConnected));
+            }
+            Ok(Command::SubscribeShell { reply }) => {
                 let _ = reply.send(Err(Error::NotConnected));
             }
         }

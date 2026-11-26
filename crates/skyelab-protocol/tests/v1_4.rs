@@ -19,6 +19,7 @@ fn thread_pin_and_preview_round_trip() {
         snoozed_until: None,
         created_at: 1,
         updated_at: 2,
+        row: Default::default(),
     };
     let wire = serde_json::to_value(&thread).expect("serializes");
     assert_eq!(wire["pinned"], true);
