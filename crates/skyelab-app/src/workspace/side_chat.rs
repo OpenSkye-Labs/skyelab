@@ -112,7 +112,10 @@ pub(super) fn create(
         account_id: &parent.account_id,
         status: "stopped",
     };
-    store.create_side_chat(&new, parent.id, &context)
+    let side = store.create_side_chat(&new, parent.id, &context)?;
+    // Same account and provider: the parent's model and effort carry over (T3's side threads do too).
+    store.set_thread_model(side.id, &store.thread_model(parent.id)?)?;
+    Ok(side)
 }
 
 /// Why a side chat's mode can't change, and its plans can't be approved.

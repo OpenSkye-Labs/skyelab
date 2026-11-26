@@ -131,6 +131,38 @@ fn bind_project_binds_once_and_never_overwrites() {
     assert!(bind_project(&mut config, &repo, "nobody").is_err());
 }
 
+#[test]
+fn rebind_folder_replaces_only_the_folders_own_binding() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let (work, repo) = (root.path().join("work"), root.path().join("work/repo"));
+    fs::create_dir_all(&repo).expect("mkdir");
+    let mut config: AccountsConfig = toml::from_str("[[account]]\nid='a'\nlabel='A'\nconfig_dir='/a'\n[[account]]\nid='b'\nlabel='B'\nconfig_dir='/b'\n")
+    .expect("parse");
+    config
+        .add_binding(Binding::new(work.clone(), "a".into()))
+        .expect("bind");
+    rebind_folder(&mut config, &repo, "b").expect("inherited: a deeper binding");
+    assert_eq!(config.resolve(&repo).map(|a| a.id.as_str()), Some("b"));
+    assert_eq!(
+        config.resolve(&work).map(|a| a.id.as_str()),
+        Some("a"),
+        "the parent keeps its account"
+    );
+    rebind_folder(&mut config, &repo, "a").expect("its own binding is replaced");
+    assert_eq!(config.resolve(&repo).map(|a| a.id.as_str()), Some("a"));
+    assert_eq!(
+        config.bindings.len(),
+        1,
+        "back to the inherited binding: nothing extra kept"
+    );
+    assert!(rebind_folder(&mut config, &repo, "nobody").is_err());
+    assert_eq!(
+        config.resolve(&repo).map(|a| a.id.as_str()),
+        Some("a"),
+        "an unknown account changes nothing"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn onboarding_skips_a_link_to_a_dir_already_offered_or_added() {

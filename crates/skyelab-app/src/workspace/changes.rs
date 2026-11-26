@@ -88,6 +88,8 @@ pub struct ChangesView {
     pub(super) scope: Scope,
     /// A rewind shown for confirming.
     pub(super) rewind: Option<super::changes_turns::PendingRewind>,
+    /// A rewind asked for while a turn runs, asked again once the turn ends.
+    pub(super) rewind_wait: Option<super::changes_turns::RewindWait>,
     pub(super) drag: Option<comments::Drag>,
     /// The comment being written (`changes_comments.rs`).
     pub(super) draft: Option<comments::Draft>,
@@ -124,15 +126,12 @@ impl ChangesView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let input = |placeholder: &'static str, window: &mut Window, cx: &mut Context<Self>| {
-            cx.new(|cx| InputState::new(window, cx).placeholder(placeholder))
-        };
         let commit_message = cx.new(|cx| {
             TextareaState::new(window, cx)
                 .auto_grow(1, 6)
                 .placeholder("Commit message")
         });
-        let pr_title = input("Pull request title", window, cx);
+        let pr_title = cx.new(|cx| InputState::new(window, cx).placeholder("Pull request title"));
         let pr_body = cx.new(|cx| {
             TextareaState::new(window, cx)
                 .auto_grow(2, 6)
@@ -167,6 +166,7 @@ impl ChangesView {
             _generate: None,
             scope: Scope::Working,
             rewind: None,
+            rewind_wait: None,
             drag: None,
             draft: None,
             annotated: false,

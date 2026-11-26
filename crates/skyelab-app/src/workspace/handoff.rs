@@ -9,7 +9,7 @@ use crate::workspace::{OpenSettingsSection, OpenThread, Workspace, lock};
 use anyhow::{Context as _, bail};
 use gpui::{
     Action, AnyElement, AppContext as _, Context, InteractiveElement, IntoElement as _,
-    ParentElement as _, SharedString, Window, actions, div,
+    ParentElement as _, SharedString, Styled as _, Window, actions, div,
 };
 use gpui_component::WindowExt as _;
 use skyelab_agent::{handoff, timeline::Record};
@@ -56,10 +56,13 @@ impl gpui::Global for HandingOff {}
 
 enum Outcome {
     Started(Box<Thread>),
-    /// The folder isn't bound to a `to` account: what it is bound to now, if anything.
+    /// The folder isn't bound to a `to` account: what it is bound to now, if anything, and the `to` accounts the
+    /// user can pick for it.
     NeedsBinding {
+        dir: std::path::PathBuf,
         folder: String,
         bound: Option<String>,
+        accounts: Vec<(String, String)>,
     },
 }
 
@@ -103,7 +106,14 @@ impl Workspace {
                 bound => {
                     return Ok(Outcome::NeedsBinding {
                         folder: crate::ui::short_path(&cwd, dirs::home_dir().as_deref()),
-                        bound: bound.map(|a| format!("{} ({})", a.label, a.provider.label())),
+                        bound: bound.map(account_name),
+                        accounts: config
+                            .accounts
+                            .iter()
+                            .filter(|a| a.provider == to)
+                            .map(|a| (a.id.clone(), account_name(a)))
+                            .collect(),
+                        dir: cwd,
                     });
                 }
             };
@@ -160,8 +170,19 @@ impl Workspace {
                         ws.thread_started(&thread, cx);
                         ws.open_thread(&OpenThread { id: thread.id }, window, cx);
                     }
-                    Ok(Outcome::NeedsBinding { folder, bound }) => {
-                        ask_bind(folder, bound, to, window, cx)
+                    Ok(Outcome::NeedsBinding {
+                        dir,
+                        folder,
+                        bound,
+                        accounts,
+                    }) => {
+                        let ask = Ask {
+                            ws: cx.entity().downgrade(),
+                            src: id,
+                            to,
+                            dir,
+                        };
+                        ask_bind(ask, folder, bound, accounts, window, cx)
                     }
                     Err(e) => ws.say(format!("Couldn't continue the thread: {e:#}"), window, cx),
                 }
@@ -171,11 +192,53 @@ impl Workspace {
     }
 }
 
-/// Asks the user to bind `folder` to a `to` account (it is bound to `bound`, or to nothing).
+/// "Claude (personal)", or "Work (Claude)" when the label doesn't name its provider.
+fn account_name(a: &skyelab_core::Account) -> String {
+    if a.label.contains(a.provider.label()) {
+        a.label.clone()
+    } else {
+        format!("{} ({})", a.label, a.provider.label())
+    }
+}
+
+/// The handoff waiting on a binding: source thread `src` to `to`, in `dir`.
+#[derive(Clone)]
+struct Ask {
+    ws: gpui::WeakEntity<Workspace>,
+    src: i64,
+    to: Provider,
+    dir: std::path::PathBuf,
+}
+
+/// Binds the folder to the `to` account the user picked, then runs the handoff again.
+fn bind_and_continue(ask: &Ask, account: &str, window: &mut Window, cx: &mut gpui::App) {
+    window.close_dialog(cx);
+    let _ = ask.ws.update(cx, |ws, cx| {
+        let dir = ask.dir.clone();
+        match ws.edit_accounts(
+            |c| skyelab_core::onboarding::rebind_folder(c, &dir, account),
+            cx,
+        ) {
+            Ok(()) => ws.hand_off_thread(
+                &HandOffThread {
+                    id: ask.src,
+                    to: ask.to,
+                },
+                window,
+                cx,
+            ),
+            Err(e) => ws.say(format!("Couldn't bind the folder: {e:#}"), window, cx),
+        }
+    });
+}
+
+/// Asks the user to bind `folder` to one of the `to` accounts (it is bound to `bound`, or to nothing). Nothing is
+/// picked for them: each account is a button, and with none the dialog points at Settings → Accounts.
 fn ask_bind(
+    ask: Ask,
     folder: String,
     bound: Option<String>,
-    to: Provider,
+    accounts: Vec<(String, String)>,
     window: &mut Window,
     cx: &mut gpui::App,
 ) {
@@ -183,37 +246,66 @@ fn ask_bind(
         Some(b) => format!("{folder} is bound to {b}."),
         None => format!("{folder} isn't bound to an account."),
     };
-    let to = to.label();
-    let body = format!(
-        "{now} A thread continues in {to} only under the {to} account this folder is bound to; SkyeLab never picks \
-         one for you. Bind the folder to a {to} account in Settings → Accounts, then choose Continue in {to} again. \
-         Threads of the other provider here can't send while it is bound to {to}."
-    );
+    let to = ask.to.label();
+    let body = if accounts.is_empty() {
+        format!(
+            "{now} A thread continues in {to} only under a {to} account bound to this folder, and there is none yet. \
+             Add one in Settings → Accounts, then choose Continue in {to} again."
+        )
+    } else {
+        format!(
+            "{now} A thread continues in {to} only under the {to} account this folder is bound to; SkyeLab never \
+             picks one for you. Choose the account to bind it to. Threads of the other provider here can't send \
+             while it is bound to {to}."
+        )
+    };
     crate::ui::open_dialog(window, cx, move |dialog, _, _| {
+        let picks = accounts.iter().map(|(id, name)| {
+            let (ask, id) = (ask.clone(), id.clone());
+            div()
+                .debug_selector({
+                    let id = id.clone();
+                    move || format!("handoff-account-{id}")
+                })
+                .child(
+                    Button::new(SharedString::from(format!("handoff-account-{id}")))
+                        .outline()
+                        .small()
+                        .label(format!("Bind to {name}"))
+                        .on_click(move |_, window, cx| bind_and_continue(&ask, &id, window, cx)),
+                )
+        });
+        let footer = crate::ui::dialog_footer().child(crate::ui::dialog_cancel("handoff-cancel"));
+        let footer = if accounts.is_empty() {
+            footer.child(
+                Button::new("handoff-bind")
+                    .primary()
+                    .small()
+                    .label("Open Settings")
+                    .on_click(|_, window, cx| {
+                        window.close_dialog(cx);
+                        crate::workspace::dispatch(
+                            Box::new(OpenSettingsSection {
+                                section: crate::settings::Section::Accounts,
+                            }),
+                            window,
+                            cx,
+                        );
+                    }),
+            )
+        } else {
+            footer
+        };
         dialog
             .w(gpui::px(440.))
             .title(format!("Bind this folder to a {to} account"))
-            .child(body.clone())
-            .footer(
-                crate::ui::dialog_footer()
-                    .child(crate::ui::dialog_cancel("handoff-cancel"))
-                    .child(
-                        Button::new("handoff-bind")
-                            .primary()
-                            .small()
-                            .label("Open Settings")
-                            .on_click(|_, window, cx| {
-                                window.close_dialog(cx);
-                                crate::workspace::dispatch(
-                                    Box::new(OpenSettingsSection {
-                                        section: crate::settings::Section::Accounts,
-                                    }),
-                                    window,
-                                    cx,
-                                );
-                            }),
-                    ),
+            .child(
+                gpui_component::v_flex()
+                    .gap_2()
+                    .child(body.clone())
+                    .children(picks),
             )
+            .footer(footer)
     });
 }
 

@@ -123,6 +123,27 @@ pub fn bind_project(config: &mut AccountsConfig, dir: &Path, account: &str) -> R
     config.add_binding(Binding::new(dir.to_path_buf(), account.to_string()))
 }
 
+/// Binds `dir` to `account` the user picked for it (a handoff to another provider): a binding of exactly `dir` is
+/// replaced, an inherited one is left as it is and a deeper one is added. Folders around `dir` keep their account.
+pub fn rebind_folder(config: &mut AccountsConfig, dir: &Path, account: &str) -> Result<()> {
+    if !config.accounts.iter().any(|a| a.id == account) {
+        anyhow::bail!("unknown account '{account}'");
+    }
+    let root = crate::canonical(dir).ok_or_else(|| anyhow::anyhow!("{} is gone", dir.display()))?;
+    let own: Vec<PathBuf> = config
+        .bindings
+        .iter()
+        .filter(|b| {
+            b.resolved() == Some(root.as_path()) || b.current_root().as_deref() == Some(&root)
+        })
+        .map(|b| b.path.clone())
+        .collect();
+    for path in own {
+        config.remove_binding(&path)?;
+    }
+    bind_project(config, dir, account)
+}
+
 /// Whether `defaults read com.apple.universalaccess reduceMotion` printed that Reduce Motion is on.
 pub fn reduce_motion_on(defaults_output: &str) -> bool {
     defaults_output.trim() == "1"

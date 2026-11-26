@@ -8,6 +8,14 @@ use crate::ui::{Button, Checkbox};
 use gpui::{AnyElement, Context, FontWeight, SharedString, Window, div, prelude::*};
 use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 
+/// A rewind asked for while a turn runs: `_watch` asks it again once the turn ends.
+pub(super) struct RewindWait {
+    pub turn: u32,
+    /// Stop was pressed.
+    pub stopping: bool,
+    _watch: gpui::Subscription,
+}
+
 /// A rewind the user was shown and has to confirm.
 pub(super) struct PendingRewind {
     pub turn: u32,
@@ -31,12 +39,27 @@ impl ChangesView {
         }
     }
 
-    /// The agent must be stopped: rewinding under a running turn would race its writes.
-    fn agent_running(&self, cx: &gpui::App) -> bool {
+    /// No turn may run: rewinding under one would race its writes. An idle agent between turns writes nothing.
+    fn turn_busy(&self, cx: &gpui::App) -> bool {
         self.thread
             .as_ref()
             .and_then(|t| t.upgrade())
-            .is_some_and(|t| t.read(cx).agent_running())
+            .is_some_and(|t| t.read(cx).turn_running() || t.read(cx).starting)
+    }
+
+    /// The running turn's Stop: interrupts it, as the composer's Stop does; the wait's watch asks the rewind again.
+    pub(super) fn stop_for_rewind(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let (Some(thread), Some(wait)) = (
+            self.thread.as_ref().and_then(|t| t.upgrade()),
+            self.rewind_wait.as_mut(),
+        ) else {
+            return;
+        };
+        wait.stopping = true;
+        thread.update(cx, |t, cx| {
+            t.interrupt(&super::thread::Interrupt, window, cx)
+        });
+        cx.notify();
     }
 
     /// Works out what rewinding to before `turn` changes, and shows it for confirming.
@@ -44,11 +67,25 @@ impl ChangesView {
         if self.busy {
             return;
         }
-        if self.agent_running(cx) {
-            self.publish_error = Some("Stop the agent before rewinding its files.".into());
+        if self.turn_busy(cx)
+            && let Some(thread) = self.thread.as_ref().and_then(|t| t.upgrade())
+        {
+            let _watch = cx.observe(&thread, |this, _, cx| {
+                if !this.turn_busy(cx)
+                    && let Some(wait) = this.rewind_wait.take()
+                {
+                    this.ask_rewind(wait.turn, cx);
+                }
+            });
+            self.rewind_wait = Some(RewindWait {
+                turn,
+                stopping: false,
+                _watch,
+            });
             cx.notify();
             return;
         }
+        self.rewind_wait = None;
         let Some(to) = self
             .changes
             .as_ref()
@@ -82,7 +119,7 @@ impl ChangesView {
 
     /// Rewinds exactly what the confirm showed; the rewind refuses if the files changed since.
     pub(super) fn confirm_rewind(&mut self, cx: &mut Context<Self>) {
-        if self.busy || self.agent_running(cx) {
+        if self.busy || self.turn_busy(cx) {
             return;
         }
         let Some(pending) = self.rewind.take() else {
@@ -175,6 +212,9 @@ impl ChangesView {
 
     /// The confirm row for a rewind: every file it touches, and whether ignored ones are overwritten.
     pub(super) fn render_rewind_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if let Some(w) = &self.rewind_wait {
+            return Some(self.render_rewind_wait(w.turn, w.stopping, cx));
+        }
         let pending = self.rewind.as_ref()?;
         let theme = cx.theme();
         let msg = changes_model::rewind_message(&pending.plan, pending.overwrite_ignored);
@@ -242,5 +282,53 @@ impl ChangesView {
                 )
                 .into_any_element(),
         )
+    }
+
+    /// A rewind asked for mid-turn: says why it waits, with the turn's Stop right there.
+    fn render_rewind_wait(&self, turn: u32, stopping: bool, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        h_flex()
+            .id("rewind-wait")
+            .debug_selector(|| "rewind-wait".into())
+            .mx_4()
+            .my_2()
+            .p_2()
+            .gap_2()
+            .rounded(ui::RADIUS)
+            .border_1()
+            .border_color(theme.border)
+            .child(
+                div()
+                    .flex_1()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(if stopping {
+                        format!(
+                            "Stopping the turn… Rewind to before turn {turn} asks once it ends."
+                        )
+                    } else {
+                        format!("A turn is running. Stop it to rewind to before turn {turn}.")
+                    }),
+            )
+            .child(
+                Button::new("cancel-rewind-wait")
+                    .ghost()
+                    .xsmall()
+                    .label("Cancel")
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.rewind_wait = None;
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Button::new("stop-for-rewind")
+                    .danger()
+                    .xsmall()
+                    .icon(crate::ui::SkyeIcon::Square)
+                    .label("Stop")
+                    .disabled(stopping)
+                    .on_click(cx.listener(|this, _, window, cx| this.stop_for_rewind(window, cx))),
+            )
+            .into_any_element()
     }
 }

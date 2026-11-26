@@ -142,6 +142,16 @@ impl ChangesView {
             }
         };
         if text.trim().is_empty() {
+            // The fields live on the working tree's form; Open PR's show only once asked for.
+            self.set_scope(super::changes_model::Scope::Working, cx);
+            if action == GitAction::OpenPr {
+                self.pr_form = true;
+                if super::thread_extras::prefs::get(cx).generate_git_text {
+                    // As T3: the title and body are written for you, here to read and edit before Open PR.
+                    focus.focus(window, cx);
+                    return self.generate(Gen::Pr, window, cx);
+                }
+            }
             self.publish_note = None;
             self.publish_error = Some(empty.into());
             focus.focus(window, cx);
