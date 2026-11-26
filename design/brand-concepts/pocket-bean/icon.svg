@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1024" height="1024" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Pocket Bean — a cloud tucked into a project folder</title>
+  <defs>
+    <clipPath id="tile"><rect x="25" y="25" width="206" height="206" rx="46"/></clipPath>
+    <linearGradient id="sky" x1=".1" y1=".05" x2=".67" y2="1">
+      <stop stop-color="#98D9EA"/><stop offset=".55" stop-color="#61B3D4"/><stop offset="1" stop-color="#428FBA"/>
+    </linearGradient>
+    <linearGradient id="mist" x2="0" y2="1">
+      <stop stop-color="#F4FEFC" stop-opacity=".57"/><stop offset="1" stop-color="#E3F8F7" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="china" cx=".34" cy=".17" r=".88">
+      <stop stop-color="#FFFFF7"/><stop offset=".49" stop-color="#FFF2DC"/><stop offset=".86" stop-color="#E5D8C7"/><stop offset="1" stop-color="#C4BEC0"/>
+    </radialGradient>
+    <linearGradient id="pocket" x1=".2" y1="0" x2=".58" y2="1">
+      <stop stop-color="#74BDBA"/><stop offset=".45" stop-color="#499994"/><stop offset="1" stop-color="#307878"/>
+    </linearGradient>
+    <linearGradient id="paw-glaze" x2=".3" y2="1">
+      <stop stop-color="#FFFCF3"/><stop offset=".56" stop-color="#FAEAD6"/><stop offset="1" stop-color="#D7C7B5"/>
+    </linearGradient>
+    <filter id="shadow" x="-.3" y="-.4" width="1.6" height="1.8"><feGaussianBlur stdDeviation="2.25"/></filter>
+    <path id="bean" d="M 39 162 C 34 145 42 130 57 124
+      C 53 105 71 85 94 90 C 108 67 146 68 157 97 Q 162 97 167 98
+      C 188 101 198 121 191 137 C 211 155 201 183 177 190
+      C 156 198 137 194 124 192 C 102 205 72 201 61 187
+      Q 43 187 39 162 Z"/>
+    <path id="folder" d="M 14 162 L 70 145 Q 75 143.5 80 148 L 92 160
+      Q 97 164 102 162 L 242 119 V 245 H 14 Z"/>
+    <path id="paw" d="M 57 150 C 59 143 70 143 75 149 Q 80 154 78 160
+      Q 77 164 73 164 Q 73 170 68 171 Q 63 172 60 167 Q 55 167 54 162 Q 52 156 57 150 Z"/>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect x="25" y="25" width="206" height="206" fill="url(#sky)"/>
+    <g fill="url(#mist)">
+      <path d="M 13 66 Q 25 55 42 56 Q 56 46 71 51 Q 89 51 100 55 Q 108 56 122 56 Q 107 64 89 66 L 13 76 Z"/>
+      <path d="M 175 81 Q 183 77 194 76 Q 207 65 223 69 Q 234 64 243 64 V 86 H 175 Z" opacity=".7"/>
+    </g>
+    <g stroke-linejoin="round">
+      <use xlink:href="#bean" transform="translate(1.5 3)" stroke="#3A6A78" stroke-width="10" fill="#3A6A78" opacity=".4" filter="url(#shadow)"/>
+      <use xlink:href="#bean" stroke="#FFFFFF" stroke-width="8.5" fill="#FFFFFF"/>
+      <use xlink:href="#bean" stroke="#365F6D" stroke-width="2.5" fill="url(#china)"/>
+      <path d="M 104 84 Q 114 76 127 76" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" opacity=".86"/>
+      <g transform="rotate(9 124 125)" fill="#284852">
+        <circle cx="102" cy="120" r="8.3"/><circle cx="148" cy="120" r="8.3"/>
+        <path d="M 117 132 Q 125 143 133 132" fill="none" stroke="#284852" stroke-width="5.2" stroke-linecap="round"/>
+      </g>
+      <use xlink:href="#folder" transform="translate(0 -1)" fill="#264F53" stroke="#264F53" stroke-width="6" opacity=".3" filter="url(#shadow)"/>
+      <use xlink:href="#folder" fill="url(#pocket)" stroke="#285F66" stroke-width="2.6"/>
+      <path d="M 18 165 L 71 149 Q 75 148 78 151 L 90 163 Q 96 169 103 166 L 239 124" fill="none" stroke="#ABDBD2" stroke-width="2.1"/>
+      <use xlink:href="#paw" transform="translate(.7 2.5)" stroke="#345859" stroke-width="7" opacity=".52" filter="url(#shadow)"/>
+      <use xlink:href="#paw" stroke="#FFFFFF" stroke-width="7" fill="#FFFFFF"/>
+      <use xlink:href="#paw" stroke="#365F6D" stroke-width="2.3" fill="url(#paw-glaze)"/>
+    </g>
+    <rect x="25.7" y="25.7" width="204.6" height="204.6" rx="45.3" fill="none" stroke="#F3FFFB" stroke-opacity=".36" stroke-width="1.4"/>
+  </g>
+</svg>

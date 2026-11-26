@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <title>Foldwing small launcher</title>
+  <defs>
+    <linearGradient id="sky" x2=".6" y2="1"><stop stop-color="#81A4D6"/><stop offset=".6" stop-color="#ABCBDF"/><stop offset="1" stop-color="#E9C7B0"/></linearGradient>
+  </defs>
+  <rect x="2" y="2" width="28" height="28" rx="6.5" fill="url(#sky)"/>
+  <path d="M 4.2 18.6 L 11.6 18.3 L 6.7 9.4 L 10.1 7.8 L 11.3 8.7 L 14.5 7.2 L 17.6 15.2
+    L 19.9 12.9 Q 22.8 10.6 24.7 13.8 L 27.6 14.8 L 24.8 16.3 Q 23.7 22.7 15.1 22.7
+    L 6.6 26.2 L 9.8 21.6 Z" fill="#FFF1D9" stroke="#465873" stroke-width="1.05" stroke-linejoin="round"/>
+  <path d="M 7.6 9.9 L 17.6 15.2 L 11.8 18.7 Z" fill="#899FBF"/>
+  <path d="M 7.6 25.2 L 17.6 15.2 L 14.8 22.1 Z" fill="#C2BFBF"/>
+  <circle cx="22.7" cy="14.4" r=".8" fill="#34445D"/>
+</svg>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1024" height="1024" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Foldwing — a folder takes flight</title>
+  <defs>
+    <clipPath id="tile"><rect x="25" y="25" width="206" height="206" rx="46"/></clipPath>
+    <linearGradient id="sky" x1=".2" y1="0" x2=".8" y2="1">
+      <stop stop-color="#7C9FD6"/><stop offset=".5" stop-color="#A7CBE6"/><stop offset=".84" stop-color="#EDDBCD"/><stop offset="1" stop-color="#F4CCAE"/>
+    </linearGradient>
+    <linearGradient id="mist" x2=".12" y2="1">
+      <stop stop-color="#FCF3EC" stop-opacity=".65"/><stop offset="1" stop-color="#FEF4EA" stop-opacity=".02"/>
+    </linearGradient>
+    <linearGradient id="paper" x1=".18" y1=".15" x2=".72" y2=".95">
+      <stop stop-color="#FFFEF7"/><stop offset=".59" stop-color="#FFF2DE"/><stop offset="1" stop-color="#E4D2BD"/>
+    </linearGradient>
+    <linearGradient id="underwing" x1=".9" y1=".9" x2=".18" y2=".1">
+      <stop stop-color="#8CA5CB"/><stop offset=".65" stop-color="#AFBFD7"/><stop offset="1" stop-color="#C6D6E3"/>
+    </linearGradient>
+    <linearGradient id="tail" x1=".05" y1=".5" x2=".95" y2=".45">
+      <stop stop-color="#FAECD5"/><stop offset="1" stop-color="#C6C7D0"/>
+    </linearGradient>
+    <filter id="shadow" x="-.3" y="-.3" width="1.6" height="1.7"><feGaussianBlur stdDeviation="2.4"/></filter>
+    <!-- The step at the top of the raised wing is the tab of a file folder. -->
+    <path id="bird" d="M 50 146 L 97 144 L 64 89 Q 62 85 66 83
+      L 85 74 Q 88 73 91 75 L 96 79 L 115 70 Q 119 68 121 73
+      L 139 122 L 151 110 C 156 104 163 102 169 103 Q 181 104 185 113
+      L 202 117 Q 207 119 202 122 L 184 130
+      C 179 154 162 169 140 173 Q 131 175 120 174 L 70 194 Q 64 196 67 190
+      L 83 166 L 49 151 Q 44 148 50 146 Z"/>
+    <clipPath id="bird-edge"><use xlink:href="#bird"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect x="25" y="25" width="206" height="206" fill="url(#sky)"/>
+    <path d="M 19 171 C 35 169 52 173 63 175 Q 83 178 104 175
+      Q 82 186 52 187 Q 31 189 19 185 Z" fill="url(#mist)"/>
+    <path d="M 141 179 Q 161 170 177 172 Q 191 160 205 164
+      Q 219 154 236 155 V 189 H 141 Z" fill="url(#mist)" opacity=".85"/>
+    <use xlink:href="#bird" transform="translate(1.4 3.5)" fill="#526381" stroke="#526381" stroke-width="10" stroke-linejoin="round" opacity=".47" filter="url(#shadow)"/>
+    <use xlink:href="#bird" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="9.4" stroke-linejoin="round"/>
+    <use xlink:href="#bird" fill="url(#paper)"/>
+    <g clip-path="url(#bird-edge)">
+      <path d="M 43 138 L 99 139 L 142 125 L 82 167 L 41 156 Z" fill="url(#underwing)"/>
+      <path d="M 61 199 L 83 166 L 141 122 L 119 175 Z" fill="url(#tail)"/>
+      <path d="M 65 86 L 139 122 L 98 145 Z" fill="url(#underwing)"/>
+      <path d="M 63 85 L 139 122 L 98 145" fill="none" stroke="#748BAA" stroke-width="1.55" stroke-linejoin="round"/>
+      <path d="M 85 164 L 138 123" stroke="#FFFCF1" stroke-opacity=".88" stroke-width="1.6"/>
+      <path d="M 184 110 L 210 115 L 205 128 L 182 132 Q 186 122 184 110 Z" fill="#D6A06B"/>
+    </g>
+    <use xlink:href="#bird" fill="none" stroke="#465873" stroke-width="2.55" stroke-linejoin="round"/>
+    <circle cx="171.4" cy="116.7" r="3.8" fill="#34445D"/>
+    <rect x="25.7" y="25.7" width="204.6" height="204.6" rx="45.3" fill="none" stroke="#F6F7FF" stroke-opacity=".44" stroke-width="1.4"/>
+  </g>
+</svg>
