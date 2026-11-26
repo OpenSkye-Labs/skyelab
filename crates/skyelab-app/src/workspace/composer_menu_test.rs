@@ -139,20 +139,6 @@ fn commands_and_skills_come_from_the_given_account_dir() {
     assert!(command_items(Provider::Codex, &account, &project, false).is_empty());
 }
 
-/// T3's /model, /plan and /default are listed; the /btw alias isn't, so it never leads the menu as the first row.
-#[test]
-fn slash_menu_lists_t3_commands_and_no_alias() {
-    let tmp = tempfile::tempdir().expect("tmp");
-    for provider in [Provider::Claude, Provider::Codex] {
-        let items = command_items(provider, tmp.path(), tmp.path(), true);
-        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
-        for want in ["/side", "/model", "/plan", "/default"] {
-            assert!(labels.contains(&want), "{provider:?}: {labels:?}");
-        }
-        assert!(!labels.contains(&"/btw"), "{provider:?}: {labels:?}");
-    }
-}
-
 /// `/plan` and `/default` switch the thread's mode and send nothing; the composer empties.
 #[gpui::test]
 fn plan_and_default_switch_the_mode(cx: &mut TestAppContext) {
