@@ -70,7 +70,7 @@ impl ThreadView {
                     .map(ui::drag_area)
                     .flex_1()
                     // On a very narrow center the breadcrumb keeps this much, then the account chip truncates.
-                    .min_w(px(72.))
+                    .min_w(px(48.))
                     .overflow_hidden()
                     .gap_2()
                     .text_size(ui::BODY)
@@ -104,7 +104,7 @@ impl ThreadView {
                     // first, then the folder.
                     .child(
                         div()
-                            .flex_shrink(0.1)
+                            .debug_selector(|| "thread-header-title".into())
                             .min_w_0()
                             .truncate()
                             .child(self.title()),
@@ -118,6 +118,7 @@ impl ThreadView {
             .child(
                 h_flex()
                     .id("provider-badge")
+                    .debug_selector(|| "thread-header-account".into())
                     .min_w_0()
                     .child(self.account_badge().chip()),
             )
