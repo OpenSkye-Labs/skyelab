@@ -305,7 +305,12 @@ fn main() {
                 let (path, backend) = (path.clone(), backend.clone());
                 let (config, error) = load_accounts(path.as_deref());
                 let home = dirs::home_dir().unwrap_or_default();
-                let at = Bounds::centered(None, size(px(1200.), px(800.)), cx);
+                // Cascaded from the active window when there is one, so the new one never lands exactly on it.
+                let at = cx
+                    .active_window()
+                    .and_then(|w| w.update(cx, |_, window, _| window.bounds()).ok())
+                    .map(window_layout::cascade)
+                    .unwrap_or_else(|| Bounds::centered(None, size(px(1200.), px(800.)), cx));
                 let opened = workspace::open_window(
                     at,
                     move |window, cx| {

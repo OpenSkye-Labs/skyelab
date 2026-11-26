@@ -9,7 +9,7 @@ use super::{SharedStore, Workspace};
 use crate::remote::RemoteCall;
 use gpui::{
     AnyWindowHandle, App, AppContext as _, Bounds, Context, Entity, Focusable as _, Global, Pixels,
-    WeakEntity, Window, WindowOptions, actions, point, px,
+    WeakEntity, Window, WindowOptions, actions,
 };
 use skyelab_core::WindowLayout;
 use std::rc::Rc;
@@ -473,8 +473,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let at = window.bounds();
-        let bounds = Bounds::new(at.origin + point(px(28.), px(28.)), at.size);
+        let bounds = crate::window_layout::cascade(window.bounds());
         let (folder, path, config, error, backend) = (
             self.folder.clone(),
             self.accounts_path.clone(),

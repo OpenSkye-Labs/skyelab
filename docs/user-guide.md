@@ -117,8 +117,8 @@ and **Stop** stops them (a subagent stops with the turn that runs it). Tools ope
 thread: **Changes**, browsers and **Devices**. The right panel's first tab (**+**) is **Open a surface**: Browser
 (<kbd>B</kbd>), Terminal (<kbd>T</kbd>), Files (<kbd>F</kbd>), Diff (<kbd>D</kbd>), Pull request (<kbd>P</kbd>),
 Linked items (<kbd>L</kbd>), Device (<kbd>M</kbd>) and Side chat (<kbd>S</kbd>). Press the letter while the panel has
-focus (<kbd>Esc</kbd> hides the panel), or click the row; a surface the shown thread can't have (no pull request linked, no thread open) is greyed out.
-The expand button at the panel's top right fills the window with it; press it again to put it back. Every right-panel and terminal tab also has **Zoom In** / **Zoom Out** in its **…** menu. **Reopen Closed View** (<kbd>⇧⌘T</kbd>) brings
+focus (<kbd>Esc</kbd> hides the panel), or click the row; a greyed-out surface says why on hover. Terminal opens in the drawer.
+The expand button at the panel's top right fills the window with it; press it again or <kbd>Esc</kbd> to put it back. Every right-panel and terminal tab has **Zoom In** / **Zoom Out** in its **…** menu. **Reopen Closed View** (<kbd>⇧⌘T</kbd>) brings
 back the tab you closed last in this window: a browser tab on its page, the file preview on its file, or a Changes
 tab while its thread is open. Terminals, side chats and agents' browser tabs don't come back.
 

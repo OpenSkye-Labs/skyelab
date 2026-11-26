@@ -112,9 +112,11 @@ impl Render for Welcome {
                 .child(div().flex_1().min_h_0().child(self.setup.clone()))
                 .into_any_element();
         }
-        let shortcut = |label: &'static str, action: Box<dyn Action>| {
-            div()
+        // Each row is a button: an icon in front says so (plain label rows read as text).
+        let shortcut = |icon: ui::SkyeIcon, label: &'static str, action: Box<dyn Action>| {
+            gpui_component::h_flex()
                 .id(label)
+                .gap_2p5()
                 .w_full()
                 .px_2p5()
                 .py_1p5()
@@ -127,7 +129,12 @@ impl Render for Welcome {
                         crate::workspace::dispatch(action.boxed_clone(), window, cx)
                     }
                 })
-                .child(ui::KeyHint::new(label, action))
+                .child(
+                    gpui_component::Icon::new(icon)
+                        .size_4()
+                        .text_color(theme.muted_foreground),
+                )
+                .child(div().flex_1().child(ui::KeyHint::new(label, action)))
         };
         let welcome = ui::EmptyState::new("Pick a thread to continue")
             .hint("Or start a new one. Every folder runs on the account it is bound to.")
@@ -145,18 +152,33 @@ impl Render for Welcome {
                 .child(
                     v_flex()
                         .gap_0p5()
-                        .child(shortcut("New thread", Box::new(super::NewThread)))
-                        .child(shortcut("Toggle sidebar", Box::new(super::ToggleSidebar)))
                         .child(shortcut(
+                            ui::SkyeIcon::NewThread,
+                            "New thread",
+                            Box::new(super::NewThread),
+                        ))
+                        .child(shortcut(
+                            ui::SkyeIcon::PanelLeft,
+                            "Toggle sidebar",
+                            Box::new(super::ToggleSidebar),
+                        ))
+                        .child(shortcut(
+                            ui::SkyeIcon::PanelBottom,
                             "Toggle terminal",
                             Box::new(super::ToggleBottomPanel),
                         ))
-                        .child(shortcut("New terminal", Box::new(super::NewTerminal)))
                         .child(shortcut(
+                            ui::SkyeIcon::SquareTerminal,
+                            "New terminal",
+                            Box::new(super::NewTerminal),
+                        ))
+                        .child(shortcut(
+                            ui::SkyeIcon::Search,
                             "Command palette",
                             Box::new(crate::palette::OpenCommandPalette),
                         ))
                         .child(shortcut(
+                            ui::SkyeIcon::CircleUser,
                             "Accounts and folders",
                             Box::new(super::OpenSettings),
                         )),
