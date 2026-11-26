@@ -16,6 +16,7 @@ fn trigger_label(t: &str) -> &'static str {
     match t {
         "schedule" => "Schedule",
         "run_now" => "Run now",
+        "poll" => "GitHub check",
         t => Trigger::parse(t).map_or("Unknown", Trigger::label),
     }
 }

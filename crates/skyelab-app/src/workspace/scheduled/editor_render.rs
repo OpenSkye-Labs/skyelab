@@ -97,7 +97,7 @@ impl ScheduledPage {
             .border_1()
             .border_color(theme.border)
             .bg(theme.popover)
-            .child(ui::section_title(if d.id == 0 { "New task" } else { "Edit task" }, theme))
+            .child(ui::section_title(if d.id == 0 { "New bot" } else { "Edit bot" }, theme))
             .child(h_flex().gap_3().child(div().flex_1().child(field("Name", TextField::new(&e.title).small().into_any_element()))).child(field("Project", menu("sched-project", project_name, projects).into_any_element())))
             .child(field("Prompt", Textarea::new(&e.prompt).into_any_element()))
             .child(
@@ -141,7 +141,7 @@ impl ScheduledPage {
                         Button::new("sched-save")
                             .primary()
                             .small()
-                            .label(if d.id == 0 { "Create task" } else { "Save task" })
+                            .label(if d.id == 0 { "Create bot" } else { "Save bot" })
                             .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
                     ),
             )

@@ -193,6 +193,11 @@ fn a_rebound_folder_pauses_the_bot_with_no_gh_call(cx: &mut TestAppContext) {
     let after = read(&rig.f.store, t.id);
     assert!(!after.enabled && after.last_status.as_deref() == Some("paused"));
     assert!(after.last_error.expect("why").contains("home"));
+    assert_eq!(
+        statuses(&rig, t.id),
+        ["poll:paused"],
+        "the pause is in its history"
+    );
 }
 
 #[gpui::test]

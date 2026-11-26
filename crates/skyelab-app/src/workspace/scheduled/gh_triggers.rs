@@ -81,6 +81,7 @@ pub(super) fn poll(store: &SharedStore, tasks: &[ScheduledTask], now: i64, cx: &
         let checked = check_trigger_mode(&bot.permission_mode, true)
             .and_then(|()| run_account(&config, &project.path, &bot.account_id).map(drop));
         if let Err(why) = checked {
+            super::runs::add_run(store, bot.id, now, "poll", "paused", Some(&why));
             pause(store, bot, now, &why, cx);
             continue;
         }
