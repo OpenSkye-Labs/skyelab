@@ -106,6 +106,26 @@ pub(super) fn start(store: SharedStore, cx: &mut App) {
     cx.global_mut::<Scheduler>()._tick = Some(task);
 }
 
+/// A run is starting, or an enabled task comes due by the next tick: a background copy stays up for it.
+pub(crate) fn due_soon(cx: &App) -> bool {
+    let Some(s) = cx.try_global::<Scheduler>() else {
+        return false;
+    };
+    if !s.launching.is_empty() {
+        return true;
+    }
+    let Some(store) = s.store.clone() else {
+        return false;
+    };
+    let by = now_ms(cx).saturating_add(TICK.as_millis() as i64);
+    lock(&store)
+        .and_then(|s| s.scheduled_tasks())
+        .is_ok_and(|tasks| {
+            let soon = |t: &ScheduledTask| t.next_run_at.is_some_and(|at| at <= by);
+            tasks.iter().any(|t| t.enabled && soon(t))
+        })
+}
+
 pub(crate) fn now_ms(cx: &App) -> i64 {
     cx.try_global::<Scheduler>()
         .and_then(|s| s.fake_now)

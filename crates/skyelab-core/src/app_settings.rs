@@ -55,6 +55,9 @@ pub struct AppSettings {
     /// Settings → General: quit at once even while threads work or terminals run ("Don't ask again" on the quit
     /// dialog). Off: the dialog asks.
     pub quit_without_asking: bool,
+    /// Settings → General: Quit while a thread works or waits closes the windows and keeps SkyeLab running in the
+    /// background instead of asking. Off: the dialog asks.
+    pub keep_running_in_background: bool,
     /// The first-run onboarding was finished or skipped, so it never opens by itself again.
     pub onboarded: bool,
     /// Settings → Chat → Visual replies: where an agent's page may load scripts, styles and fonts from.

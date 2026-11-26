@@ -73,6 +73,8 @@ fn app_menus(cx: &mut App) {
             disabled: false,
         },
     ]);
+    // The Dock icon's own Quit bypasses the quit dialog; this one asks (background mode has no window to quit from).
+    cx.set_dock_menu(vec![MenuItem::action("Quit SkyeLab", Quit)]);
 }
 
 /// A second launch asked this copy to show itself: the first window comes forward, or one opens when none is left.
@@ -301,13 +303,46 @@ fn main() {
             ),
             cx,
         );
-        // A window opened with none left (the dock, the menu): the same store, the accounts as on disk now.
+        // A window opened with none left (the dock, the menu): the same store, the accounts as on disk now. With no
+        // window shown (macOS, or background mode), the windows the last session saved reopen as they were.
         let fresh = {
             let (path, backend) = (path.clone(), backend.clone());
             move |cx: &mut App| {
                 let (path, backend) = (path.clone(), backend.clone());
                 let (config, error) = load_accounts(path.as_deref());
                 let home = dirs::home_dir().unwrap_or_default();
+                if workspace::window_handles(cx).is_empty() {
+                    let saved = AppSettings::default_path()
+                        .and_then(|p| AppSettings::load(&p).ok())
+                        .map(|s| s.saved_windows())
+                        .unwrap_or_default();
+                    if !saved.is_empty() {
+                        let displays: Vec<_> = cx.displays().iter().map(|d| d.bounds()).collect();
+                        let visible = cx.primary_display().map_or_else(
+                            || Bounds::centered(None, size(px(1200.), px(800.)), cx),
+                            |d| d.visible_bounds(),
+                        );
+                        let opened = workspace::restore_windows(
+                            saved,
+                            AppSettings::default_path(),
+                            &displays,
+                            visible,
+                            move |_, window, cx| {
+                                let (home, path) = (home.clone(), path.clone());
+                                let (config, error) = (config.clone(), error.clone());
+                                let backend = backend.clone();
+                                workspace::Workspace::new(
+                                    home, path, config, error, backend, window, cx,
+                                )
+                            },
+                            cx,
+                        );
+                        if let Err(e) = opened {
+                            eprintln!("failed to reopen the windows: {e:#}");
+                        }
+                        return;
+                    }
+                }
                 // Cascaded from the active window when there is one, so the new one never lands exactly on it.
                 let at = cx
                     .active_window()

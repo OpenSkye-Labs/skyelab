@@ -7,7 +7,7 @@ on my tailnet" switch (`skyelab::ToggleSharing`) turns it on, and the choice is 
 `settings.toml`, next to `accounts.toml` (never in it). The status bar item (it opens Settings → Sharing & access) says
 `Sharing on <MagicDNS name>:7287 · certificate valid until <date>`, `Not sharing`, or the exact reason it couldn't
 start (Tailscale not installed, not running, logged out, no certificate). Turning it off stops the listener and closes every connection, even when the choice can't be
-saved (the error shows). Closing the window stops it too. A remote call still queued when sharing went off, or one
+saved (the error shows). Closing the last window stops it too, except on macOS and in Keep running in background, where it goes on. A remote call still queued when sharing went off, or one
 whose client gave up waiting (30 s), never runs.
 
 **Tailnet setting needed: HTTPS certificates.** Every connection is `wss://` with this node's Let's Encrypt

@@ -1,5 +1,5 @@
-//! Acceptance: macOS keeps SkyeLab running with every window closed. A task that comes due then opens a window (the
-//! one the dock would) and runs in it; with nothing due, no window opens.
+//! Acceptance: macOS keeps SkyeLab running with every window closed, and the hidden hub window takes the app-wide
+//! work. A task that comes due then runs there without opening a window (the opener stays a fallback).
 
 use super::super::threads_test::{fake_bin, wait_until};
 use super::super::windows::{self, window_handles};
@@ -11,7 +11,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 #[gpui::test]
-fn a_due_task_opens_a_window_and_runs(cx: &mut TestAppContext) {
+fn a_due_task_runs_in_the_hidden_hub(cx: &mut TestAppContext) {
     let rig = rig(true);
     let later = task(&rig, "every 1h", NOW + HOUR);
     let (ws, cx) = open(&rig, cx);
@@ -59,14 +59,15 @@ fn a_due_task_opens_a_window_and_runs(cx: &mut TestAppContext) {
     TestAppContext::update(cx, super::tick);
     assert_eq!(opened.get(), 0, "a window opened with nothing due");
 
-    // Due now: one window opens and the run starts in it.
+    // Due now: the run starts in the hidden hub, and no window opens.
+    let hub = TestAppContext::update(cx, |cx| windows::hub_workspace(cx).map(|h| h.0));
+    let hub = hub.expect("the hidden hub serves the work");
+    assert!(TestAppContext::update(cx, |cx| windows::is_hidden(hub, cx)));
     TestAppContext::update(cx, |cx| super::set_now(NOW + HOUR, cx));
     TestAppContext::update(cx, super::tick);
-    assert_eq!(opened.get(), 1, "the due task opened a window");
-    let handles = handles(cx);
-    assert_eq!(handles.len(), 1);
-    let mut wcx = gpui::VisualTestContext::from_window(handles[0], cx);
+    let mut wcx = gpui::VisualTestContext::from_window(hub, cx);
     wait_until(&mut wcx, "the run", |_| runs(&rig, later.id).len() == 1);
     tick(&mut wcx);
-    assert_eq!(opened.get(), 1, "the open window serves later ticks");
+    assert_eq!(opened.get(), 0, "no window opened");
+    assert!(handles(&mut wcx).is_empty(), "none shown");
 }

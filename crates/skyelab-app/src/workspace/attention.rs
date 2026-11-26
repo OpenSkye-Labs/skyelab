@@ -195,13 +195,18 @@ impl Workspace {
     ) {
         #[cfg(test)]
         self.notices.push(format!("thread {id}").into());
+        let note = note.key(format!("thread-{id}"));
+        if super::windows::is_hidden(self.window_handle, cx) {
+            // No window is shown: the click opens one on the thread, and the hidden hub hands it the work.
+            let note = note
+                .on_click(move |_, cx| cx.defer(move |cx| super::background::show_thread(id, cx)));
+            return crate::ui::toast::push_system(window, note, cx);
+        }
         let ws = cx.entity().downgrade();
-        let note = note
-            .key(format!("thread-{id}"))
-            .on_click(move |window, cx| {
-                window.activate_window();
-                let _ = ws.update(cx, |ws, cx| ws.open_thread(&OpenThread { id }, window, cx));
-            });
+        let note = note.on_click(move |window, cx| {
+            window.activate_window();
+            let _ = ws.update(cx, |ws, cx| ws.open_thread(&OpenThread { id }, window, cx));
+        });
         if window.is_window_active() {
             crate::ui::toast::push(window, note, cx);
         } else {

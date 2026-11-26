@@ -38,8 +38,22 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - An `observe` that must act in a window (a notice when an observed view starts waiting on the user) uses
   `cx.observe_in(&view, window, ..)`: plain `observe` gets no `Window`, and `notify_attention` needs one.
 - App-wide work that must outlive the windows (the scheduler's tick) runs on `cx.spawn` from `App`, keeps what it
-  needs (the store) in a `Global`, and opens a window itself when it needs one: macOS keeps the app running with every
-  window closed, so "act through the hub window" silently stops then.
+  needs (the store) in a `Global`, and acts through `windows::hub_workspace`. With no visible window the hub is a
+  hidden window (`WindowOptions { show: false, focus: false }`, `workspace::background`): opened when the last visible
+  window on a store closes (macOS, or Keep running in background) and closed when a visible one registers, which takes
+  the hub and the orphaned thread views. Hub calls, `send_prompt` and `push_system` need a `Window` and work in a
+  hidden one; nothing else may treat it as a window: `window_handles` and the saved layouts skip it (its layout save
+  would empty the saved list), so every "is a window open" check means a visible one.
+- A hidden window counts in `cx.windows()`, and `QuitMode::Default` quits off macOS only when that is empty: open the
+  hidden hub off macOS only when the app must stay up (background mode), or closing the last window never quits.
+  `App::shutdown` clears windows without running `on_window_closed`, so no hub opens while quitting.
+- A system notification's click runs `window.activate_window()` on the window that posted it before its `on_click`,
+  which would show the hidden hub: from the hidden hub, the click opens a visible window (deferred, App level) and
+  shows the thread there; the visible window's registration then removes the hidden one.
+- gpui-macos sets no `applicationShouldTerminate:`, so logout and `terminate:` quit at once (on_app_quit hooks run);
+  our quit dialog is only on the Quit action, and a hidden window doesn't hold up logout either.
+- The macOS Dock icon's built-in Quit sends `terminate:` and skips the quit dialog; `set_dock_menu` adds our own
+  "Quit SkyeLab" (the Quit action), which asks.
 - In tests, a `VisualTestContext` whose window was removed panics on `update` ("window not found"); after
   `window.remove_window()` reach the app through `TestAppContext::update(cx, |cx| ..)`, and open a new
   `VisualTestContext::from_window` for a window opened later.

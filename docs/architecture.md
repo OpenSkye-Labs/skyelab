@@ -24,7 +24,9 @@ personal plan by mistake.
 
 - **Execution and credentials never leave the environment that runs them.** A client on your laptop driving your
   desktop's environment sends commands. The desktop's daemon launches the agent with the desktop's account dirs.
-- The desktop app embeds the daemon in-process for v1. It becomes a separate process only when remote access ships.
+- The desktop app embeds the daemon in-process, remote access included. Keep running in background keeps that process
+  up with no window (a hidden hub window serves the app-wide work); a separate daemon process is the later step if
+  agents must outlive the app (crash, update, reboot).
 - Agents: launch the `claude` CLI in stream-json mode, `codex app-server`, or `cursor-agent -p` in stream-json mode,
   with `launch_env(dir)` applied. That is the only place `CLAUDE_CONFIG_DIR` / `CODEX_HOME` / `CURSOR_CONFIG_DIR` is
   set. The account's `provider` picks which.

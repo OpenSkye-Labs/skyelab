@@ -109,7 +109,8 @@ impl Settings {
             .child(section(
                 "Quitting",
                 "What happens on Quit while work is in flight.",
-                [setting(
+                [
+                    setting(
                     true,
                     "Quit confirmation",
                     "Ask before quitting while a thread is working or waiting for you, or a terminal is running a \
@@ -124,7 +125,26 @@ impl Settings {
                             cx.notify();
                         })),
                     cx,
-                )],
+                    ),
+                    setting(
+                        false,
+                        "Always keep running in background",
+                        "Quit while a thread is working or waiting for you closes the windows instead of asking; \
+                         the threads go on. SkyeLab quits by itself once nothing has worked or waited for 30 \
+                         seconds. Open SkyeLab again to get its windows back.",
+                        Switch::new("quit-keep")
+                            .checked(crate::workspace::quit_guard::keeps(cx))
+                            .accessibility_label("Always keep running in background")
+                            .on_click(cx.listener(|this, on: &bool, _, cx| {
+                                if let Err(e) = crate::workspace::quit_guard::set_keeps(*on, cx) {
+                                    this.error =
+                                        Some(format!("Saving the quit setting failed: {e:#}"));
+                                }
+                                cx.notify();
+                            })),
+                        cx,
+                    ),
+                ],
                 cx,
             ))
             .child(section(
@@ -258,6 +278,11 @@ impl Settings {
                 self.report(save, "the update channel", cx);
                 let save = prefs::save_terminal(Default::default(), cx);
                 self.report(save, "the terminal settings", cx);
+                let quit = crate::workspace::quit_guard::set_asks(true, cx)
+                    .and_then(|()| crate::workspace::quit_guard::set_keeps(false, cx));
+                if let Err(e) = quit {
+                    self.error = Some(format!("Saving the quit settings failed: {e:#}"));
+                }
             }
             _ => {}
         }

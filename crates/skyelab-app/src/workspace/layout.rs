@@ -365,6 +365,9 @@ impl Workspace {
         let Some(path) = self.layout.path.clone() else {
             return;
         };
+        if super::windows::is_hidden(self.window_handle, cx) {
+            return; // the hidden hub's save would empty the saved list
+        }
         let dock = self.dock.read(cx);
         let layout = skyelab_core::WindowLayout {
             view: self.page.key(cx),

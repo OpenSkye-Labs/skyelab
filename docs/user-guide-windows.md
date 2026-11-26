@@ -15,8 +15,10 @@ and its message input follows the window that opened it last, with its text and 
 Settings applies to every window, and a window catches up with projects and threads changed elsewhere when you switch
 to it. Each window scrolls a thread on its own. Every open window saves its frame and page, and the next launch opens all
 of them again; a window you close leaves that list, except the last one, so a launch always has a window to reopen (quitting keeps every window).
-Closing the last window quits on Linux and Windows. On macOS SkyeLab keeps running, agents included, until you quit
-(<kbd>⌘Q</kbd>); click its Dock icon to open a window again.
+Closing the last window quits on Linux and Windows (unless a thread is working, see below). On macOS SkyeLab keeps
+running, agents included, until you quit (<kbd>⌘Q</kbd>, or Quit SkyeLab in the Dock icon's menu); click its Dock
+icon to open the saved windows again. Delegated threads, scheduled tasks and notifications keep working with no
+window open.
 
 ## Quitting
 
@@ -27,6 +29,22 @@ Windows) first asks, listing them. **Quit** quits, **Cancel** keeps everything r
 while it asks quits too. Tick **Don't ask again** to quit at once from then on; **Quit confirmation** in Settings →
 General turns the question back on. With nothing in flight it quits at once. Windows, drafts and thread state are saved
 either way.
+
+## Keep running in background
+
+While a thread is working or waiting for you, the question also offers **Keep running in background** (unless a
+Preview tab holds unsaved edits). It closes every window but keeps SkyeLab and its agents running: turns finish and
+are saved, delegated threads and scheduled tasks start, and tailnet sharing stays on if it was on (a new device's
+request waits until a window opens). An approval or question shows a system notification; clicking it opens a window
+on that thread. Open SkyeLab again (its Dock icon on macOS, or launch it again anywhere) to get the saved windows
+back with the threads as they are now. With **Don't ask again** ticked, Keep running becomes the answer every time;
+**Always keep running in background** in Settings → General sets it too, and Restore defaults turns it off. On
+Linux and Windows closing the last window asks the same way. Side chats and terminal commands stop when their window
+closes.
+
+In the background SkyeLab quits by itself once no thread has been working, starting or waiting for you for 30
+seconds (a scheduled task due within the next 15 seconds keeps it up too). It doesn't survive a crash, an update or
+logging out: those stop the agents as quitting does, and the threads show as interrupted.
 
 ## One SkyeLab at a time
 
