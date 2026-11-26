@@ -301,10 +301,15 @@ impl Settings {
             Some(a) => format!("Edit {}", a.label),
             None => "Add account".into(),
         };
+        // Two cards a row: four in one row overflow the dialog.
         let providers = editing.is_none().then(|| {
-            h_flex()
+            v_flex()
                 .gap_2()
-                .children(Provider::ALL.map(|p| self.provider_card(p, cx)))
+                .children(Provider::ALL.chunks(2).map(|pair| {
+                    h_flex()
+                        .gap_2()
+                        .children(pair.iter().map(|&p| self.provider_card(p, cx)))
+                }))
         });
         let theme = cx.theme();
         v_flex()
@@ -407,6 +412,7 @@ impl Settings {
             .id(SharedString::from(selector.clone()))
             .debug_selector(move || selector)
             .flex_1()
+            .min_w_0()
             .gap_3()
             .p_3()
             .rounded(ui::RADIUS)
