@@ -293,10 +293,7 @@ impl Workspace {
     ) -> Entity<super::bots_page::BotsPage> {
         let page = self
             .bots
-            .get_or_insert_with(|| {
-                let (store, accounts) = (self.backend.store.clone(), self.accounts_path.clone());
-                cx.new(|cx| super::bots_page::BotsPage::new(store, accounts, cx))
-            })
+            .get_or_insert_with(|| cx.new(super::bots_page::BotsPage::new))
             .clone();
         page.read(cx).focus_handle(cx).focus(window, cx);
         page

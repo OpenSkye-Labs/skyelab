@@ -6,18 +6,6 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
-### Added
-
-- **Bots**: the Bots page lists every scheduled task, and a task can now also start when its repo gets a new pull
-  request, a new issue or a pull request whose checks fail (polled every 5 minutes through the account's own `gh`).
-  GitHub-started runs are Plan or Ask only, get the item as quoted untrusted text, start without SkyeLab's own tools,
-  and have an hourly cap. Each bot keeps a run history.
-
-### Changed
-
-- Settings → Scheduled tasks now links to the Bots page, and the rail's separate Scheduled tasks item is gone. Threads
-  a bot started carry a **Bot** badge (was **Scheduled**). New tasks default to Plan.
-
 ## [0.1.6]
 
 ### Changed

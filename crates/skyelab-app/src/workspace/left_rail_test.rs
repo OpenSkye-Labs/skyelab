@@ -51,6 +51,7 @@ fn rail_draws_items_and_tracks_active_destination(cx: &mut TestAppContext) {
         "rail-bots",
         "rail-prs",
         "rail-issues",
+        "rail-scheduled",
         "rail-usage",
         "rail-settings",
     ] {
@@ -86,8 +87,8 @@ fn rail_draws_items_and_tracks_active_destination(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(
         active(cx),
-        RailItem::Settings,
-        "Settings -> Scheduled is a Settings page (the list itself is on Bots)"
+        RailItem::Scheduled,
+        "Settings -> Scheduled highlights Scheduled tasks"
     );
 
     cx.dispatch_action(OpenUsage);
@@ -225,24 +226,19 @@ fn bots_page_supports_history_restore_palette_and_quick_actions(cx: &mut TestApp
     cx.run_until_parked();
     assert_eq!(r.ws.read_with(cx, |ws, _| ws.page.clone()), Page::Bots);
 
-    // Settings -> Scheduled tasks links to the one list, on Bots.
-    cx.dispatch_action(OpenSettingsSection {
-        section: Section::Scheduled,
-    });
+    // Quick action: Open Scheduled tasks opens Settings -> Scheduled.
+    let sched_btn = cx
+        .debug_bounds("bots-open-scheduled")
+        .expect("Open Scheduled tasks quick action drawn");
+    cx.simulate_click(sched_btn.center(), Modifiers::none());
     cx.run_until_parked();
-    let open_bots = cx
-        .debug_bounds("settings-open-bots")
-        .expect("Open Bots drawn in Settings -> Scheduled tasks");
-    cx.simulate_click(open_bots.center(), Modifiers::none());
-    cx.run_until_parked();
-    r.ws.read_with(cx, |ws, _| {
-        assert!(!ws.settings_open);
-        assert_eq!(ws.page, Page::Bots);
+    r.ws.read_with(cx, |ws, cx| {
+        assert!(ws.settings_open);
+        assert_eq!(
+            ws.settings.as_ref().map(|s| s.read(cx).section),
+            Some(Section::Scheduled)
+        );
     });
-    cx.dispatch_action(OpenSettingsSection {
-        section: Section::Scheduled,
-    });
-    cx.run_until_parked();
 
     // Clicking rail-bots while Settings is open closes Settings and keeps Bots visible.
     let bots_btn = cx
@@ -254,6 +250,14 @@ fn bots_page_supports_history_restore_palette_and_quick_actions(cx: &mut TestApp
         assert!(!ws.settings_open);
         assert_eq!(ws.page, Page::Bots);
     });
+
+    // Quick action: Back to Home returns to Home.
+    let back_btn = cx
+        .debug_bounds("bots-back-home")
+        .expect("Back to Home quick action drawn");
+    cx.simulate_click(back_btn.center(), Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(r.ws.read_with(cx, |ws, _| ws.page.clone()), Page::Welcome);
 }
 
 #[gpui::test]
@@ -335,14 +339,14 @@ fn usage_dot_reflects_account_limits_and_sidebar_footer_has_no_duplicates(cx: &m
     );
 }
 
-/// Usage and Settings open the Settings modal; clicking the highlighted one again closes it, as a page
+/// Scheduled, Usage and Settings open the Settings modal; clicking the highlighted one again closes it, as a page
 /// toggle would.
 #[gpui::test]
 fn a_second_rail_click_closes_settings(cx: &mut TestAppContext) {
     let (r, cx) = rig(cx);
     cx.simulate_resize(size(px(1200.), px(800.)));
     cx.run_until_parked();
-    for id in ["rail-settings", "rail-usage"] {
+    for id in ["rail-settings", "rail-scheduled", "rail-usage"] {
         let at = cx.debug_bounds(id).expect("drawn").center();
         cx.simulate_click(at, Modifiers::none());
         cx.run_until_parked();

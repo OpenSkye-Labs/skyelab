@@ -151,7 +151,7 @@ fn migration_v12_rewrites_stored_images_in_old_databases() {
     }
     // Undo v19, v16, v15, v14 and v13 too (side chats; turn usage; PR state; imported session; titles, forks, drafts), so the upgrade runs them again.
     conn.execute_batch(
-        "ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark; DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE untrusted_threads; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id; DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of; DROP TRIGGER turn_usage_insert; DROP TABLE turn_usage;
+        "ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark; DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id; DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of; DROP TRIGGER turn_usage_insert; DROP TABLE turn_usage;
          ALTER TABLE threads DROP COLUMN pr_state; ALTER TABLE threads DROP COLUMN imported_session;
          DROP TRIGGER drafts_thread_delete; DROP TABLE drafts; DROP TABLE draft_files;
          ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN forked_from;
@@ -175,7 +175,7 @@ fn migration_v12_rewrites_stored_images_in_old_databases() {
     let v: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(v, 28);
+    assert_eq!(v, 27);
     drop(conn);
     let after = std::fs::metadata(&path).expect("size").len();
     assert!(after < 1_000_000, "file still {after} bytes");

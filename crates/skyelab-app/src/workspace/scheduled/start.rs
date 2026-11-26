@@ -6,7 +6,6 @@ use super::super::thread::ThreadView;
 use super::super::{Workspace, lock};
 use gpui::{AppContext as _, Context, Entity, Window};
 use skyelab_core::AccountsConfig;
-use skyelab_core::bots::check_trigger_mode;
 use skyelab_core::schedule::{check_mode, run_account};
 use skyelab_store::ModelChoice;
 use skyelab_store::scheduled::ScheduledTask;
@@ -22,8 +21,6 @@ impl Workspace {
     pub(super) fn start_scheduled(
         &mut self,
         task: &ScheduledTask,
-        tag: super::RunTag,
-        prompt: &str,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Result<Entity<ThreadView>, Refused> {
@@ -42,16 +39,10 @@ impl Workspace {
             .as_deref()
             .and_then(|p| AccountsConfig::load(p).ok())
             .unwrap_or_default();
-        let account =
-            run_account(&config, &project.path, &task.account_id).map_err(Refused::Pause)?;
-        // Checked again at every run: a bot GitHub can start runs only in Plan or Ask, whatever the row says.
-        check_trigger_mode(
-            &task.permission_mode,
-            !task.triggers.is_empty(),
-            account.provider,
-        )
-        .map_err(Refused::Pause)?;
-        let account = account.id.clone();
+        let account = run_account(&config, &project.path, &task.account_id)
+            .map_err(Refused::Pause)?
+            .id
+            .clone();
         let backend = self.backend.clone();
         let view = cx.new(|cx| {
             let mut v = ThreadView::new(&project, config, backend, window, cx);
@@ -59,7 +50,7 @@ impl Workspace {
             v.mode = skyelab_agent::Mode::parse(&task.permission_mode);
             // The launch refuses if the folder is rebound while it runs (a worktree being made).
             v.required_account = Some(account);
-            v.scheduled_task = Some(tag);
+            v.scheduled_task = Some(task.id);
             if task.model.is_some() {
                 v.composer.pick = ModelChoice {
                     model: task.model.clone(),
@@ -69,7 +60,7 @@ impl Workspace {
             }
             v
         });
-        view.update(cx, |v, cx| v.submit_remote(prompt, window, cx))
+        view.update(cx, |v, cx| v.submit_remote(&task.prompt, window, cx))
             .map_err(Refused::Fail)?;
         self.close_finished_runs(task.id, window, cx);
         self.add_thread_tab(view.clone(), false, window, cx);
@@ -84,7 +75,7 @@ impl Workspace {
             .iter()
             .filter(|v| {
                 let v = v.read(cx);
-                v.scheduled_task.map(|r| r.task) == Some(task) && !v.starting && !v.turn_running()
+                v.scheduled_task == Some(task) && !v.starting && !v.turn_running()
             })
             .filter(|v| self.page != Page::Thread(v.downgrade()))
             .cloned()

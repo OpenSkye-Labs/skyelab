@@ -67,6 +67,11 @@ impl Workspace {
             self.reload_usage(cx);
             self.poll_usage(cx);
         }
+        if section == crate::settings::Section::Scheduled
+            && let Some(page) = settings.read(cx).scheduled.clone()
+        {
+            page.update(cx, |p, cx| p.reload(cx));
+        }
         settings.read(cx).focus_handle(cx).focus(window, cx);
         cx.notify();
     }
@@ -199,13 +204,15 @@ impl Workspace {
             .env_picker()
             .map(|p| cx.new(|cx| machines_page::MachinesPage::new(p, sharing, cx)));
         let usage = cx.new(usage_page::UsagePage::new);
-        let store = self.backend.store.clone();
-        let rules = cx.new(|cx| super::ProjectRulesPage::new(store, cx));
+        let (store, accounts) = (self.backend.store.clone(), self.accounts_path.clone());
+        let rules = cx.new(|cx| super::ProjectRulesPage::new(store.clone(), cx));
+        let scheduled = cx.new(|cx| scheduled::ScheduledPage::new(store, accounts, cx));
         let settings = cx.new(|cx| {
             let mut s = Settings::new(path, config, error, window, cx);
             s.remote = remote;
             s.machines = machines;
             s.usage = Some(usage);
+            s.scheduled = Some(scheduled);
             s.rules = Some(rules);
             s
         });

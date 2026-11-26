@@ -34,9 +34,6 @@ pub struct PrRow {
     pub head: Option<String>,
     /// Open or draft as listed; merged or closed once the row is read again after a merge.
     pub state: PrState,
-    /// The head branch's name, and the description (capped like an issue's): bots' triggers read them.
-    pub head_branch: Option<String>,
-    pub body: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,8 +61,6 @@ pub enum PrFilter {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IssueFilter {
     Assigned,
-    /// Opened by the account's own login.
-    Mine,
     All,
 }
 
@@ -139,7 +134,8 @@ fn base_args(kind: &str, repo: &str, fields: &str) -> Vec<String> {
 }
 
 pub fn pr_list_args(repo: &str, filter: PrFilter) -> Vec<String> {
-    let fields = "number,title,url,author,isDraft,reviewDecision,statusCheckRollup,updatedAt,headRefOid,headRefName,body";
+    let fields =
+        "number,title,url,author,isDraft,reviewDecision,statusCheckRollup,updatedAt,headRefOid";
     let mut args = base_args("pr", repo, fields);
     match filter {
         PrFilter::Mine => args.extend(["--author".into(), "@me".into()]),
@@ -154,10 +150,8 @@ pub fn pr_list_args(repo: &str, filter: PrFilter) -> Vec<String> {
 pub fn issue_list_args(repo: &str, filter: IssueFilter) -> Vec<String> {
     let fields = "number,title,url,author,labels,assignees,updatedAt,body";
     let mut args = base_args("issue", repo, fields);
-    match filter {
-        IssueFilter::Assigned => args.extend(["--assignee".into(), "@me".into()]),
-        IssueFilter::Mine => args.extend(["--author".into(), "@me".into()]),
-        IssueFilter::All => {}
+    if filter == IssueFilter::Assigned {
+        args.extend(["--assignee".into(), "@me".into()]);
     }
     args
 }
@@ -258,8 +252,6 @@ pub fn parse_pr_list(json: &[u8]) -> Result<Vec<PrRow>> {
                 review: review(v["reviewDecision"].as_str().unwrap_or_default()),
                 updated_at: text(v, "updatedAt", 64),
                 head: head_sha(v),
-                head_branch: Some(text(v, "headRefName", MAX_NAME * 3)).filter(|b| !b.is_empty()),
-                body: text(v, "body", MAX_BODY),
             })
         })
         .take(MAX_ROWS)

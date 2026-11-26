@@ -1,13 +1,13 @@
-//! "Schedule this prompt…": from a composer, the Bots page's editor with its text and project.
+//! "Schedule this prompt…": from a composer, the Scheduled tasks editor with its text and project.
 
 use super::super::Workspace;
-use super::super::center::Page;
 use super::super::thread::ThreadView;
+use crate::settings::Section;
 use gpui::{Context, Window, actions};
 
 actions!(skyelab, [SchedulePrompt]);
 
-/// Opens the Bots page with a new task holding this prompt and project.
+/// Opens Settings → Scheduled tasks with a new task holding this prompt and project.
 #[derive(Clone, PartialEq, gpui::Action)]
 #[action(namespace = skyelab, no_json)]
 pub(crate) struct ScheduleText {
@@ -40,11 +40,16 @@ impl Workspace {
         if self.is_remote() {
             return; // tasks run on this machine; another machine's composer is not this one's project
         }
-        self.show(Page::Bots, window, cx);
-        let page = self.bots_page(window, cx).read(cx).list.clone();
-        let prompt = a.prompt.clone();
-        page.update(cx, |p, cx| {
-            p.new_task(Some(prompt), Some(a.project), window, cx)
-        });
+        self.open_settings_at(Section::Scheduled, window, cx);
+        let page = self
+            .settings
+            .as_ref()
+            .and_then(|s| s.read(cx).scheduled.clone());
+        if let Some(page) = page {
+            let prompt = a.prompt.clone();
+            page.update(cx, |p, cx| {
+                p.new_task(Some(prompt), Some(a.project), window, cx)
+            });
+        }
     }
 }

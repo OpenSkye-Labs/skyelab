@@ -1,11 +1,7 @@
-//! The task (bot) editor's values and the rules a save checks: what starts it (a schedule, GitHub triggers), where,
-//! as whom, and how.
+//! The task editor's values and the rules a save checks: what it schedules, where, as whom, and how.
 
 use skyelab_agent::Mode;
 use skyelab_core::AccountsConfig;
-use skyelab_core::bots::{
-    DEFAULT_RUNS_PER_HOUR, Trigger, check_trigger_mode, parse_triggers, triggers_text,
-};
 use skyelab_core::schedule::{Schedule, check_mode};
 use skyelab_store::Project;
 use skyelab_store::scheduled::ScheduledTask;
@@ -19,13 +15,10 @@ pub(crate) enum Kind {
     Daily,
     Weekdays,
     Cron,
-    /// GitHub triggers only.
-    Never,
 }
 
 impl Kind {
-    pub(crate) const ALL: [Kind; 6] = [
-        Kind::Never,
+    pub(crate) const ALL: [Kind; 5] = [
         Kind::Minutes,
         Kind::Hours,
         Kind::Daily,
@@ -40,7 +33,6 @@ impl Kind {
             Kind::Daily => "Daily at",
             Kind::Weekdays => "Weekdays at",
             Kind::Cron => "Cron",
-            Kind::Never => "No schedule",
         }
     }
 
@@ -51,7 +43,6 @@ impl Kind {
             Kind::Hours => "2",
             Kind::Daily | Kind::Weekdays => "09:00",
             Kind::Cron => "0 9 * * 1-5",
-            Kind::Never => "",
         }
     }
 
@@ -63,7 +54,6 @@ impl Kind {
             Kind::Daily => format!("daily {v}"),
             Kind::Weekdays => format!("weekdays {v}"),
             Kind::Cron => format!("cron {v}"),
-            Kind::Never => String::new(),
         }
     }
 
@@ -79,7 +69,6 @@ impl Kind {
                 (Kind::Weekdays, format!("{hour:02}:{minute:02}"))
             }
             Ok(Schedule::Cron(p)) => (Kind::Cron, p),
-            Err(_) if spec.is_empty() => (Kind::Never, String::new()),
             Err(_) => (Kind::Daily, "09:00".into()),
         }
     }
@@ -99,10 +88,6 @@ pub(crate) struct Draft {
     pub bypass_confirmed: bool,
     pub model: String,
     pub enabled: bool,
-    pub triggers: Vec<Trigger>,
-    /// Only the account's own PRs and issues fire.
-    pub mine: bool,
-    pub per_hour: u32,
 }
 
 impl Default for Draft {
@@ -115,14 +100,10 @@ impl Default for Draft {
             value: "09:00".into(),
             project: None,
             worktree: false,
-            // A new bot plans; a GitHub-triggered one can't do more than Plan or Ask anyway.
-            mode: Mode::Plan,
+            mode: Mode::Default,
             bypass_confirmed: false,
             model: String::new(),
             enabled: true,
-            triggers: Vec::new(),
-            mine: false,
-            per_hour: DEFAULT_RUNS_PER_HOUR,
         }
     }
 }
@@ -142,9 +123,6 @@ impl Draft {
             bypass_confirmed: t.bypass_confirmed,
             model: t.model.clone().unwrap_or_default(),
             enabled: t.enabled,
-            triggers: parse_triggers(&t.triggers),
-            mine: t.author_filter == "me",
-            per_hour: t.max_runs_per_hour,
         }
     }
 
@@ -167,22 +145,12 @@ impl Draft {
             .project
             .and_then(|id| projects.iter().find(|p| p.id == id))
             .ok_or("Pick the project it runs in.")?;
-        let schedule = match self.kind {
-            Kind::Never if self.triggers.is_empty() => {
-                return Err("Pick a schedule, a GitHub trigger, or both.".into());
-            }
-            Kind::Never => String::new(),
-            kind => kind.spec(&self.value).parse::<Schedule>()?.to_string(),
-        };
+        let spec = self.kind.spec(&self.value);
+        let schedule: Schedule = spec.parse()?;
         check_mode(self.mode.as_str(), self.bypass_confirmed)?;
         let account = config
             .resolve(&project.path)
             .ok_or_else(|| format!("{} isn't bound to an account. Bind it first.", project.name))?;
-        check_trigger_mode(
-            self.mode.as_str(),
-            !self.triggers.is_empty(),
-            account.provider,
-        )?;
         let model = self.model.trim();
         let title = match self.title.trim() {
             "" => prompt
@@ -199,7 +167,7 @@ impl Draft {
             project_id: project.id,
             title,
             prompt: prompt.to_owned(),
-            schedule: schedule.clone(),
+            schedule: schedule.to_string(),
             worktree: self.worktree,
             permission_mode: self.mode.as_str().to_owned(),
             bypass_confirmed: self.mode == Mode::Bypass && self.bypass_confirmed,
@@ -207,10 +175,7 @@ impl Draft {
             effort: None,
             account_id: account.id.clone(),
             enabled: self.enabled,
-            next_run_at: super::next_run(&schedule, now),
-            triggers: triggers_text(&self.triggers),
-            author_filter: if self.mine { "me" } else { "anyone" }.into(),
-            max_runs_per_hour: self.per_hour,
+            next_run_at: super::next_run(&schedule.to_string(), now),
             ..Default::default()
         })
     }

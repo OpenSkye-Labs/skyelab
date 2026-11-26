@@ -230,7 +230,7 @@ impl Settings {
             Section::Keys => self.render_keys(cx).into_any_element(),
             Section::Accounts => self.render_accounts(cx),
             Section::Usage => div().children(self.usage.clone()).into_any_element(),
-            Section::Scheduled => self.render_scheduled(cx),
+            Section::Scheduled => div().children(self.scheduled.clone()).into_any_element(),
             Section::Projects => self.render_projects(cx),
             Section::SourceControl => self.render_github(cx),
             Section::Worktrees => self.render_worktrees(cx),

@@ -110,12 +110,7 @@ impl ThreadView {
         let compare_group = self.compare_group.filter(|_| resume.is_none());
         // A side chat is a read-only helper: Plan mode and none of SkyeLab's tools, whatever its row or view says.
         let side = self.is_side_chat() || resume.as_ref().is_some_and(|t| t.side_of.is_some());
-        // A bot run fed GitHub text never gets them either, a resumed turn of it included (its history holds that text).
-        let untrusted = self.scheduled_task.is_some_and(|r| r.untrusted)
-            || resume.as_ref().is_some_and(|t| {
-                lock(&self.backend.store).map_or(true, |s| s.thread_untrusted(t.id).unwrap_or(true))
-            });
-        let tools = crate::workspace::orchestrate::Tools::get(cx).filter(|_| !side && !untrusted);
+        let tools = crate::workspace::orchestrate::Tools::get(cx).filter(|_| !side);
         let accounts_file = cx
             .try_global::<crate::workspace::AccountsFile>()
             .map(|f| f.0.clone());
@@ -235,12 +230,9 @@ impl ThreadView {
                             lock(&store)?.set_thread_permission_mode(thread.id, mode.as_str())?;
                             thread.permission_mode = mode.as_str().to_owned();
                         }
-                        if let Some(run) = scheduled_task {
-                            lock(&store)?.set_thread_scheduled_task(thread.id, run.task)?;
-                            thread.scheduled_task_id = Some(run.task);
-                            if let Some(id) = run.bot_run {
-                                lock(&store)?.set_bot_run_thread(id, thread.id)?;
-                            }
+                        if let Some(task) = scheduled_task {
+                            lock(&store)?.set_thread_scheduled_task(thread.id, task)?;
+                            thread.scheduled_task_id = Some(task);
                         }
                         let _ = saved_tx.send(thread.clone());
                         // A resumed thread's held events go first, or its prompt would be stored ahead of them.

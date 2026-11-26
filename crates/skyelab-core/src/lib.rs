@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 
 pub mod add_project;
 mod app_settings;
-pub mod bots;
 pub mod context;
 pub mod debug;
 pub mod delegation;

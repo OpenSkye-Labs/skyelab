@@ -1,36 +1,24 @@
-//! The Bots page's list, drawn in T3's scheduled tasks shape: a header with "New bot", the missed-runs setting, the
-//! editor card while open, then one card per bot (title, prompt, what starts it · next run, last run, its thread, the
-//! controls, and its run history when expanded).
+//! Settings → Scheduled tasks, drawn in T3's shape: a header with "New task", the missed-runs setting, the editor
+//! card while open, then one row per task (title, prompt, schedule · next run, last run, its thread, the controls).
 
-use super::page::{Row, ScheduledPage};
+use super::form::Kind;
+use super::page::{Editor, Pick, Row, ScheduledPage};
 use crate::ui;
 use crate::ui::SkyeIcon;
-use crate::ui::{Button, Switch};
+use crate::ui::{Button, Checkbox, Switch, TextField};
 use crate::workspace::OpenThread;
 use gpui::{
     AnyElement, Context, IntoElement, ParentElement as _, Render, SharedString, Styled as _,
     Window, div, prelude::*,
 };
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{
+    ActiveTheme as _, Icon, h_flex,
+    input::Textarea,
+    menu::{DropdownMenu as _, PopupMenuItem},
+    v_flex,
+};
 use skyelab_agent::Mode;
-use skyelab_core::bots::{Trigger, parse_triggers};
 use skyelab_core::schedule::Schedule;
-
-/// The empty list's starters: a name, a prompt and the trigger it fires on (each opens the editor in Plan mode).
-const STARTERS: [(&str, &str, Trigger); 2] = [
-    (
-        "PR review",
-        "Review this pull request: summarize the change, then list bugs, risks and missing tests. Read the diff with \
-         `gh pr diff`. Don't change any files.",
-        Trigger::PrOpened,
-    ),
-    (
-        "Issue triage",
-        "Triage this issue: say what it asks, find the code it touches, and suggest a label and next step. Don't \
-         change any files.",
-        Trigger::IssueOpened,
-    ),
-];
 
 /// "in 5m", "in 3h": a future time, the way the sidebar shows past ones.
 fn until(now: i64, at: i64) -> String {
@@ -46,26 +34,15 @@ impl ScheduledPage {
         let (muted, danger) = (theme.muted_foreground, ui::ink(theme, theme.danger));
         let t = &row.task;
         let id = t.id;
-        let schedule = t.schedule.parse::<Schedule>().ok().map(|s| s.label());
-        let triggers = parse_triggers(&t.triggers);
+        let schedule = t
+            .schedule
+            .parse::<Schedule>()
+            .map_or_else(|_| t.schedule.clone(), |s| s.label());
         let when = match (t.enabled, t.next_run_at) {
-            (false, _) if t.last_status.as_deref() == Some("paused") => "Paused".to_owned(),
-            (false, _) => "Off".to_owned(),
+            (false, _) => "Paused".to_owned(),
             (true, Some(at)) => format!("Next run {}", until(now, at)),
-            (true, None) if !triggers.is_empty() => "Watching GitHub".to_owned(),
             (true, None) => "Not scheduled".to_owned(),
         };
-        let chips = schedule
-            .into_iter()
-            .chain(triggers.iter().map(|t| t.label().to_owned()))
-            .chain([ScheduledPage::mode_label(Mode::parse(&t.permission_mode)).to_owned()])
-            .map(ui::Pill::new);
-        let poll_error = cx
-            .try_global::<super::Scheduler>()
-            .and_then(|s| s.polls.errors.get(&t.project_id).cloned())
-            .filter(|_| !triggers.is_empty() && t.enabled)
-            .map(|e| format!("GitHub: {e}"));
-        let open = row.runs.is_some();
         let status = t.last_status.as_deref().map(|s| {
             let color = match s {
                 "started" => theme.success,
@@ -97,18 +74,6 @@ impl ScheduledPage {
         let controls = h_flex()
             .flex_shrink_0()
             .gap_1()
-            .child(
-                Button::new(SharedString::from(format!("sched-history-{id}")))
-                    .ghost()
-                    .xsmall()
-                    .icon(Icon::new(if open {
-                        SkyeIcon::ChevronDown
-                    } else {
-                        SkyeIcon::ChevronRight
-                    }))
-                    .tooltip(if open { "Hide runs" } else { "Show runs" })
-                    .on_click(cx.listener(move |this, _, _, cx| this.toggle_history(id, cx))),
-            )
             .child(
                 Switch::new(SharedString::from(format!("sched-on-{id}")))
                     .checked(t.enabled)
@@ -145,7 +110,7 @@ impl ScheduledPage {
                     })
                     .on_click(cx.listener(move |this, _, _, cx| this.delete(id, cx))),
             );
-        let card = ui::group_row(first, theme)
+        ui::group_row(first, theme)
             .items_start()
             .child(
                 v_flex()
@@ -173,18 +138,9 @@ impl ScheduledPage {
                             .gap_2()
                             .text_size(ui::META)
                             .text_color(muted)
-                            .child(row.project.clone())
-                            .child(ui::AccountBadge::new(
-                                t.account_id.clone(),
-                                row.account.clone(),
-                            ))
-                            .child(when)
-                            .children(chips)
+                            .child(format!("{} · {schedule} · {when}", row.project))
                             .children(status)
                             .children(link),
-                    )
-                    .children(
-                        poll_error.map(|e| div().text_size(ui::META).text_color(danger).child(e)),
                     )
                     .children(
                         t.last_error
@@ -193,13 +149,132 @@ impl ScheduledPage {
                             .map(|e| div().text_size(ui::META).text_color(danger).child(e)),
                     ),
             )
-            .child(controls);
+            .child(controls)
+            .into_any_element()
+    }
+
+    fn render_editor(&self, e: &Editor, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let (muted, danger) = (theme.muted_foreground, ui::ink(theme, theme.danger));
+        let d = &e.draft;
+        let field = |label: &str, control: AnyElement| {
+            v_flex()
+                .gap_1p5()
+                .child(
+                    div()
+                        .text_size(ui::META)
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .text_color(muted)
+                        .child(label.to_owned()),
+                )
+                .child(control)
+        };
+        let page = cx.entity().downgrade();
+        let menu = |id: &'static str, label: String, items: Vec<(String, bool, Pick)>| {
+            let page = page.clone();
+            Button::new(id)
+                .outline()
+                .small()
+                .label(label)
+                .dropdown_caret(true)
+                .dropdown_menu(move |mut menu, _, _| {
+                    for (label, on, pick) in items.clone() {
+                        let page = page.clone();
+                        menu = menu.item(PopupMenuItem::new(label).checked(on).on_click(
+                            move |_, window, cx| {
+                                let _ = page.update(cx, |this, cx| this.pick(pick, window, cx));
+                            },
+                        ));
+                    }
+                    menu
+                })
+        };
+        let project_name = d
+            .project
+            .and_then(|id| self.projects.iter().find(|p| p.id == id))
+            .map_or_else(|| "Pick a project".to_owned(), |p| p.name.clone());
+        let projects = self
+            .projects
+            .iter()
+            .map(|p| (p.name.clone(), d.project == Some(p.id), Pick::Project(p.id)))
+            .collect();
+        let kinds = Kind::ALL
+            .iter()
+            .map(|&k| (k.label().to_owned(), d.kind == k, Pick::Kind(k)))
+            .collect();
+        let modes = Mode::ALL
+            .iter()
+            .map(|&m| {
+                (
+                    ScheduledPage::mode_label(m).to_owned(),
+                    d.mode == m,
+                    Pick::Mode(m),
+                )
+            })
+            .collect();
+        let places = [(false, "Local checkout"), (true, "New worktree")]
+            .iter()
+            .map(|&(w, l)| (l.to_owned(), d.worktree == w, Pick::Worktree(w)))
+            .collect();
+        let where_label = if d.worktree {
+            "New worktree"
+        } else {
+            "Local checkout"
+        };
         v_flex()
-            .child(card)
-            .children(
-                row.runs
-                    .as_ref()
-                    .map(|runs| self.render_history(id, runs, now, cx)),
+            .id("sched-editor")
+            .gap_4()
+            .p_4()
+            .rounded(ui::RADIUS_LG)
+            .border_1()
+            .border_color(theme.border)
+            .bg(theme.popover)
+            .child(ui::section_title(if d.id == 0 { "New task" } else { "Edit task" }, theme))
+            .child(h_flex().gap_3().child(div().flex_1().child(field("Name", TextField::new(&e.title).small().into_any_element()))).child(field("Project", menu("sched-project", project_name, projects).into_any_element())))
+            .child(field("Prompt", Textarea::new(&e.prompt).into_any_element()))
+            .child(
+                h_flex()
+                    .gap_3()
+                    .items_end()
+                    .child(field("Schedule", menu("sched-kind", d.kind.label().to_owned(), kinds).into_any_element()))
+                    .child(div().w(gpui::px(160.)).child(field(if d.kind == Kind::Cron { "Expression" } else { "Value" }, TextField::new(&e.value).small().into_any_element())))
+                    .child(field("Runs in", menu("sched-where", where_label.to_owned(), places).into_any_element()))
+                    .child(field("Permissions", menu("sched-mode", ScheduledPage::mode_label(d.mode).to_owned(), modes).into_any_element()))
+                    .child(div().w(gpui::px(160.)).child(field("Model", TextField::new(&e.model).small().into_any_element()))),
+            )
+            .when(d.mode == Mode::Bypass, |this| {
+                this.child(
+                    Checkbox::new("sched-bypass-confirm")
+                        .checked(d.bypass_confirmed)
+                        .label("Run this task with Full access: no permission checks, and nobody watching")
+                        .on_click(cx.listener(|this, on: &bool, _, cx| {
+                            let on = *on;
+                            this.update_draft(|d| d.bypass_confirmed = on, cx)
+                        })),
+                )
+            })
+            // Beside the buttons, not above them: showing it never moves Create task from under the pointer.
+            .child(
+                h_flex()
+                    .gap_2()
+                    .justify_end()
+                    .child(
+                        div()
+                            .id("sched-error")
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(ui::META)
+                            .text_color(danger)
+                            .children(e.error.clone()),
+                    )
+                    .child(Button::new("sched-cancel").ghost().small().label("Cancel").on_click(cx.listener(|this, _, _, cx| this.cancel(cx))))
+                    .child(
+                        Button::new("sched-save")
+                            .primary()
+                            .small()
+                            .label(if d.id == 0 { "Create task" } else { "Save task" })
+                            .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
+                    ),
             )
             .into_any_element()
     }
@@ -225,10 +300,10 @@ impl Render for ScheduledPage {
                     .flex_1()
                     .min_w_0()
                     .gap_1()
-                    .child(ui::page_title("Bots", theme))
-                    .child(div().text_size(ui::BODY).text_color(muted).child(
-                        "A saved prompt that starts a new thread on a schedule or when GitHub has a new PR, a new issue \
-                         or failing checks, while SkyeLab is running. Each run uses the account its folder is bound to.",
+                    .child(ui::section_title("Scheduled tasks", theme))
+                    .child(div().px_1().text_size(ui::BODY).text_color(muted).child(
+                        "A saved prompt that starts a new thread on a schedule, while SkyeLab is running. Each run uses \
+                         the account its folder is bound to.",
                     )),
             )
             .child(
@@ -236,7 +311,7 @@ impl Render for ScheduledPage {
                     .primary()
                     .small()
                     .icon(Icon::new(SkyeIcon::Plus))
-                    .label("New bot")
+                    .label("New task")
                     .on_click(cx.listener(|this, _, window, cx| this.new_task(None, None, window, cx))),
             );
         let missed = ui::group(theme).child(
@@ -267,7 +342,7 @@ impl Render for ScheduledPage {
             .enumerate()
             .map(|(i, r)| self.render_row(i == 0, r, now, cx))
             .collect();
-        // The open New bot form is the empty state's answer: the card would only repeat "No bots yet" under it.
+        // The open New task form is the empty state's answer: the card would only repeat "No scheduled tasks" under it.
         let list = if rows.is_empty() && self.editor.is_some() {
             div().into_any_element()
         } else if rows.is_empty() {
@@ -276,21 +351,9 @@ impl Render for ScheduledPage {
                 .child(
                     ui::group(cx.theme())
                         .p_6()
-                        .child(ui::EmptyState::new("No bots yet").hint(
-                            "Make one, start from a template, or pick \"Schedule this prompt…\" from a composer.",
-                        ))
-                        .child(h_flex().pt_3().gap_2().justify_center().children(STARTERS.iter().enumerate().map(
-                            |(i, &(title, prompt, trigger))| {
-                                Button::new(("sched-starter", i))
-                                    .outline()
-                                    .small()
-                                    .icon(Icon::new(if trigger == Trigger::PrOpened { SkyeIcon::GitPullRequest } else { SkyeIcon::CircleDot }))
-                                    .label(title)
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.new_from(title, prompt, trigger, window, cx)
-                                    }))
-                            },
-                        ))),
+                        .child(ui::EmptyState::new("No scheduled tasks").hint(
+                            "Create one, or pick \"Schedule this prompt…\" from a composer.",
+                        )),
                 )
                 .into_any_element()
         } else {

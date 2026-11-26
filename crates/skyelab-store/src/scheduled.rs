@@ -56,18 +56,10 @@ pub struct ScheduledTask {
     pub last_status: Option<String>,
     pub last_error: Option<String>,
     pub created_at: i64,
-    /// Bots: `skyelab_core::bots::Trigger` names, comma separated; empty for a plain scheduled task.
-    pub triggers: String,
-    /// `anyone` or `me` (the account's own PRs and issues).
-    pub author_filter: String,
-    pub max_runs_per_hour: u32,
-    /// The poller has recorded what existed since the last save or re-enable; until then a poll fires nothing.
-    pub gh_primed: bool,
 }
 
 const COLS: &str = "id, project_id, title, prompt, schedule, worktree, permission_mode, bypass_confirmed, model, effort, \
-                    account_id, enabled, next_run_at, last_run_at, last_status, last_error, created_at, triggers, author_filter, \
-                    max_runs_per_hour, gh_primed";
+                    account_id, enabled, next_run_at, last_run_at, last_status, last_error, created_at";
 
 fn task_from_row(r: &Row) -> rusqlite::Result<ScheduledTask> {
     Ok(ScheduledTask {
@@ -88,10 +80,6 @@ fn task_from_row(r: &Row) -> rusqlite::Result<ScheduledTask> {
         last_status: r.get(14)?,
         last_error: r.get(15)?,
         created_at: r.get(16)?,
-        triggers: r.get(17)?,
-        author_filter: r.get(18)?,
-        max_runs_per_hour: r.get(19)?,
-        gh_primed: r.get(20)?,
     })
 }
 
@@ -111,24 +99,16 @@ impl Store {
             t.account_id,
             t.enabled,
             t.next_run_at,
-            t.triggers,
-            if t.author_filter == "me" {
-                "me"
-            } else {
-                "anyone"
-            },
-            t.max_runs_per_hour.clamp(1, 30),
         ];
         if t.id == 0 {
             self.conn
                 .execute(
                     // A deleted task's threads keep its id: a new task never takes that id over (and their runs).
                     "INSERT INTO scheduled_tasks (id, project_id, title, prompt, schedule, worktree, permission_mode,
-                        bypass_confirmed, model, effort, account_id, enabled, next_run_at, triggers, author_filter, max_runs_per_hour,
-                        created_at)
+                        bypass_confirmed, model, effort, account_id, enabled, next_run_at, created_at)
                      VALUES ((SELECT MAX(COALESCE((SELECT MAX(id) FROM scheduled_tasks), 0),
                                          COALESCE((SELECT MAX(scheduled_task_id) FROM threads), 0)) + 1),
-                        ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                        ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                     rusqlite::params_from_iter(p.iter().copied().chain([&now_ms() as _])),
                 )
                 .context("save a scheduled task")?;
@@ -137,8 +117,8 @@ impl Store {
         let n = self.conn.execute(
             "UPDATE scheduled_tasks SET project_id = ?1, title = ?2, prompt = ?3, schedule = ?4, worktree = ?5,
                 permission_mode = ?6, bypass_confirmed = ?7, model = ?8, effort = ?9, account_id = ?10,
-                next_run_at = ?12, triggers = ?13, author_filter = ?14, max_runs_per_hour = ?15, gh_primed = 0
-             WHERE id = ?16",
+                next_run_at = ?12
+             WHERE id = ?13",
             rusqlite::params_from_iter(p.iter().copied().chain([&t.id as _])),
         )?;
         expect_one(n, "scheduled task", t.id)?;
@@ -159,23 +139,17 @@ impl Store {
         Ok(self.conn.query_row(&sql, [id], task_from_row).optional()?)
     }
 
-    /// The threads it started keep their badge; its run history and seen items go.
+    /// The threads it started keep their badge.
     pub fn delete_scheduled_task(&self, id: i64) -> Result<()> {
         let n = self
             .conn
             .execute("DELETE FROM scheduled_tasks WHERE id = ?1", [id])?;
-        expect_one(n, "scheduled task", id)?;
-        self.conn
-            .execute("DELETE FROM bot_runs WHERE task_id = ?1", [id])?;
-        self.conn
-            .execute("DELETE FROM bot_seen WHERE task_id = ?1", [id])?;
-        Ok(())
+        expect_one(n, "scheduled task", id)
     }
 
     pub fn set_scheduled_task_enabled(&self, id: i64, enabled: bool) -> Result<()> {
         let n = self.conn.execute(
-            // Turned back on, its poller first records what exists again: nothing opened meanwhile fires.
-            "UPDATE scheduled_tasks SET enabled = ?2, gh_primed = CASE WHEN ?2 THEN 0 ELSE gh_primed END WHERE id = ?1",
+            "UPDATE scheduled_tasks SET enabled = ?2 WHERE id = ?1",
             params![id, enabled],
         )?;
         expect_one(n, "scheduled task", id)
@@ -233,8 +207,3 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 }
-
-#[path = "bot_runs.rs"]
-mod bot_runs;
-pub(crate) use bot_runs::MIGRATION_V28;
-pub use bot_runs::{BotRun, NewBotRun};
