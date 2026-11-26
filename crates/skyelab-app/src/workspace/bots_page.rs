@@ -48,8 +48,7 @@ impl Render for BotsPage {
                             .text_size(ui::BODY)
                             .font_weight(FontWeight::MEDIUM)
                             .child("Bots"),
-                    )
-                    .child(Pill::new("Coming soon")),
+                    ),
             )
             .child(super::layout::panel_toggles(window, cx));
 
@@ -85,7 +84,7 @@ impl Render for BotsPage {
                     .text_size(ui::BODY)
                     .text_color(theme.muted_foreground)
                     .child(
-                        "Bots are coming soon. They will live here.",
+                        "Bots will live here.",
                     ),
             )
             .child(
