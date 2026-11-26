@@ -98,7 +98,7 @@ while IFS= read -r line; do
           printf '{"id":%s,"result":{"turn":{"id":"turn_hang","status":"inProgress","items":[]}}}\n' "$id"
           printf '{"method":"turn/started","params":{"threadId":"thr_fake","turn":{"id":"turn_hang","status":"inProgress","items":[]}}}\n'
           case "$line" in *longcmd*)
-            sleep 1.2 # a later second than anything started with the thread
+            sleep 2.5 # over a second after anything started with the thread (start times can read 1 s early)
             printf '{"method":"item/started","params":{"threadId":"thr_fake","turnId":"turn_hang","item":{"type":"commandExecution","id":"item_cmd","command":"sleep 40","cwd":"%s","status":"inProgress"}}}\n' "$(pwd -P)"
             sleep 40 >/dev/null 2>&1 &
             echo $! > .fake-cmd-pid ;;
