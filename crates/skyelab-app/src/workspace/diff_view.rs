@@ -247,7 +247,7 @@ thread_local! {
 }
 
 /// How many diff rows have been built on this thread, so tests can check only visible ones are.
-#[cfg(test)]
+#[cfg(all(test, unix))] // its test runs on the fake agent, a shell script
 pub(super) fn rows_built() -> usize {
     ROWS_BUILT.with(|n| n.get())
 }

@@ -11,7 +11,9 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
   Complete blocks are saved. Text a turn cut off (Stop, Interrupt, a crash) is saved as far as it got and marked
   **(interrupted)**, so a reopened thread still shows it.
 - The agent's todo list (Claude's `TodoWrite`, Codex's plan) is one checklist per turn that updates in place.
-- Edits (`Edit`, `Write`, `MultiEdit`) show their diff inline. Click the file name to open it in the Changes tab.
+- Edits (`Edit`, `Write`, `MultiEdit`) show their diff inline, colored by the file's language: added and removed
+  lines are tinted, and unchanged lines away from a change fold into **N unchanged lines** (click to show them). A long
+  diff scrolls inside its card; **Show all** lets it grow. Click the file name to open it in the Changes tab.
 - File paths in the agent's text open in the **Preview** tab at their line: markdown links (`[a.rs](src/a.rs:12)`),
   `path:line` text (`src/a.rs:12`) and code spans naming a file (`` `src/a.rs` ``). Only paths inside the thread's
   folder become links; a path outside it stays plain text. Web links open in your browser, and nothing else opens.
