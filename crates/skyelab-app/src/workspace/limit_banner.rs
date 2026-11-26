@@ -9,7 +9,7 @@ use super::thread_list::{Shelf, ShelveThread};
 use super::{Workspace, lock};
 use crate::ui::toast::{self, Toast};
 use crate::ui::{self, Button, SkyeIcon};
-use gpui::{AnyElement, AppContext as _, Context, FontWeight, Window, div, prelude::*};
+use gpui::{AnyElement, AppContext as _, Context, FontWeight, Window, div, prelude::*, px};
 use gpui_component::{ActiveTheme as _, Icon, h_flex};
 use skyelab_core::{limit_reset, snooze};
 
@@ -67,7 +67,9 @@ impl ThreadView {
                 .debug_selector(|| "limit-banner".into())
                 .w_full()
                 .max_w(ui::CHAT_MAX_W)
-                // T3's composer banner: one line, so it never pushes the chat or a docked question up.
+                // T3's composer banner: one line, so it never pushes the chat or a docked question up. Only a center
+                // too narrow for the text and the buttons side by side wraps the buttons under it.
+                .flex_wrap()
                 .mb_1p5()
                 .pl_3()
                 .pr_1p5()
@@ -84,13 +86,17 @@ impl ThreadView {
                 )
                 .child(
                     h_flex()
-                        .flex_1()
+                        // A definite basis: the row wraps only when about the title's width and the buttons
+                        // don't fit side by side.
+                        .flex_grow_1()
+                        .flex_basis(px(120.))
                         .min_w_0()
                         .gap_2()
                         .items_baseline()
                         .child(
                             div()
-                                .flex_shrink_0()
+                                .min_w_0()
+                                .truncate()
                                 .text_size(ui::BODY)
                                 .font_weight(FontWeight::MEDIUM)
                                 .child("Usage limit reached"),
@@ -107,8 +113,10 @@ impl ThreadView {
                 )
                 .when(actions, |el| {
                     el.child(
+                        // Alone on its line and still too wide: Snooze goes under Resume.
                         h_flex()
-                            .flex_shrink_0()
+                            .min_w_0()
+                            .flex_wrap()
                             .gap_0p5()
                             .child(
                                 div().debug_selector(|| "limit-resume".into()).child(

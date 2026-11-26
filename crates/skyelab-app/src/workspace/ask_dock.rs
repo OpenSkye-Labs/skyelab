@@ -6,7 +6,7 @@ use super::ask_cards::{self, OTHER, questions};
 use super::question_drafts;
 use super::thread::ThreadView;
 use super::thread_model::ApprovalItem;
-use crate::ui::{self, Button, Kbd, SkyeIcon, icon_button};
+use crate::ui::{self, Kbd, SkyeIcon, icon_button};
 use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement as _, ParentElement as _,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
@@ -16,6 +16,7 @@ use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 use skyelab_agent::Decision;
 
 const ANSWER_HINT: &str = "Type your own answer, or leave this blank to use the selected option";
+const PICK_HINT: &str = "Pick an option above, or type your own answer";
 const DIGITS: [&str; 9] = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 /// How far the composer covers the question panel's bottom edge.
 const OVERLAP: gpui::Pixels = px(18.);
@@ -24,6 +25,10 @@ const DECLINE_HINT: &str = "Send a message to decline and redirect the agent";
 #[path = "ask_dock_keys.rs"]
 mod keys;
 pub(in crate::workspace) use keys::{FOCUS_QUESTION_KEY, FocusQuestion};
+#[path = "ask_dock_send.rs"]
+mod send;
+#[cfg(all(test, unix))] // its test drives the fake agent, a shell script
+pub(super) use send::next_label;
 
 impl ThreadView {
     /// The newest unanswered question or permission ask while the agent can take an answer.
@@ -60,7 +65,15 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         let want = match self.dock() {
-            Some(a) if a.tool == skyelab_agent::QUESTION_TOOL => Some(ANSWER_HINT),
+            Some(a) if a.tool == skyelab_agent::QUESTION_TOOL => {
+                let picked = self.dock_step().is_some_and(|(step, _)| {
+                    self.drafts
+                        .get(&a.id)
+                        .and_then(|d| d.picked.get(step))
+                        .is_some_and(|p| p.iter().any(|&o| o != OTHER))
+                });
+                Some(if picked { ANSWER_HINT } else { PICK_HINT })
+            }
             Some(_) => Some(DECLINE_HINT),
             None => None,
         };
@@ -98,14 +111,7 @@ impl ThreadView {
         }
         let text = self.prompt.read(cx).value().to_string();
         question_drafts::type_answer(&self.items, &mut self.drafts, &id, step, &text);
-        let answered = self.drafts.get(&id).is_some_and(|d| {
-            d.typed.get(step).is_some_and(|t| !t.is_empty())
-                || d.picked
-                    .get(step)
-                    .is_some_and(|p| p.iter().any(|&o| o != OTHER))
-                || d.files.get(step).is_some_and(|f| !f.is_empty())
-        });
-        if !answered {
+        if !self.step_answered(&id, step) {
             self.composer.notice = Some("Pick an option, or type your answer.".into());
             return cx.notify();
         }
@@ -126,6 +132,17 @@ impl ThreadView {
             self.composer.dock_sent = Some(id.clone());
             self.submit_answers(&id, cx);
         }
+    }
+
+    /// Whether the docked question's `step` has an answer: typed text, a pick or a file.
+    fn step_answered(&self, id: &str, step: usize) -> bool {
+        self.drafts.get(id).is_some_and(|d| {
+            d.typed.get(step).is_some_and(|t| !t.is_empty())
+                || d.picked
+                    .get(step)
+                    .is_some_and(|p| p.iter().any(|&o| o != OTHER))
+                || d.files.get(step).is_some_and(|f| !f.is_empty())
+        })
     }
 
     /// Picks option `option` of the docked question; one pick moves on to the next question (never submits).
@@ -399,51 +416,6 @@ impl ThreadView {
                 .children(attach)
             })
             .into_any_element()
-    }
-}
-
-impl ThreadView {
-    /// Next or Submit in place of Send while a question is docked.
-    pub(in crate::workspace) fn render_dock_send(
-        &self,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        let (step, n) = self.dock_step()?;
-        let label = next_label(step, n);
-        Some(
-            Button::new("dock-next")
-                .debug_selector(|| "dock-next".into())
-                .primary()
-                .small()
-                .label(label)
-                .tooltip(format!("{label} ({})", crate::ui::keys("⌘↩")))
-                .on_click(cx.listener(|this, _, window, cx| {
-                    // A pick just moved the question on: this click was aimed at the button before it changed.
-                    let just = this
-                        .composer
-                        .dock_advanced
-                        .is_some_and(|at| at.elapsed() < ADVANCE_GUARD);
-                    if !just {
-                        this.advance_question(window, cx)
-                    }
-                }))
-                .into_any_element(),
-        )
-    }
-}
-
-/// How long after a pick moved the question on the Next/Submit button ignores clicks.
-const ADVANCE_GUARD: std::time::Duration = std::time::Duration::from_millis(500);
-
-/// T3's labels: "Next question" until the last, then "Submit answer" (one question) or "Submit answers". They differ
-/// in width as well as word, so a button that changed under the pointer reads as changed.
-pub(super) fn next_label(step: usize, n: usize) -> &'static str {
-    if step + 1 < n {
-        "Next question"
-    } else if n > 1 {
-        "Submit answers"
-    } else {
-        "Submit answer"
     }
 }
 

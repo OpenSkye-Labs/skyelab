@@ -74,6 +74,11 @@ fn rank_prefers_file_names_and_caps() {
     assert!(!ranked.iter().any(|&i| files[i] == "Cargo.toml"));
     assert_eq!(rank_files("", &files, 2), [0, 1]);
     assert_eq!(rank_files("@src/new", &files, 1).len(), 1);
+    // With no query, dotfiles and dot folders come after the rest.
+    let files: Vec<String> = [".env", ".github/ci.yml", "README.md", "src/a.rs"]
+        .map(String::from)
+        .into();
+    assert_eq!(rank_files("", &files, 10), [2, 3, 0, 1]);
 }
 
 fn open_picker(

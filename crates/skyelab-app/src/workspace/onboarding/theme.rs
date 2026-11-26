@@ -44,7 +44,8 @@ impl Onboarding {
                     .on_click(cx.listener(move |this, _, _, cx| this.pick_mode(ix, cx))),
             );
         }
-        let mut families = h_flex().flex_wrap().gap_3();
+        // Five even columns span the card (the window's minimum width always fits them), not a ragged wrap.
+        let mut families = div().grid().grid_cols(5).gap_y_3().gap_x_3();
         let mut about = "";
         for (i, f) in ui::themes::FAMILIES.iter().enumerate() {
             let on = current.theme == f.key;
@@ -82,14 +83,22 @@ impl Onboarding {
                     .child(preview(cx)),
             )
             .child(Divider::horizontal())
-            .child(caption("Theme", cx))
-            .child(families)
+            // The picked theme's line sits by the caption, not under the whole grid.
             .child(
-                div()
-                    .text_size(ui::META)
-                    .text_color(theme.muted_foreground)
-                    .child(about),
+                h_flex()
+                    .gap_2()
+                    .items_baseline()
+                    .child(caption("Theme", cx))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .truncate()
+                            .text_size(ui::META)
+                            .text_color(theme.muted_foreground)
+                            .child(about),
+                    ),
             )
+            .child(families)
     }
 }
 

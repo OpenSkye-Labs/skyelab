@@ -44,7 +44,7 @@ pub use choice::{SegmentedControl, Tabs};
 pub use command_row::CommandRow;
 pub use components::{
     AccountBadge, EmptyState, KeyHint, Monogram, Pill, SectionHeader, StatusDot, group, group_row,
-    header, mono, page_title, row, row_surface, section_title,
+    header, mono, page_title, row, row_surface, section_title, subsection_title,
 };
 pub use dialog::{dialog_cancel, dialog_footer, open_dialog};
 pub use kbd::{Kbd, keys};

@@ -78,9 +78,9 @@ impl RenderOnce for AccountBadge {
                     .text_color(theme.muted_foreground)
                     .child(p.label())
             }))
+            // A chip truncates its label rather than overflow its row (the thread header on a narrow center).
             .when(self.chip, |this| {
-                this.flex_shrink_0()
-                    .h(px(20.))
+                this.h(px(20.))
                     .px_1p5()
                     .rounded(RADIUS_SM)
                     .bg(color.opacity(0.12))
@@ -243,6 +243,8 @@ impl RenderOnce for EmptyState {
             (BODY, FontWeight::MEDIUM, META)
         };
         v_flex()
+            // In a row it shrinks to the row, so the hint wraps instead of running past the card.
+            .min_w_0()
             .when(self.page, |this| this.max_w(px(384.)).gap_1())
             .when(!self.page, |this| this.gap_0p5().px_2().py_1p5())
             .child(
@@ -394,6 +396,11 @@ pub fn section_title(text: impl Into<SharedString>, theme: &Theme) -> Div {
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(theme.foreground)
         .child(text.into())
+}
+
+/// A group's title under a page's own heading (Machines' "Your machines"): body size, so it reads as part of the page.
+pub fn subsection_title(text: impl Into<SharedString>, theme: &Theme) -> Div {
+    section_title(text, theme).text_size(BODY)
 }
 
 /// T3's settings card: rounded 12, a hairline border on the muted fill, rows divided by hairlines (give each row

@@ -229,11 +229,7 @@ impl Onboarding {
                 Button::new("onboarding-skip")
                     .ghost()
                     .small()
-                    .label(if step == Step::Welcome {
-                        "Skip for now"
-                    } else {
-                        "Skip setup"
-                    })
+                    .label("Skip setup")
                     .on_click(cx.listener(|this, _, _, cx| this.skip(cx))),
             ),
         };

@@ -231,7 +231,9 @@ impl Render for UsagePage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("UsagePage");
         let (range, metric) = (self.range, self.metric);
+        // Wrapped under the heading, they start where its text does (`heading`'s 4 px inset).
         let toggles = h_flex()
+            .pl_1()
             .gap_2()
             .child(segments(
                 "usage-range",
@@ -259,11 +261,16 @@ impl Render for UsagePage {
             .justify_between()
             .gap_4()
             .flex_wrap()
-            .child(crate::settings::widgets::heading(
-                "Usage",
-                "What this machine's agents reported, per account. Limits refresh from each account's own CLI while shown.",
-                cx,
-            ))
+            .child(
+                crate::settings::widgets::heading(
+                    "Usage",
+                    "What this machine's agents reported, per account. Limits refresh from each account's own CLI while shown.",
+                    cx,
+                )
+                // A definite width, so its line wraps and the toggles drop under it on a narrow dialog.
+                .flex_1()
+                .min_w(px(280.)),
+            )
             .child(toggles);
         let Some(_) = &self.data else {
             return v_flex()

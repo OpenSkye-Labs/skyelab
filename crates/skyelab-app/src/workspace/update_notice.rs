@@ -315,7 +315,8 @@ impl RenderOnce for PillTrigger {
             .rounded_full()
             .cursor_pointer()
             .text_size(ui::META)
-            .text_color(theme.muted_foreground)
+            // Full-strength ink and an accent icon: muted grey on the faint wash read as disabled.
+            .text_color(theme.sidebar_foreground)
             // A wash of the sidebar's own ink: `muted` matches some light themes' sidebar exactly.
             .bg(theme.sidebar_foreground.opacity(0.06))
             .when(self.menu_open, |d| {
@@ -368,7 +369,7 @@ impl RenderOnce for PillTrigger {
                         .child(Icon::new(icon).size_3p5().text_color(if failed {
                             ui::ink(theme, theme.danger)
                         } else {
-                            theme.muted_foreground
+                            ui::ink(theme, theme.primary)
                         })),
                 )
             })

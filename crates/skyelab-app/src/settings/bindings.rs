@@ -125,7 +125,8 @@ impl Settings {
                     .child(
                         v_flex()
                             .flex_1()
-                            .min_w_0()
+                            // Room for a short path ("~/work") before the account column gives way.
+                            .min_w(gpui::px(120.))
                             .gap_0p5()
                             .child(
                                 h_flex()
@@ -149,9 +150,10 @@ impl Settings {
                     )
                     .child(
                         // A fixed column, so every row's arrow and account line up.
+                        // It gives way on a narrow dialog before the folder's path does.
                         h_flex()
-                            .flex_shrink_0()
                             .w(gpui::px(200.))
+                            .min_w(gpui::px(120.))
                             .gap_2()
                             .child(
                                 Icon::new(SkyeIcon::ArrowRight)
@@ -161,14 +163,17 @@ impl Settings {
                             .child(div().max_w_48().child(badge_of(&b.account))),
                     )
                     .child(
-                        Button::new(SharedString::from(format!("unbind-{id}")))
-                            .icon(SkyeIcon::Unlink)
-                            .tooltip("Remove binding")
-                            .small()
-                            .ghost()
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.remove_binding(&remove, window, cx)
-                            })),
+                        // Centred on the name and account line (20 px) rather than 4 px under it.
+                        div().mt(gpui::px(-4.)).child(
+                            Button::new(SharedString::from(format!("unbind-{id}")))
+                                .icon(SkyeIcon::Unlink)
+                                .tooltip("Remove binding")
+                                .small()
+                                .ghost()
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.remove_binding(&remove, window, cx)
+                                })),
+                        ),
                     )
                     .into_any_element()
             })

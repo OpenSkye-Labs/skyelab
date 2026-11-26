@@ -59,7 +59,10 @@ pub(in crate::workspace) struct FilePicker {
 pub(in crate::workspace) fn rank_files(query: &str, files: &[String], limit: usize) -> Vec<usize> {
     let query = query.trim().trim_start_matches(['@', '.', '/']);
     if query.is_empty() {
-        return (0..files.len().min(limit)).collect();
+        // Dotfiles and files under dot folders last: they are seldom what you open.
+        let hidden = |i: &usize| files[*i].split('/').any(|c| c.starts_with('.'));
+        let (dots, rest): (Vec<usize>, Vec<usize>) = (0..files.len()).partition(hidden);
+        return rest.into_iter().chain(dots).take(limit).collect();
     }
     let mut scored: Vec<(i32, usize)> = files
         .iter()
@@ -221,6 +224,8 @@ impl Render for FilePicker {
                     .bordered(false)
                     .placeholder("Search files")
                     .items(items)
+                    // The palette's key hints, so both pickers look alike.
+                    .footer(|_, _, cx| crate::palette::footer(false, false, cx))
                     .empty(|state, _, _| {
                         let text = if state.is_loading() {
                             "Listing files…"

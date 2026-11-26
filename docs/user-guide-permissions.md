@@ -83,7 +83,8 @@ When a question docks it takes the keyboard, unless you are typing in the compos
 (1–9) or click it to pick it, and a one-choice question then moves on to the next; <kbd>↑</kbd>/<kbd>↓</kbd> move a
 one-choice pick and <kbd>↩</kbd> is Next question or Submit. Typing a letter starts your own answer in the composer, <kbd>Esc</kbd> goes back
 to the composer, and <kbd>⌘⇧A</kbd> (<kbd>Ctrl+Shift+A</kbd> elsewhere) returns to the question. Whatever you type in the composer is that question's own answer and replaces the picks (leave it blank to use
-the selected option). **Next question** (<kbd>⌘↩</kbd>) goes to the next question and **Submit answers** (**Submit
+the selected option). **Next question** stays disabled until the question has an answer (a pick, text or a file).
+**Next question** (<kbd>⌘↩</kbd>) goes to the next question and **Submit answers** (**Submit
 answer** for a single question) on the last one sends them all; for half a second after a pick moved the question on,
 the button ignores clicks, so a click aimed at Next doesn't submit the next question unanswered;
 × skips the question. The paperclip in the panel's header (**Attach files**) adds files to that answer (up to 100 in all; × drops one): the

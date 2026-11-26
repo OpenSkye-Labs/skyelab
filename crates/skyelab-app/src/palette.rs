@@ -459,6 +459,7 @@ pub type Search = Rc<dyn Fn(String, &mut App) -> Task<Vec<Entry>>>;
 
 #[path = "palette_view.rs"]
 mod view;
+pub(crate) use view::footer;
 pub use view::{PageSpec, open, open_page, open_spec};
 // The Add project tests' hook (unix only, as they are).
 #[cfg(all(test, unix))]
