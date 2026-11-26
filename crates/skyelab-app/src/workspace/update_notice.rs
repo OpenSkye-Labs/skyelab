@@ -42,20 +42,24 @@ pub(super) struct Look {
     pub icon: SkyeIcon,
     pub failed: bool,
     pub inline: Option<Inline>,
+    /// The pill's tooltip: the popover's headline, with the version.
+    pub tip: String,
 }
 
 pub(super) fn look(status: &UpdateStatus, folder: bool) -> Option<Look> {
-    let step = match status {
-        UpdateStatus::Available { .. } => None,
-        UpdateStatus::Updating { step, .. } => Some(step),
+    let (tag, step) = match status {
+        UpdateStatus::Available { tag, .. } => (tag, None),
+        UpdateStatus::Updating { tag, step, .. } => (tag, Some(step)),
         _ => return None,
     };
+    let tip = headline(tag, step);
     let plain = |label: String, short: String, icon| Look {
         label,
         short,
         icon,
         failed: false,
         inline: None,
+        tip: tip.clone(),
     };
     Some(match step {
         None => plain(
@@ -93,6 +97,7 @@ pub(super) fn look(status: &UpdateStatus, folder: bool) -> Option<Look> {
             icon: SkyeIcon::CircleAlert,
             failed: true,
             inline: Some(Inline::Retry),
+            tip,
         },
     })
 }
@@ -266,6 +271,7 @@ impl RenderOnce for PillTrigger {
             icon,
             failed,
             inline,
+            tip,
         } = self.look;
         let size = ui::META.to_pixels(window.rem_size());
         let style = window.text_style();
@@ -320,7 +326,7 @@ impl RenderOnce for PillTrigger {
             .when(failed, |d| {
                 d.border_1().border_color(theme.danger.opacity(0.4))
             })
-            .tooltip(ui::Tooltip::text(label))
+            .tooltip(ui::Tooltip::text(tip))
             .when(self.open, |d| {
                 d.child(
                     div()
@@ -381,16 +387,7 @@ fn details(cx: &App) -> AnyElement {
         _ => return div().into_any_element(),
     };
     let theme = cx.theme();
-    let version = skyelab_core::update::display_version(tag);
-    let title = match step {
-        None => format!("SkyeLab {version} is available"),
-        Some(Step::Downloading { done, total }) if total.is_some_and(|t| *done >= t) => {
-            format!("Checking {version}…")
-        }
-        Some(Step::Downloading { .. }) => format!("Downloading {version}"),
-        Some(Step::Ready) => format!("SkyeLab {version} is ready"),
-        Some(Step::Failed(_)) => format!("Couldn't update to {version}"),
-    };
+    let title = headline(tag, step);
     let progress = match step {
         Some(Step::Downloading {
             done,
@@ -495,4 +492,18 @@ fn details(cx: &App) -> AnyElement {
             d.child(h_flex().flex_wrap().justify_end().gap_1().children(actions))
         })
         .into_any_element()
+}
+
+/// What the popover's title and the pill's tooltip say about `tag` at `step`.
+fn headline(tag: &str, step: Option<&Step>) -> String {
+    let version = skyelab_core::update::display_version(tag);
+    match step {
+        None => format!("SkyeLab {version} is available"),
+        Some(Step::Downloading { done, total }) if total.is_some_and(|t| *done >= t) => {
+            format!("Checking {version}…")
+        }
+        Some(Step::Downloading { .. }) => format!("Downloading {version}"),
+        Some(Step::Ready) => format!("SkyeLab {version} is ready"),
+        Some(Step::Failed(_)) => format!("Couldn't update to {version}"),
+    }
 }
