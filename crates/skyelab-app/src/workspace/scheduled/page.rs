@@ -200,6 +200,7 @@ impl ScheduledPage {
     pub(crate) fn set_kind(&mut self, kind: Kind, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(e) = &mut self.editor {
             e.draft.kind = kind;
+            e.error = None; // set_value below emits no Change
             e.value.update(cx, |v, cx| {
                 v.set_value("", window, cx);
                 v.set_placeholder(kind.hint(), window, cx);
