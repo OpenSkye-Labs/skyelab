@@ -78,9 +78,9 @@ impl RenderOnce for AccountBadge {
                     .text_color(theme.muted_foreground)
                     .child(p.label())
             }))
+            // A chip truncates its label rather than overflow its row (the thread header on a narrow center).
             .when(self.chip, |this| {
-                this.flex_shrink_0()
-                    .h(px(20.))
+                this.h(px(20.))
                     .px_1p5()
                     .rounded(RADIUS_SM)
                     .bg(color.opacity(0.12))

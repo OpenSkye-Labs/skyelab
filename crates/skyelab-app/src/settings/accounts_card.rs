@@ -69,10 +69,11 @@ impl Settings {
                             .child(
                                 h_flex()
                                     .debug_selector(move || selector)
-                                    // A narrow dialog cuts the sign-in status short instead of running it under
-                                    // the buttons.
+                                    // A narrow dialog moves the sign-in status to a second line instead of
+                                    // running it under the buttons; truncation is the last resort.
                                     .min_w_0()
-                                    .gap_1p5()
+                                    .flex_wrap()
+                                    .gap_x_1p5()
                                     .text_size(ui::META)
                                     .text_color(theme.muted_foreground)
                                     .child(ui::StatusDot::new(color))

@@ -9,7 +9,7 @@ use super::thread_list::{Shelf, ShelveThread};
 use super::{Workspace, lock};
 use crate::ui::toast::{self, Toast};
 use crate::ui::{self, Button, SkyeIcon};
-use gpui::{AnyElement, AppContext as _, Context, FontWeight, Window, div, prelude::*};
+use gpui::{AnyElement, AppContext as _, Context, FontWeight, Window, div, prelude::*, px};
 use gpui_component::{ActiveTheme as _, Icon, h_flex};
 use skyelab_core::{limit_reset, snooze};
 
@@ -67,7 +67,9 @@ impl ThreadView {
                 .debug_selector(|| "limit-banner".into())
                 .w_full()
                 .max_w(ui::CHAT_MAX_W)
-                // T3's composer banner: one line, so it never pushes the chat or a docked question up.
+                // T3's composer banner: one line, so it never pushes the chat or a docked question up. Only a center
+                // too narrow for the text and the buttons side by side wraps the buttons under it.
+                .flex_wrap()
                 .mb_1p5()
                 .pl_3()
                 .pr_1p5()
@@ -85,7 +87,7 @@ impl ThreadView {
                 .child(
                     h_flex()
                         .flex_1()
-                        .min_w_0()
+                        .min_w(px(160.))
                         .gap_2()
                         .items_baseline()
                         .child(

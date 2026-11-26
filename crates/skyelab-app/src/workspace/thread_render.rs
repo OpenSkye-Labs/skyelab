@@ -69,7 +69,9 @@ impl ThreadView {
                     // Windows: the breadcrumb's empty space moves the window; its links occlude it (`thread_link`).
                     .map(ui::drag_area)
                     .flex_1()
-                    .min_w_0()
+                    // On a very narrow center the breadcrumb keeps this much, then the account chip truncates.
+                    .min_w(px(72.))
+                    .overflow_hidden()
                     .gap_2()
                     .text_size(ui::BODY)
                     .font_weight(FontWeight::MEDIUM)
@@ -100,7 +102,13 @@ impl ThreadView {
                     }))
                     // The title keeps some room when the center is narrow (a right panel open): a fork's source link gives way
                     // first, then the folder.
-                    .child(div().min_w(px(72.)).truncate().child(self.title()))
+                    .child(
+                        div()
+                            .flex_shrink(0.1)
+                            .min_w_0()
+                            .truncate()
+                            .child(self.title()),
+                    )
                     .children(self.composer.extras.forked_from.clone().map(|(id, label)| {
                         thread_link("forked-from", id, label)
                             .flex_shrink(8.)
@@ -108,8 +116,9 @@ impl ThreadView {
                     })),
             )
             .child(
-                div()
+                h_flex()
                     .id("provider-badge")
+                    .min_w_0()
                     .child(self.account_badge().chip()),
             )
             .child(super::layout::panel_toggles(window, cx))

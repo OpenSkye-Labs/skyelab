@@ -238,39 +238,42 @@ pub(super) fn render_questions<V: ItemsView>(
     }
     let actions = if answerable {
         let (submit, skip) = (a.id.clone(), a.id.clone());
-        h_flex()
-            .gap_2()
-            .child(
-                Button::new(SharedString::from(format!("submit-{}", a.id)))
-                    .xsmall()
-                    .primary()
-                    .label("Submit answers")
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.submit_answers(&submit, window, cx)
-                    })),
-            )
-            .child(
-                Button::new(SharedString::from(format!("skip-{}", a.id)))
-                    .xsmall()
-                    .ghost()
-                    .label("Skip")
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.answer(&skip, Decision::Deny, window, cx)
-                    })),
-            )
-            .child(interrupt(&a.id, cx))
-            .into_any_element()
+        Some(
+            h_flex()
+                .gap_2()
+                .child(
+                    Button::new(SharedString::from(format!("submit-{}", a.id)))
+                        .xsmall()
+                        .primary()
+                        .label("Submit answers")
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.submit_answers(&submit, window, cx)
+                        })),
+                )
+                .child(
+                    Button::new(SharedString::from(format!("skip-{}", a.id)))
+                        .xsmall()
+                        .ghost()
+                        .label("Skip")
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.answer(&skip, Decision::Deny, window, cx)
+                        })),
+                )
+                .child(interrupt(&a.id, cx))
+                .into_any_element(),
+        )
+    } else if this.agent_alive() {
+        Some(
+            div()
+                .text_size(ui::META)
+                .text_color(cx.theme().muted_foreground)
+                .child("Answer this in the thread on the machine that runs it.")
+                .into_any_element(),
+        )
     } else {
-        div()
-            .text_size(ui::META)
-            .text_color(cx.theme().muted_foreground)
-            .child(if this.agent_alive() {
-                "Answer this in the thread on the machine that runs it."
-            } else {
-                // A local thread whose agent ended (a restart, a crash) before the answer.
-                "The agent ended before this was answered."
-            })
-            .into_any_element()
+        // A local thread whose agent ended (a restart, a crash) before the answer: the line over the composer
+        // already says so, once.
+        None
     };
     let theme = cx.theme();
     card(theme)
@@ -285,7 +288,7 @@ pub(super) fn render_questions<V: ItemsView>(
                 .child("The agent has a question"),
         )
         .children(blocks)
-        .child(actions)
+        .children(actions)
         .into_any_element()
 }
 
@@ -324,7 +327,8 @@ pub(super) fn render_plan<V: ItemsView>(
                         this.answer_plan(&no, false, window, cx)
                     })),
             )
-            .child(interrupt(&a.id, cx))
+            // Bordered like its neighbours, so it reads as a button and not a label.
+            .child(interrupt(&a.id, cx).outline())
     });
     let theme = cx.theme();
     card(theme)

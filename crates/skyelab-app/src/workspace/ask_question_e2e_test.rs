@@ -85,6 +85,11 @@ fn answers_given_in_the_docked_panel_reach_the_agent(cx: &mut TestAppContext) {
     let used = one.view.update_in(cx, |v, window, cx| v.dock_key("2", window, cx));
     assert!(used);
     assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((1, 2)));
+    // Nothing picked or typed: the placeholder asks for a pick, and Submit is disabled (a click does nothing).
+    let hint = one.view.read_with(cx, |v, _| v.composer.dock_placeholder);
+    assert!(hint.is_some_and(|h| h.starts_with("Pick an option")), "{hint:?}");
+    click(cx, "dock-next");
+    assert!(one.view.read_with(cx, |v, _| v.composer.notice.is_none()), "Submit is disabled");
     // Question 2 is multi-choice: Submit with nothing picked or typed is refused, and says why.
     one.view.update_in(cx, |v, window, cx| v.send_prompt(&super::thread::SendPrompt, window, cx));
     assert!(
