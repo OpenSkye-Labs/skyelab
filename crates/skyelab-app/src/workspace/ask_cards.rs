@@ -264,7 +264,12 @@ pub(super) fn render_questions<V: ItemsView>(
         div()
             .text_size(ui::META)
             .text_color(cx.theme().muted_foreground)
-            .child("Answer this in the thread on the machine that runs it.")
+            .child(if this.agent_alive() {
+                "Answer this in the thread on the machine that runs it."
+            } else {
+                // A local thread whose agent ended (a restart, a crash) before the answer.
+                "The agent ended before this was answered."
+            })
             .into_any_element()
     };
     let theme = cx.theme();
