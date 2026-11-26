@@ -1,7 +1,38 @@
 //! Ending a thread view's agent when SkyeLab quits or the view closes, and when a start is abandoned.
 
 use super::{SharedStore, ThreadView, lock};
-use skyelab_agent::Session;
+use skyelab_agent::timeline::Record;
+use skyelab_agent::{Event, Session};
+
+/// The end of a turn SkyeLab cut off (Stop, quit, a closed tab), stored as the interrupted result the agent would have
+/// sent: the turn reads "Stopped after …" now and after a restart, and the thread is `interrupted` until its next
+/// launch. `prompts: 0`, as the view's turn count was already reset.
+pub(super) fn cut_off(started_ms: Option<i64>) -> Record {
+    let ran = started_ms.map_or(0, |s| crate::ui::now_ms().saturating_sub(s));
+    Record::Agent(Event::Result {
+        is_error: true,
+        duration_ms: u64::try_from(ran).unwrap_or(0),
+        total_cost_usd: 0.0,
+        result: Some("interrupted".into()),
+        prompts: 0,
+        usage: None,
+        turn_cost_usd: None,
+    })
+}
+
+/// The status a thread's row keeps once its agent is ended: whether a turn was cut off.
+pub(super) fn ended_status(cut: bool) -> &'static str {
+    if cut { "interrupted" } else { "stopped" }
+}
+
+/// Stores a cut-off turn's end (when there was one) and the thread's ended status, after the agent is gone.
+fn record_end(store: &SharedStore, id: i64, cut: Option<&Record>) {
+    let Ok(mut store) = lock(store) else { return };
+    if let Some(record) = cut {
+        let _ = super::saves::append(&mut store, id, record);
+    }
+    let _ = store.set_thread_status(id, ended_status(cut.is_some()));
+}
 
 impl ThreadView {
     /// Writes where the reader left the thread, so it reopens there after a restart. Nothing before its rows
@@ -29,6 +60,7 @@ impl ThreadView {
 
     pub(super) fn quitting(&mut self) -> impl std::future::Future<Output = ()> + use<> {
         self.stop_requested = true; // a late `ended` must not write exited over stopped
+        let cut = self.turn_running().then(|| cut_off(self.turn_started_ms));
         let job = self.session.take().zip(self.thread.as_ref().map(|t| t.id));
         let store = self.backend.store.clone();
         let drafts = self.draft_flush();
@@ -37,12 +69,10 @@ impl ThreadView {
             drafts();
             mark();
             let Some((session, id)) = job else { return };
-            if let Ok(store) = lock(&store) {
-                let _ = store.set_thread_status(id, "stopped");
-            }
             if let Ok(mut session) = lock(&session) {
                 let _ = session.kill();
             }
+            record_end(&store, id, cut.as_ref());
         }
     }
 }
@@ -99,6 +129,7 @@ impl ThreadView {
         let _ = std::thread::Builder::new()
             .name("skyelab-scroll-mark".into())
             .spawn(mark);
+        let cut = self.turn_running().then(|| cut_off(self.turn_started_ms));
         let session = self.session.take();
         let Some(thread) = &self.thread else {
             return;
@@ -120,8 +151,8 @@ impl ThreadView {
                 }
                 // A last try for held events; past this they are lost, as the warning said.
                 let _ = unsaved.flush(&store, id);
-                if stopped && let Ok(store) = lock(&store) {
-                    let _ = store.set_thread_status(id, "stopped");
+                if stopped {
+                    record_end(&store, id, cut.as_ref());
                 }
             });
     }

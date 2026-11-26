@@ -43,6 +43,10 @@ impl ThreadView {
         }
         let watched = Arc::downgrade(&session);
         self.session = Some(session);
+        // A new agent clears a cut-off turn's `interrupted`: its launch wrote the row's status.
+        if let Some(t) = &mut self.thread {
+            t.status = "running".into();
+        }
         self.release.started(self.items.len());
         // The launch sent one prompt.
         let turns = Arc::new(AtomicUsize::new(1));
@@ -248,7 +252,7 @@ impl ThreadView {
         };
         let (store, id) = (self.backend.store.clone(), thread.id);
         let status = if self.stop_requested {
-            "stopped"
+            super::teardown::ended_status(thread.status == "interrupted") // as Stop wrote it
         } else if self.release.releasing {
             "idle" // ended for sitting idle: the thread is as done as it was
         } else {
@@ -353,11 +357,17 @@ impl ThreadView {
             return;
         };
         let (store, id) = (self.backend.store.clone(), thread.id);
+        let cut = self.turn_running();
+        let status = super::teardown::ended_status(cut);
+        // Now, so the stream's `ended` (it may run first) keeps it.
+        if let Some(t) = &mut self.thread {
+            t.status = status.into();
+        }
         self._task = Some(cx.spawn(async move |this, cx| {
             let stopped = cx
                 .background_spawn(async move {
                     lock(&session)?.kill().context("stopping the agent")?;
-                    lock(&store)?.set_thread_status(id, "stopped")
+                    lock(&store)?.set_thread_status(id, status)
                 })
                 .await;
             let _ = this.update(cx, |this, cx| {
@@ -369,7 +379,10 @@ impl ThreadView {
                 if this.turns.swap(0, Ordering::SeqCst) > 0 {
                     this.checkpoint_turn_end(cx);
                 }
-                this.finish(cx);
+                this.finish(cx); // stores cut-off text first
+                if cut {
+                    this.save_now(super::teardown::cut_off(this.turn_started_ms), cx);
+                }
             });
         }));
     }

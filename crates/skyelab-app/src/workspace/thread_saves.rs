@@ -174,9 +174,13 @@ impl ThreadView {
     /// Text still streaming when its turn ends without the final message (Stop, a crash, an interrupt) is stored as a
     /// partial message, so a reload shows it. It is queued ahead of whatever is saved next (the turn's result).
     pub(super) fn keep_partial(&mut self, cx: &mut Context<Self>) {
-        let Some(record) = crate::workspace::thread_model::partial(&self.items) else {
-            return;
-        };
+        if let Some(record) = crate::workspace::thread_model::partial(&self.items) {
+            self.save_now(record, cx);
+        }
+    }
+
+    /// Shows `record` and stores it behind every held event, off the UI thread.
+    pub(super) fn save_now(&mut self, record: Record, cx: &mut Context<Self>) {
         self.push(&record, cx);
         let Some(id) = self.thread.as_ref().map(|t| t.id) else {
             return;

@@ -103,8 +103,9 @@ agent for everything else too: a parent agent can't message the thread any more.
 same session (Claude's `--resume`, or Codex's `thread/resume`). If the thread store can't save an event (a full disk,
 another SkyeLab on the same data), the thread still shows it and says how many events weren't saved. SkyeLab retries every few seconds and with each new
 event, and saves them in order once the store works again. Quitting before then loses them.
-Switching to another page doesn't stop a thread's agent; **Stop** or quitting SkyeLab does. A thread that was still running when SkyeLab last closed
-without stopping it (a crash, say) shows as **interrupted**; send a follow-up to resume it.
+Switching to another page doesn't stop a thread's agent; **Stop** or quitting SkyeLab does. A thread whose turn was cut
+off that way shows as **Interrupted** in the sidebar and its turn ends **Stopped after …**, also after a restart (a turn
+still running when SkyeLab crashed shows as **Interrupted** too); send a follow-up to resume it, which clears the mark.
 
 ### Thread details
 
