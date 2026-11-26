@@ -123,6 +123,14 @@ fn commit_then_open_pr_stores_the_link_on_the_thread(cx: &mut TestAppContext) {
     git(&f.project, &["diff", "--quiet", "HEAD"]);
     git(&f.project, &["cat-file", "-e", "HEAD:new.txt"]);
 
+    // The PR form stays folded until asked for, so the diff keeps its room.
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("open-pr").is_none(), "no PR form yet");
+    let ask = cx.debug_bounds("pr-form-open").expect("Pull request… is drawn");
+    cx.simulate_click(ask.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("open-pr").is_some(), "the form and its Open PR show");
+
     set_input(
         &changes.read_with(cx, |c, _| c.pr_title.clone()),
         "Add new.txt",

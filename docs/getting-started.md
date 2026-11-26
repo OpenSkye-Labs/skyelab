@@ -84,7 +84,8 @@ sending a message continues the same session. SkyeLab only reads the account's f
 3. When the agent asks to run a command or write a file, a card docks on top of the composer. Check it, then
    **Allow once**, **Allow for this thread** or **Deny**.
 4. Review the diff in the **Changes** tab. You can comment on lines and send the comments to the agent.
-5. **Commit**, **Push** and **Open PR** in the Changes tab. They run as the folder's account and its GitHub user.
+5. **Commit**, **Push** and **Open PR** in the Changes tab (**Pull request…** opens the title and description
+   fields). They run as the folder's account and its GitHub user.
 6. **Open Pull Requests** in the palette lists open PRs across your projects, with their checks, and lets you merge.
 
 More: [threads](user-guide-using-threads.md), [git and the diff](user-guide-git.md),

@@ -377,6 +377,20 @@ impl ChangesView {
                                 }),
                         ),
                 ),
+                None if !self.pr_form => v.child(
+                    h_flex().justify_end().child(
+                        button("pr-form-open", "Pull request…".into())
+                            .debug_selector(|| "pr-form-open".into())
+                            .ghost()
+                            .icon(crate::ui::SkyeIcon::GitPullRequest)
+                            .tooltip("Write a title and description, then open a pull request")
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.pr_form = true;
+                                this.pr_title.update(cx, |i, cx| i.focus(window, cx));
+                                cx.notify();
+                            })),
+                    ),
+                ),
                 None => v
                     .child(
                         h_flex()

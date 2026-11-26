@@ -129,10 +129,13 @@ impl ChangesView {
         let theme = cx.theme();
         let rewind = match self.scope {
             Scope::Turn(n) => Some(
+                // An action, not another scope tab: an icon, and "…" because it asks first.
                 Button::new("rewind")
-                    .outline()
+                    .ghost()
                     .xsmall()
-                    .label(format!("Rewind to before turn {n}"))
+                    .icon(crate::ui::SkyeIcon::Undo2)
+                    .label(format!("Rewind to before turn {n}…"))
+                    .tooltip("Shows every file it would change and asks before touching any")
                     .disabled(self.busy)
                     .on_click(cx.listener(move |this, _, _, cx| this.ask_rewind(n, cx))),
             ),

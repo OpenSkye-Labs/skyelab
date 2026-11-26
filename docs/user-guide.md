@@ -5,8 +5,9 @@ Shortcuts are shown for macOS. On Linux and Windows, use <kbd>Ctrl</kbd> for <kb
 ## Command palette
 
 Press <kbd>⌘K</kbd> or <kbd>⇧⌘P</kbd> to find anything: an action (with its shortcut), a project to switch to, a
-thread to open, or a terminal, Changes or browser tab to go to. With nothing typed it lists **Actions** and your
-**Recent threads** (the twelve used last). Typing searches everything, grouped under **Actions**, **Threads**,
+thread to open, or a terminal, Changes or browser tab to go to. With nothing typed it lists the everyday **Actions** (new thread, go
+to file, search, add project, pull requests, issues, usage, settings, theme) and your **Recent threads** (the twelve
+used last); type to find any other action. Typing searches everything, grouped under **Actions**, **Threads**,
 **Projects**, **Scripts** and **Tabs**, best match first, with the matched letters in bold. Threads of every project are
 also found by their messages: type a few words from a prompt or an answer and threads with one message holding every
 word, in any order, list after the rest, with their project's name and the matched line. Put words in double quotes
@@ -20,7 +21,7 @@ search go back from a page. The action runs
 where you were, so actions that only make sense in a thread or in Settings are listed only while you're there.
 In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kbd>Ctrl+Shift+P</kbd> there.
 While the window shows another machine, the palette lists that machine's projects and the selected project's
-threads, and opens them there. A toggle such as **Toggle Sharing on Tailnet** shows a ticked box while it is on.
+threads, and opens them there. A toggle such as **Toggle Sharing on Tailnet** or **Toggle Archived Threads** shows a ticked box while it is on.
 
 ## Keyboard
 

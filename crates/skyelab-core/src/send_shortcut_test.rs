@@ -41,3 +41,11 @@ fn enter_sends_follows_each_setting() {
     assert!(!SendShortcut::ModEnterMultiline.enter_sends("cr\rline"));
     assert!(!SendShortcut::ModEnter.enter_sends("hi"));
 }
+
+#[test]
+fn diffs_wrap_long_lines_by_default_as_t3s_do() {
+    let d: super::DiffSettings = toml::from_str("").expect("empty table");
+    assert!(d.wrap && !d.split && !d.ignore_whitespace);
+    let off: super::DiffSettings = toml::from_str("wrap = false").expect("parse");
+    assert!(!off.wrap, "a saved choice still wins");
+}
