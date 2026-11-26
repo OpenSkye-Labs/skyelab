@@ -131,7 +131,8 @@ pub(super) fn render_approval<V: ItemsView>(
                     "allow-thread",
                     Decision::AllowThread,
                 )
-                .outline(),
+                .outline()
+                .tooltip(thread_allow_scope(&a.raw)),
             )
             .when_some(prefix, |d, prefix| {
                 let id = a.id.clone();
@@ -400,4 +401,14 @@ fn view_all(title: String, patch: &str, window: &mut Window, cx: &mut App) {
                 .child(body),
         )
     });
+}
+
+/// What "Allow for this thread" covers, as its tooltip says it: a command allows only itself again (each agent's
+/// thread allow is the exact command), anything else calls like it; neither outlives the agent or is saved.
+pub(super) fn thread_allow_scope(raw: &serde_json::Value) -> &'static str {
+    if raw["command"].is_string() {
+        "Only this exact command, until this agent stops. Any other command still asks."
+    } else {
+        "Calls like this one, until this agent stops. Nothing is saved."
+    }
 }

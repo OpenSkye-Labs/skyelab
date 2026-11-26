@@ -5,6 +5,7 @@ use super::thread_model::{Item, Items, ToolItem};
 use super::timeline_fold;
 use super::timeline_text::{divider_text, limited_text, markdown};
 use super::tool_cards;
+pub(super) use super::tool_cards::tool_summary;
 use crate::ui;
 use crate::ui::SkyeIcon;
 use gpui::{
@@ -393,27 +394,14 @@ fn render_row<V: ItemsView>(
     }
 }
 
-/// The first argument's value, as T3 shows it (`ls crates`, not `"command": "ls crates"`).
-pub(super) fn tool_summary(tool: &ToolItem) -> String {
-    tool.input
-        .lines()
-        .filter_map(|l| l.split_once(':').map(|(_, v)| v.trim()))
-        // A nested list or object (`"questions": [`) says nothing; its first plain value does.
-        .find(|v| !v.starts_with(['[', '{']))
-        .unwrap_or_default()
-        .trim_end_matches(',')
-        .trim_matches('"')
-        .chars()
-        .take(80)
-        .collect()
-}
-
 fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> AnyElement {
     let theme = cx.theme();
     let open = this.is_expanded(&tool.id);
     let summary = tool_summary(tool);
     let live = tool.result.is_some() || this.tool_live(&tool.id);
+    let waits = super::shell_card::waits(this.items(), tool);
     let state = match (&tool.result, tool.is_error) {
+        (None, _) if waits => "waiting for approval",
         (None, _) if !live => "interrupted",
         (None, _) => "running",
         (Some(_), true) => "error",
@@ -421,6 +409,7 @@ fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> 
     };
     let id = tool.id.clone();
     let (icon, icon_color) = match (&tool.result, tool.is_error) {
+        (None, _) if waits => (SkyeIcon::Clock, ui::ink(theme, theme.warning)),
         (None, _) if !live => (SkyeIcon::CircleAlert, theme.muted_foreground),
         (None, _) => (SkyeIcon::LoaderCircle, theme.info),
         (Some(_), true) => (SkyeIcon::CircleAlert, theme.danger),

@@ -70,15 +70,16 @@ pub(crate) fn forget(book: &mut Book, id: &str) {
     book.open.remove(id);
 }
 
-/// What "Allow for this thread" adds: only Claude's suggested allow rules, kept to this process (never written to
-/// a settings file). Suggestions that change the mode, add directories or replace rules are dropped. With none left,
-/// a rule for this exact command, or for the tool when it has no command.
+/// What "Allow for this thread" adds, kept to this process (never written to a settings file): for a command, a rule
+/// for that exact command, as the button's tooltip says; otherwise Claude's suggested allow rules, dropping those that
+/// change the mode, add directories or replace rules, or with none left a rule for the tool.
 fn session_rules(ask: &Ask) -> Vec<Value> {
     let mut rules: Vec<Value> = ask
         .suggestions
         .as_array()
         .into_iter()
         .flatten()
+        .filter(|_| ask.input["command"].as_str().is_none())
         .filter(|r| r["type"] == "addRules" && r["behavior"] == "allow" && r["rules"].is_array())
         .map(|r| json!({ "type": "addRules", "rules": r["rules"], "behavior": "allow", "destination": "session" }))
         .collect();
