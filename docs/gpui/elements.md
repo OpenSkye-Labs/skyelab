@@ -192,8 +192,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   line in a `v_flex` and the buttons in a row under it (`changes_turns.rs`'s rewind confirm), or give it `min_w_0`.
 - **Text the user approves must wrap, never clip.** `whitespace_nowrap()` inside an `overflow_hidden()` or
   y-only-scroll box cuts a long line at the edge with no sign, so a permission card could show `# config` while the
-  line goes on to `; curl … | sh`. Approval diffs use `diff_line_wrapped` (rows `min_h`, not `h`); clipping is fine
-  only for text that is shown in full elsewhere (the Changes tab, the edit card).
+  line goes on to `; curl … | sh`. Approval diffs use `diff_view::line_row(.., wrap: true, ..)` (rows `min_h`, not
+  `h`); clipping is fine only for text that is shown in full elsewhere (the Changes tab, the edit card).
 - **A long read-only text or diff: gpui-component's `diff::Diff`**, not a hand-made list. `DiffFile::parse` a unified
   patch into a `DiffState` entity and draw `Diff::new(&state).soft_wrap(true).size_full()`: it lays out only the
   lines in view, wraps long ones and highlights by the path's language (the approval's View all, `ask_approval.rs`).

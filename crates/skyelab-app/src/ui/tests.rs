@@ -1,4 +1,4 @@
-use super::{Status, account_color, ago, short_path};
+use super::{Status, account_color, ago, folder_path, short_path};
 use gpui::TestAppContext;
 use gpui_component::{ActiveTheme as _, Theme};
 use std::path::Path;
@@ -104,6 +104,30 @@ fn short_path_abbreviates_home_only_on_a_component_boundary() {
         "/home/devops/app"
     );
     assert_eq!(short_path(Path::new("/srv/app"), None), "/srv/app");
+}
+
+#[test]
+fn folder_path_is_relative_inside_the_folder_and_short_outside() {
+    let (root, home) = (Path::new("/tmp/work/app"), Some(Path::new("/Users/dev")));
+    let at = |p| folder_path(p, Some(root), home);
+    assert_eq!(at("/tmp/work/app/src/calc.py"), "src/calc.py");
+    // macOS reports /tmp as /private/tmp on one side only.
+    assert_eq!(at("/private/tmp/work/app/calc.py"), "calc.py");
+    assert_eq!(
+        folder_path(
+            "/tmp/work/app/x.rs",
+            Some(Path::new("/private/tmp/work/app")),
+            home
+        ),
+        "x.rs"
+    );
+    assert_eq!(
+        at("/tmp/work/application/x.rs"),
+        "/tmp/work/application/x.rs"
+    );
+    assert_eq!(at("/Users/dev/notes.md"), "~/notes.md");
+    assert_eq!(at("/tmp/work/app"), "/tmp/work/app");
+    assert_eq!(folder_path("/srv/a.rs", None, None), "/srv/a.rs");
 }
 
 #[gpui::test]

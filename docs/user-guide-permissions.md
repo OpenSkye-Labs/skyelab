@@ -27,8 +27,9 @@ continue in Full access.
 
 When the agent asks, a **Waiting for approval** card docks on top of the composer, so it never scrolls out of view
 (the timeline keeps a one-line **Waiting for your answer below** row; once answered, the row says what was decided). The card shows with the tool and what it wants to do (the
-command, or the file; for a plain shell command, the agent's own description of it under the command; for a file
-write its line count and first 20 lines, and for an edit its diff (a line between a MultiEdit's edits); when that is
+command, or the file, relative to the thread's folder (`~/…` outside it); for a plain shell command, the agent's own description of it under the command; for a file
+write its line count and first 20 lines, and for an edit its diff, colored by the file's language with every long
+line wrapped whole (a line between a MultiEdit's edits); when that is
 only a part, the card says **Showing 20 of 2,000 lines** and **View all** opens the whole change, every line, in a
 read-only diff; for anything
 else, or text with hidden or control characters, the full input it sent), and the agent waits until you answer: **Allow once**, **Allow for this thread** (Claude's own suggested rule

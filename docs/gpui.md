@@ -63,6 +63,8 @@ gpui-component moves to the official `gpui` crate; then we move with it.
 See [gpui/elements.md](gpui/elements.md), and [gpui/fitting.md](gpui/fitting.md) for layout that depends on a
 container's width (measuring it, fitting a label, a popover trigger of our own).
 Menus inside list rows and hover-only overlays: [gpui/overlays.md](gpui/overlays.md).
+Code and diff rows (syntax colors, wrapped rows in a scroll box, render-time entity access):
+[gpui/code.md](gpui/code.md).
 
 ## Redraw discipline
 

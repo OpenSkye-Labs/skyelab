@@ -113,6 +113,7 @@ mod thread_search;
 mod timeline_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
 mod click;
+mod diff_view;
 mod find_marks;
 mod limit_banner;
 mod saved_views;

@@ -3,7 +3,7 @@
 
 use super::ask_cards::waiting_row;
 use super::ask_detail::{Detail, PREVIEW_LINES, Preview, detail, patch};
-use super::changes::diff_line_wrapped;
+use super::diff_view;
 use super::thread_items::{ItemsView, clip};
 use super::thread_model::{ApprovalItem, Item};
 use crate::ui;
@@ -29,6 +29,18 @@ fn decided(d: Decision) -> &'static str {
     }
 }
 
+/// What a request's row says it touches: a file change's path relative to the thread's folder (`~/…` outside it),
+/// anything else as asked.
+fn summary_text<V: ItemsView>(this: &V, a: &ApprovalItem) -> String {
+    let file = matches!(a.tool.as_str(), "Write" | "Edit" | "MultiEdit")
+        && a.raw["file_path"].as_str() == Some(a.summary.as_str());
+    if file {
+        ui::folder_path(&a.summary, this.files_root(), dirs::home_dir().as_deref())
+    } else {
+        a.summary.clone()
+    }
+}
+
 /// A permission request, T3's pending-approval row: what the tool wants to do in mono, then the answers. Once
 /// decided it shrinks to one line saying what was decided.
 pub(super) fn render_approval<V: ItemsView>(
@@ -41,14 +53,17 @@ pub(super) fn render_approval<V: ItemsView>(
         return waiting_row(SkyeIcon::TriangleAlert, &a.tool, cx);
     }
     let theme = cx.theme();
+    let shown_summary = summary_text(this, a);
     let summary = div()
         .flex_1()
         .min_w_0()
-        .truncate()
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .text_ellipsis_middle()
         .font_family(theme.mono_font_family.clone())
         .text_size(ui::META)
         .text_color(theme.muted_foreground)
-        .child(a.summary.clone());
+        .child(shown_summary.clone());
     if let Some(d) = a.decision {
         let (icon, color) = match d {
             Decision::AllowOnce | Decision::AllowThread => {
@@ -221,7 +236,7 @@ pub(super) fn render_approval<V: ItemsView>(
             div()
                 .font_family(theme.mono_font_family.clone())
                 .text_size(ui::BODY)
-                .child(a.summary.clone()),
+                .child(shown_summary),
         )
         .children(shown)
         .child(actions)
@@ -277,27 +292,17 @@ fn approval_diff<V: ItemsView>(a: &ApprovalItem, p: Preview, cx: &mut Context<V>
     .text_color(theme.muted_foreground)
     .when(p.replace_all, |d| d.child("· replaces every match"));
     let (shown, total) = (p.lines.len(), p.lines.len() + p.more);
-    let rows = p
-        .lines
-        .into_iter()
-        .enumerate()
-        .flat_map(|(ix, (o, n, k, t))| {
-            let divider = p
-                .breaks
-                .contains(&ix)
-                .then(|| div().h(px(1.)).w_full().bg(theme.border).into_any_element());
-            // Wrapped, never clipped: what a long line hides past the edge would still be written.
-            let base = h_flex()
-                .id(("approval-line", ix))
-                .min_h(px(20.))
-                .items_start()
-                .w_full()
-                .font_family(mono.clone())
-                .text_xs();
-            divider.into_iter().chain(std::iter::once(
-                diff_line_wrapped(base, o, n, k, t.into(), theme).into_any_element(),
-            ))
-        });
+    let breaks = p.breaks;
+    let key = format!("approval:{}:{shown}", a.id);
+    let d = diff_view::prepared(&key, &a.summary, || p.lines);
+    let rows = (0..d.lines.len()).flat_map(|ix| {
+        let divider = breaks
+            .contains(&ix)
+            .then(|| div().h(px(1.)).w_full().bg(theme.border).into_any_element());
+        // Wrapped, never clipped: what a long line hides past the edge would still be written.
+        let row = diff_view::line_row(&d, ix, true, theme).into_any_element();
+        divider.into_iter().chain(std::iter::once(row))
+    });
     let lines = div()
         .rounded(ui::RADIUS)
         .border_1()
@@ -310,6 +315,8 @@ fn approval_diff<V: ItemsView>(a: &ApprovalItem, p: Preview, cx: &mut Context<V>
                 .max_h(px(DETAIL_MAX_H))
                 .overflow_y_scroll()
                 .bg(theme.background)
+                .font_family(mono.clone())
+                .text_size(theme.mono_font_size)
                 .children(rows),
         );
     let id = a.id.clone();
