@@ -174,7 +174,8 @@ fn stop_while_starting_stops_the_new_agent(cx: &mut TestAppContext) {
         assert!(t.starting, "precondition: still starting");
         t.stop(&Stop, window, cx)
     });
-    // Read-only or resumable depends on whether claude's Init got out before the kill; either way it is stopped.
+    // Read-only or resumable depends on whether claude's Init got out before the kill; either way it is ended:
+    // `interrupted` once the launch handed its agent over (the sent prompt's turn was cut off), else `stopped`.
     wait(cx, |cx| {
         view.read_with(cx, |t, _| !t.starting && t.session.is_none())
             && store
@@ -183,7 +184,7 @@ fn stop_while_starting_stops_the_new_agent(cx: &mut TestAppContext) {
                 .list_threads(project)
                 .expect("list")
                 .first()
-                .is_some_and(|r| r.status == "stopped")
+                .is_some_and(|r| matches!(r.status.as_str(), "stopped" | "interrupted"))
     });
 }
 

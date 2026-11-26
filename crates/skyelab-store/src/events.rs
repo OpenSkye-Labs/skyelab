@@ -5,14 +5,32 @@ use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
 
 use crate::{Event, Store, expect_one, images, now_ms};
 
+/// Whether an event is the thread's activity, as T3 dates a thread (its last user message, its run's end): a prompt, a
+/// steer, or an agent's turn result. [`MIGRATION_V28`] is the same rule in SQL.
+pub(crate) fn is_activity(kind: &str, payload_json: &str) -> bool {
+    matches!(kind, "prompt" | "steer")
+        || (kind == "agent" && payload_json.starts_with("{\"Result\""))
+}
+
+/// Version 28: `updated_at` is the thread's last activity ([`is_activity`]), never a bookkeeping write, which made every
+/// row read "now" after a relaunch. Each thread is dated again by its newest activity, or its start (a fork's copied
+/// history is older than the fork).
+pub(crate) const MIGRATION_V28: &str = "
+UPDATE threads SET updated_at = MAX(created_at, COALESCE((
+    SELECT MAX(e.created_at) FROM events e WHERE e.thread_id = threads.id
+       AND (e.kind IN ('prompt', 'steer') OR (e.kind = 'agent' AND e.payload_json LIKE '{\"Result\"%'))
+), 0));
+";
+
 impl Store {
     /// Called with every event after it is stored, under the caller's lock, so it must not block.
     pub fn on_append(&mut self, hook: impl Fn(&Event) + Send + 'static) {
         self.on_append = Some(Box::new(hook));
     }
 
-    /// Stores an event under the thread's next seq and bumps the thread's `updated_at`. Image bytes in the payload
-    /// are stored as a placeholder (see `images.rs`); the returned event is what was stored.
+    /// Stores an event under the thread's next seq. A message or a turn end ([`is_activity`]) dates the thread's
+    /// `updated_at`; other events don't. Image bytes in the payload are stored as a placeholder (see `images.rs`); the
+    /// returned event is what was stored.
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     #[tracing::instrument(name = "store.append_event", skip_all)]
     pub fn append_event(
@@ -29,8 +47,8 @@ impl Store {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let n = tx.execute(
-            "UPDATE threads SET updated_at = ?2 WHERE id = ?1",
-            params![thread_id, now],
+            "UPDATE threads SET updated_at = CASE WHEN ?3 THEN ?2 ELSE updated_at END WHERE id = ?1",
+            params![thread_id, now, is_activity(kind, payload_json)],
         )?;
         expect_one(n, "thread", thread_id)?;
         let seq: i64 = tx.query_row(

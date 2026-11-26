@@ -129,14 +129,14 @@ fn the_card_lists_children_by_status_and_the_reported_usage(cx: &mut TestAppCont
         Some("Write a commit message, then commit.")
     );
 
-    // Stopped, the child moves to Previous agents.
+    // Stopped mid-turn, the child moves to Previous agents as interrupted.
     let child_id = parent.read_with(cx, |p, _| p.children[0].id);
     let child = ws
         .read_with(cx, |ws, cx| ws.open_view(child_id, cx))
         .expect("the child's view is open");
     child.update_in(cx, |v, window, cx| v.stop(&Stop, window, cx));
-    wait_until(cx, "the child listed as stopped", |cx| {
-        parent.read_with(cx, |p, _| p.children[0].status == Status::Stopped)
+    wait_until(cx, "the child listed as interrupted", |cx| {
+        parent.read_with(cx, |p, _| p.children[0].status == Status::Interrupted)
     });
     parent.update_in(cx, |p, window, cx| p.stop(&Stop, window, cx));
     cx.run_until_parked();

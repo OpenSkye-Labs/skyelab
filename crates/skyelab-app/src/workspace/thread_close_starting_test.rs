@@ -1,5 +1,5 @@
-//! A thread's row ends `stopped` when its tab closes (while starting or running) or the app quits, never `running`
-//! with no agent behind it. The agent is the fake claude.
+//! A thread's row ends `stopped` when its tab closes or the app quits (`interrupted` when that cuts a turn off), never
+//! `running` with no agent behind it. The agent is the fake claude.
 
 use super::thread::ThreadView;
 use super::*;
@@ -102,9 +102,9 @@ fn a_tab_closed_while_starting_leaves_its_thread_stopped(cx: &mut TestAppContext
     assert!(weak.upgrade().is_none(), "the tab is gone");
 }
 
-/// Closing the tab of a running thread ends its agent and leaves the row `stopped`.
+/// Closing the tab of a thread mid-turn ends its agent and leaves the row `interrupted`.
 #[gpui::test]
-fn a_tab_closed_while_running_leaves_its_thread_stopped(cx: &mut TestAppContext) {
+fn a_tab_closed_while_running_leaves_its_thread_interrupted(cx: &mut TestAppContext) {
     let r = rig(cx);
     let (config, backend, project) = (r.config.clone(), backend(&r), r.project.clone());
     let (view, cx) =
@@ -117,15 +117,15 @@ fn a_tab_closed_while_running_leaves_its_thread_stopped(cx: &mut TestAppContext)
     });
     drop(view);
     cx.update(|window, _| window.remove_window());
-    wait_until(cx, "the row to say stopped", |_| {
-        row(&r).is_some_and(|t| t.status == "stopped")
+    wait_until(cx, "the row to say interrupted", |_| {
+        row(&r).is_some_and(|t| t.status == "interrupted")
     });
 }
 
-/// Quitting the app ends every running agent and leaves its row `stopped`, so nothing reads as running
-/// once the app is gone.
+/// Quitting the app ends every running agent and leaves its row `interrupted` (its turn was cut off), so nothing reads
+/// as running once the app is gone, and the turn ends interrupted in the store.
 #[gpui::test]
-fn quitting_leaves_running_threads_stopped(cx: &mut TestAppContext) {
+fn quitting_leaves_running_threads_interrupted(cx: &mut TestAppContext) {
     let r = rig(cx);
     let (config, backend, project) = (r.config.clone(), backend(&r), r.project.clone());
     let (view, vcx) =
@@ -137,5 +137,12 @@ fn quitting_leaves_running_threads_stopped(cx: &mut TestAppContext) {
             && row(&r).is_some_and(|t| t.status == "running")
     });
     cx.quit();
-    assert_eq!(row(&r).map(|t| t.status).as_deref(), Some("stopped"));
+    let t = row(&r).expect("row");
+    assert_eq!(t.status, "interrupted");
+    let last = r.store.lock().expect("lock").events_since(t.id, 0).expect("events");
+    assert!(
+        last.last().is_some_and(|e| e.payload_json.contains("\"result\":\"interrupted\"")),
+        "the cut-off turn's end is stored: {:?}",
+        last.last()
+    );
 }
