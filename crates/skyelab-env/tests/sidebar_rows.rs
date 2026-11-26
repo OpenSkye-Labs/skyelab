@@ -1,39 +1,66 @@
-//! The full rows this machine's sidebar reads are the same projects and threads as its shell, in the same order.
+//! This machine's sidebar reads its shell: mapped back to store rows, the shell is exactly what the store lists,
+//! every field and the order included. And a store write reaches a local subscriber as a change.
 
 mod common;
 
-use skyelab_env::{LocalSource, Source};
+use std::time::Duration;
+
+use skyelab_env::{LocalSource, Source, store_project, store_thread};
+use skyelab_protocol::ShellDelta;
 
 #[test]
-fn sidebar_rows_match_the_shell() {
+fn the_shell_maps_back_to_the_store_rows() {
     let env = common::env();
-    let local = LocalSource::new(env.store.clone(), env.backend());
-    let shell = local.shell().expect("shell");
-    let projects: Vec<_> = local
-        .projects()
-        .expect("projects")
-        .iter()
-        .map(|p| (p.id, p.name.clone()))
-        .collect();
-    let shell_projects: Vec<_> = shell
-        .projects
-        .iter()
-        .map(|p| (p.id, p.name.clone()))
-        .collect();
-    assert_eq!(projects, shell_projects);
-    let mut threads: Vec<_> = local
-        .threads()
-        .expect("threads")
-        .iter()
-        .map(|t| (t.id, t.title.clone()))
-        .collect();
-    let mut shell_threads: Vec<_> = shell
-        .threads
-        .iter()
-        .map(|t| (t.id, t.title.clone()))
-        .collect();
-    // The sidebar lists every project's threads newest first; the shell lists them project by project.
-    threads.sort();
-    shell_threads.sort();
-    assert_eq!(threads, shell_threads);
+    {
+        // Fill the 1.7 fields, so a dropped one would show.
+        let store = env.store.lock().expect("store lock");
+        store
+            .set_thread_archived(env.thread_id, true)
+            .expect("archive");
+        store
+            .set_thread_unread(env.thread_id, true)
+            .expect("unread");
+        store
+            .set_thread_permission_mode(env.thread_id, "plan")
+            .expect("mode");
+        store
+            .set_thread_pr_url(env.thread_id, Some("https://github.com/o/r/pull/1"))
+            .expect("pr");
+        store
+            .set_agent_session_id(env.thread_id, Some("s-1"))
+            .expect("session");
+        store
+            .set_limit_resume(env.thread_id, Some(42))
+            .expect("resume");
+    }
+    let shell = LocalSource::new(env.backend())
+        .subscribe_shell()
+        .expect("shell")
+        .snapshot;
+    let store = env.store.lock().expect("store lock");
+    let projects: Vec<_> = shell.projects.iter().map(store_project).collect();
+    assert_eq!(projects, store.list_projects().expect("projects"));
+    let threads: Vec<_> = shell.threads.iter().map(store_thread).collect();
+    assert_eq!(threads, store.list_all_threads().expect("threads"));
+}
+
+#[test]
+fn a_store_write_reaches_a_local_subscriber() {
+    let env = common::env();
+    let local = LocalSource::new(env.backend()); // the stream lives as long as its source
+    let feed = local.subscribe_shell().expect("shell");
+    env.store
+        .lock()
+        .expect("store lock")
+        .set_thread_title(env.thread_id, "renamed here")
+        .expect("rename");
+    let change = feed
+        .changes
+        .recv_timeout(Duration::from_secs(30))
+        .expect("a change");
+    assert_eq!(change.seq, feed.snapshot.seq + 1);
+    match change.delta {
+        ShellDelta::ThreadUpdated(t) => assert_eq!(t.title, "renamed here"),
+        other => panic!("{other:?}"),
+    }
 }

@@ -268,7 +268,8 @@ impl Workspace {
     }
 
     /// Reloads the rows' previews (each thread's last reply, one query) and each project folder's branch.
-    pub(super) fn load_previews(&mut self, cx: &mut Context<Self>) {
+    /// Each project's branch, and with `replies` each thread's last reply (a listing already brought them).
+    pub(super) fn load_previews(&mut self, replies: bool, cx: &mut Context<Self>) {
         let store = self.backend.store.clone();
         let folders: Vec<(i64, std::path::PathBuf)> = self
             .projects
@@ -276,7 +277,10 @@ impl Workspace {
             .map(|p| (p.id, p.path.clone()))
             .collect();
         let task = cx.background_spawn(async move {
-            let replies = lock(&store)?.last_replies(None)?;
+            let replies = match replies {
+                true => Some(lock(&store)?.last_replies(None)?),
+                false => None,
+            };
             let branches = folders
                 .into_iter()
                 .filter_map(|(id, path)| Some((id, skyelab_git::current_branch(&path).ok()??)))
@@ -288,7 +292,9 @@ impl Workspace {
             let _ = this.update(cx, |this, cx| {
                 match loaded {
                     Ok((replies, branches)) => {
-                        this.previews.replies = replies;
+                        if let Some(replies) = replies {
+                            this.previews.replies = replies;
+                        }
                         this.previews.branches = branches;
                     }
                     Err(e) => this.store_error = Some(format!("{e:#}").into()),

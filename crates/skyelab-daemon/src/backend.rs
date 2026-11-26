@@ -1,12 +1,17 @@
 //! What the daemon serves: [`Backend`] answers each RPC, [`StoreBackend`] is the real one.
 
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use skyelab_core::AccountsConfig;
 
-use skyelab_protocol::{ErrorCode, PermissionAnswer, Project, RpcError, Thread, ThreadEvent};
-use skyelab_store::Store;
+use skyelab_protocol::{
+    ErrorCode, PREVIEW_CHARS, PermissionAnswer, Project, RpcError, ShellDelta, ShellSnapshot,
+    Thread, ThreadEvent, ThreadRow,
+};
+use skyelab_store::{RowChange, Store};
+
+use crate::shell::{Hub, ShellFeed};
 
 /// Answers RPC calls. Called from a blocking thread, so implementations may block.
 pub trait Backend: Send + Sync + 'static {
@@ -25,6 +30,10 @@ pub trait Backend: Send + Sync + 'static {
     }
     /// Settled, snoozed until a time, or neither (never both: [`StoreBackend`] refuses that).
     fn shelve_thread(&self, _: i64, _: bool, _: Option<i64>) -> Result<(), RpcError> {
+        NotWired::err()
+    }
+    /// Every listed project and thread, then each change to them (1.7). See [`ShellFeed`].
+    fn subscribe_shell(&self) -> Result<ShellFeed, RpcError> {
         NotWired::err()
     }
 }
@@ -84,6 +93,8 @@ pub struct StoreBackend<A> {
     store: Arc<Mutex<Store>>,
     agents: A,
     accounts: Option<PathBuf>,
+    /// Started by the first `subscribe_shell`, so a backend nobody streams from runs no worker.
+    hub: OnceLock<Hub>,
 }
 
 impl<A: Agents> StoreBackend<A> {
@@ -99,19 +110,12 @@ impl<A: Agents> StoreBackend<A> {
             store,
             agents,
             accounts,
+            hub: OnceLock::new(),
         }
     }
 
-    /// Read on each listing, so a label edited in Settings shows on the next one. A file that doesn't load gives
-    /// no labels, never stale ones.
     fn accounts(&self) -> AccountsConfig {
-        let Some(path) = &self.accounts else {
-            return AccountsConfig::default();
-        };
-        AccountsConfig::load(path).unwrap_or_else(|e| {
-            eprintln!("skyelab-daemon: no account labels: {e:#}");
-            AccountsConfig::default()
-        })
+        accounts(self.accounts.as_deref())
     }
 
     fn with_store<T>(&self, f: impl FnOnce(&Store) -> anyhow::Result<T>) -> Result<T, RpcError> {
@@ -134,15 +138,7 @@ fn internal(message: &str) -> RpcError {
 impl<A: Agents> Backend for StoreBackend<A> {
     fn list_projects(&self) -> Result<Vec<Project>, RpcError> {
         let projects = self.with_store(|s| s.list_projects())?;
-        Ok(projects
-            .into_iter()
-            .map(|p| Project {
-                id: p.id,
-                name: p.name,
-                // The store only accepts UTF-8 paths, so this is lossless.
-                path: p.path.to_string_lossy().into_owned(),
-            })
-            .collect())
+        Ok(projects.into_iter().map(wire_project).collect())
     }
 
     fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>, RpcError> {
@@ -153,29 +149,11 @@ impl<A: Agents> Backend for StoreBackend<A> {
             ))
         })?;
         let accounts = self.accounts();
-        let label = |id: &str| {
-            accounts
-                .accounts
-                .iter()
-                .find(|a| a.id == id)
-                .map(|a| a.label.clone())
-        };
         Ok(threads
             .into_iter()
-            .map(|t| Thread {
-                id: t.id,
-                project_id: t.project_id,
-                title: t.title,
-                account_label: label(&t.account_id),
-                account_id: t.account_id,
-                status: t.status,
-                pinned: t.pinned_at.is_some(),
-                // The store already cuts it to `PREVIEW_CHARS`.
-                preview: previews.remove(&t.id),
-                settled_at: t.settled_at,
-                snoozed_until: t.snoozed_until,
-                created_at: t.created_at,
-                updated_at: t.updated_at,
+            .map(|t| {
+                let preview = previews.remove(&t.id);
+                wire_thread(t, preview, &accounts)
             })
             .collect())
     }
@@ -238,6 +216,145 @@ impl<A: Agents> Backend for StoreBackend<A> {
         }
         self.agents.shelve_thread(thread_id, settled, snoozed_until)
     }
+
+    fn subscribe_shell(&self) -> Result<ShellFeed, RpcError> {
+        let hub = match self.hub.get() {
+            Some(hub) => hub,
+            None => {
+                let path = self.accounts.clone();
+                let read = Box::new(move |s: &Store, rows: &[RowChange]| {
+                    read_rows(s, rows, &accounts(path.as_deref()))
+                });
+                let hub = Hub::start(&self.store, read).map_err(|e| {
+                    eprintln!("skyelab-daemon: can't start the shell stream: {e}");
+                    internal("can't start the shell stream")
+                })?;
+                // Two first subscribers at once: the loser's hub is dropped, its worker ends on the next write.
+                let _ = self.hub.set(hub);
+                self.hub.get().ok_or_else(|| internal("shell stream"))?
+            }
+        };
+        hub.subscribe(|| {
+            let (projects, threads, mut previews) = self.with_store(|s| {
+                Ok((
+                    s.list_projects()?,
+                    s.list_all_threads()?,
+                    s.last_replies(None)?,
+                ))
+            })?;
+            let accounts = self.accounts();
+            Ok(ShellSnapshot {
+                seq: 0,
+                projects: projects.into_iter().map(wire_project).collect(),
+                threads: threads
+                    .into_iter()
+                    .map(|t| {
+                        let preview = previews.remove(&t.id);
+                        wire_thread(t, preview, &accounts)
+                    })
+                    .collect(),
+            })
+        })
+    }
+}
+
+/// Read on each listing, so a label edited in Settings shows on the next one. A file that doesn't load gives
+/// no labels, never stale ones.
+fn accounts(path: Option<&Path>) -> AccountsConfig {
+    let Some(path) = path else {
+        return AccountsConfig::default();
+    };
+    AccountsConfig::load(path).unwrap_or_else(|e| {
+        eprintln!("skyelab-daemon: no account labels: {e:#}");
+        AccountsConfig::default()
+    })
+}
+
+fn wire_project(p: skyelab_store::Project) -> Project {
+    Project {
+        id: p.id,
+        name: p.name,
+        // The store only accepts UTF-8 paths, so this is lossless.
+        path: p.path.to_string_lossy().into_owned(),
+        created_at: p.created_at,
+    }
+}
+
+/// A store row as clients see it. `preview` is already cut to `PREVIEW_CHARS` by the store.
+fn wire_thread(
+    t: skyelab_store::Thread,
+    preview: Option<String>,
+    accounts: &AccountsConfig,
+) -> Thread {
+    let path = |p: Option<PathBuf>| p.map(|p| p.to_string_lossy().into_owned());
+    Thread {
+        id: t.id,
+        project_id: t.project_id,
+        title: t.title,
+        account_label: accounts
+            .accounts
+            .iter()
+            .find(|a| a.id == t.account_id)
+            .map(|a| a.label.clone()),
+        account_id: t.account_id,
+        status: t.status,
+        pinned: t.pinned_at.is_some(),
+        preview,
+        settled_at: t.settled_at,
+        snoozed_until: t.snoozed_until,
+        created_at: t.created_at,
+        updated_at: t.updated_at,
+        row: ThreadRow {
+            cwd: t.cwd.to_string_lossy().into_owned(),
+            permission_mode: t.permission_mode,
+            agent_session_id: t.agent_session_id,
+            worktree_path: path(t.worktree_path),
+            worktree_branch: t.worktree_branch,
+            worktree_base: t.worktree_base,
+            pr_url: t.pr_url,
+            pr_state: t.pr_state,
+            parent_thread_id: t.parent_thread_id,
+            pinned_at: t.pinned_at,
+            archived_at: t.archived_at,
+            unread: t.unread,
+            forked_from: t.forked_from,
+            side_of: t.side_of,
+            compare_group: t.compare_group,
+            scheduled_task_id: t.scheduled_task_id,
+            limit_resume_at: t.limit_resume_at,
+        },
+    }
+}
+
+/// Changed rows as they read now: listed, or removed. A project listed again brings its threads back.
+fn read_rows(store: &Store, rows: &[RowChange], accounts: &AccountsConfig) -> Vec<ShellDelta> {
+    let thread = |t: skyelab_store::Thread| {
+        let preview = store.last_reply(t.id, PREVIEW_CHARS).ok().flatten();
+        ShellDelta::ThreadUpdated(Box::new(wire_thread(t, preview, accounts)))
+    };
+    let mut out = Vec::new();
+    for row in rows {
+        let read = match *row {
+            RowChange::Project(id) => store.shell_project(id).and_then(|p| {
+                let Some(p) = p else {
+                    return Ok(vec![ShellDelta::ProjectRemoved { id }]);
+                };
+                let threads = store.list_threads(id)?;
+                let mut deltas = vec![ShellDelta::ProjectUpdated(wire_project(p))];
+                deltas.extend(threads.into_iter().map(thread));
+                Ok(deltas)
+            }),
+            RowChange::Thread(id) => store
+                .shell_thread(id)
+                .map(|t| vec![t.map_or(ShellDelta::ThreadRemoved { id }, thread)]),
+        };
+        match read {
+            Ok(deltas) => out.extend(deltas),
+            // Skipped: a later write to the row sends it again, and a resubscribe reads everything.
+            Err(e) => eprintln!("skyelab-daemon: shell read failed: {e:#}"),
+        }
+    }
+    out
 }
 
 /// Store event → wire event, for [`crate::Daemon::push_event`]. One too big for [`MAX_REPLY_BYTES`] keeps its

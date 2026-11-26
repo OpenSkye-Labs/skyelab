@@ -408,7 +408,7 @@ impl Workspace {
             },
             |b| b.0.clone(),
         );
-        let local = Arc::new(skyelab_env::LocalSource::new(backend.store.clone(), served));
+        let local = Arc::new(skyelab_env::LocalSource::new(served));
         let mut this = Self {
             _live: skyelab_core::debug::Live::new("windows"),
             debug_hud: crate::debug_mode::take_open_at_start()

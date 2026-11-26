@@ -37,6 +37,7 @@ impl ThreadSource for LongSource {
             id: 1,
             name: "app".into(),
             path: "/src/app".into(),
+            created_at: 0,
         }]
     }
     fn threads(&self) -> Vec<Thread> {
@@ -53,6 +54,7 @@ impl ThreadSource for LongSource {
             snoozed_until: None,
             created_at: 0,
             updated_at: 0,
+            row: Default::default(),
         }]
     }
     // A slice: the screen reads it every frame, so it must not copy 10,000 events each time.

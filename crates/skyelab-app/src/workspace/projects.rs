@@ -9,7 +9,15 @@ use super::{
 use gpui::{AppContext as _, Context, Entity, Window};
 
 use skyelab_store::Thread;
-use std::path::PathBuf;
+
+/// This machine's shell, read once (the snapshot of a subscription nobody follows).
+fn shell(local: &skyelab_env::LocalSource) -> anyhow::Result<skyelab_protocol::ShellSnapshot> {
+    use skyelab_env::Source as _;
+    Ok(local.subscribe_shell()?.snapshot)
+}
+
+#[path = "projects_add.rs"]
+mod projects_add;
 
 #[path = "project_name.rs"]
 mod project_name;
@@ -19,7 +27,7 @@ impl Workspace {
     /// Lists projects from the store (off the UI thread), selecting `select`, else the current one, else the first.
     pub(super) fn load_projects(&mut self, select: Option<i64>, cx: &mut Context<Self>) {
         let local = self.local.clone();
-        let task = cx.background_spawn(async move { local.projects() });
+        let task = cx.background_spawn(async move { shell(&local).map(|s| s.projects) });
         self._load = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
@@ -27,7 +35,7 @@ impl Workspace {
                 this.starts.loaded();
                 match loaded {
                     Ok(projects) => {
-                        this.projects = projects;
+                        this.projects = projects.iter().map(skyelab_env::store_project).collect();
                         this.sync_project_names(cx);
                         let listed = &this.projects;
                         this.scope.retain(|id| listed.iter().any(|p| p.id == *id));
@@ -49,51 +57,6 @@ impl Workspace {
                 this.sync_setup(cx);
             });
         }));
-    }
-
-    /// Stores `dir` as a project, or finds the one already stored there, and selects it.
-    pub fn add_project(&mut self, dir: PathBuf, cx: &mut Context<Self>) {
-        self.add_projects(vec![dir], cx);
-    }
-
-    /// Stores each of `dirs` as a project (or finds the one stored there) in one go, and selects the first.
-    pub fn add_projects(&mut self, dirs: Vec<PathBuf>, cx: &mut Context<Self>) {
-        let store = self.backend.store.clone();
-        let task = cx.background_spawn(async move {
-            let store = lock(&store)?;
-            let mut first = None;
-            for dir in dirs {
-                // A removed project comes back with its threads.
-                let id = match store.readd_project(&dir)? {
-                    Some(p) => p.id,
-                    None => {
-                        let name = dir.file_name().map_or_else(
-                            || dir.display().to_string(),
-                            |n| n.to_string_lossy().into_owned(),
-                        );
-                        store.create_project(&name, &dir)?.id
-                    }
-                };
-                first.get_or_insert(id);
-            }
-            first.ok_or_else(|| anyhow::anyhow!("no folder to add"))
-        });
-        // Detached: each add finishes even when another starts (onboarding's import beside a palette add).
-        cx.spawn(async move |this, cx| {
-            let added = task.await;
-            let _ = this.update(cx, |this, cx| match added {
-                Ok(id) => {
-                    // The new project's threads must show, and New thread must not start in an older scope.
-                    this.scope.clear();
-                    this.load_projects(Some(id), cx)
-                }
-                Err(e) => {
-                    this.store_error = Some(format!("{e:#}").into());
-                    cx.notify();
-                }
-            });
-        })
-        .detach();
     }
 
     pub(super) fn select_project(
@@ -125,16 +88,21 @@ impl Workspace {
     /// Every listed project's threads, for the sidebar's one list. A newer load replaces (cancels) an older one.
     pub(super) fn load_threads(&mut self, cx: &mut Context<Self>) {
         let local = self.local.clone();
-        let task = cx.background_spawn(async move { local.threads() });
+        let task = cx.background_spawn(async move { shell(&local).map(|s| s.threads) });
         self._threads = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
                 match loaded {
                     Ok(threads) => {
                         crate::debug_mode::launch_milestone("threads listed");
-                        this.threads = threads;
+                        // The shell carries each thread's last reply: only the branches are read again.
+                        this.previews.replies = threads
+                            .iter()
+                            .filter_map(|t| Some((t.id, t.preview.clone()?)))
+                            .collect();
+                        this.threads = threads.iter().map(skyelab_env::store_thread).collect();
                         this.rerun_search(cx);
-                        this.load_previews(cx);
+                        this.load_previews(false, cx);
                         this.poll_prs(true, cx); // whichever page shows
                     }
                     Err(e) => this.store_error = Some(format!("{e:#}").into()),
@@ -318,7 +286,7 @@ impl Workspace {
                 ThreadViewEvent::TurnDone => {
                     this.refresh_changes(view, cx);
                     this.refresh_details(cx);
-                    this.load_previews(cx);
+                    this.load_previews(true, cx);
                     if view.read(cx).owned_by(window) {
                         this.turn_done(view, window, cx);
                     }

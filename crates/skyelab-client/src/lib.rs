@@ -40,9 +40,16 @@ pub use guard::is_tailnet_ip;
 pub use options::{Options, PeerVerifier};
 use skyelab_protocol::{Call, Reply};
 pub use skyelab_protocol::{
-    ErrorCode, Hello, PermissionAnswer, Project, RpcError, Thread, ThreadEvent, Version,
-    is_magicdns_name,
+    ErrorCode, Hello, PermissionAnswer, Project, RpcError, ShellChange, ShellDelta, ShellSnapshot,
+    Thread, ThreadEvent, Version, is_magicdns_name,
 };
+
+/// [`Client::subscribe_shell`]'s answer: the environment's projects and threads, then each change after them, in
+/// seq order. `changes` ends when the connection drops or a change was missed: subscribe again for a new snapshot.
+pub struct ShellFeed {
+    pub snapshot: ShellSnapshot,
+    pub changes: flume::Receiver<ShellChange>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
@@ -342,17 +349,10 @@ impl Client {
         settled: bool,
         snoozed_until: Option<i64>,
     ) -> Pending<()> {
-        if self
-            .hello()
-            .is_some_and(|h| h.protocol.minor < skyelab_protocol::SHELVES_SINCE_MINOR)
+        if let Some(refused) =
+            self.older_than(skyelab_protocol::SHELVES_SINCE_MINOR, "settle and snooze")
         {
-            let (tx, rx) = flume::bounded(1);
-            let message = format!(
-                "{} runs an older SkyeLab without settle and snooze: update SkyeLab on {}",
-                self.host, self.host
-            );
-            let _ = tx.send(Err(Error::Rpc(RpcError::new(ErrorCode::NotWired, message))));
-            return Pending(rx);
+            return refused;
         }
         let call = Call::ShelveThread {
             thread_id,
@@ -360,6 +360,32 @@ impl Client {
             snoozed_until,
         };
         self.call(call, ok)
+    }
+
+    /// The environment's projects and threads, then every change to them (protocol 1.7), so a list never polls.
+    /// One stream per client: subscribing again replaces it. An environment older than 1.7 is never asked: it fails
+    /// here with a `NotWired` error; list it with `list_projects` and `list_threads` instead.
+    pub fn subscribe_shell(&self) -> Pending<ShellFeed> {
+        if let Some(refused) = self.older_than(skyelab_protocol::SHELL_SINCE_MINOR, "a live list") {
+            return refused;
+        }
+        let (reply, rx) = flume::bounded(1);
+        self.command(conn::Command::SubscribeShell { reply });
+        Pending(rx)
+    }
+
+    /// A `NotWired` answer for a call the connected environment is older than `minor` for, naming what it lacks.
+    fn older_than<T>(&self, minor: u32, lacks: &str) -> Option<Pending<T>> {
+        if !self.hello().is_some_and(|h| h.protocol.minor < minor) {
+            return None;
+        }
+        let (tx, rx) = flume::bounded(1);
+        let message = format!(
+            "{} runs an older SkyeLab without {lacks}: update SkyeLab on {}",
+            self.host, self.host
+        );
+        let _ = tx.send(Err(Error::Rpc(RpcError::new(ErrorCode::NotWired, message))));
+        Some(Pending(rx))
     }
 
     /// Forwards `port` on the environment's loopback to a port on this machine's 127.0.0.1 (protocol 1.5): the same
@@ -432,6 +458,9 @@ fn fail_stopped(command: conn::Command) {
     match command {
         conn::Command::Call { reply, .. } => reply(Err(Error::Stopped)),
         conn::Command::Forward { reply, .. } => {
+            let _ = reply.send(Err(Error::Stopped));
+        }
+        conn::Command::SubscribeShell { reply } => {
             let _ = reply.send(Err(Error::Stopped));
         }
         _ => {}

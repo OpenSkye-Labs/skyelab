@@ -28,6 +28,8 @@ mod thread_row;
 pub use model::ModelChoice;
 pub(crate) use thread_row::{THREAD_COLS, thread_from_row};
 mod migrations;
+mod rows;
+pub use rows::RowChange;
 mod settle;
 pub mod usage;
 use migrations::MIGRATIONS;
@@ -117,6 +119,7 @@ type AppendHook = Box<dyn Fn(&Event) + Send>;
 pub struct Store {
     conn: Connection,
     on_append: Option<AppendHook>,
+    row_hooks: rows::RowHooks,
     /// The threads [`Store::open`] purged, until [`Store::take_purged`] hands them over (their git checkpoints go too).
     purged: Vec<Thread>,
 }
@@ -196,9 +199,12 @@ impl Store {
             // a full disk or a busy file must not stop the app from opening (the free pages are reused anyway).
             let _ = conn.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");
         }
+        let row_hooks = rows::RowHooks::default();
+        rows::install(&mut conn, row_hooks.clone())?;
         Ok(Self {
             conn,
             on_append: None,
+            row_hooks,
             purged: Vec::new(),
         })
     }

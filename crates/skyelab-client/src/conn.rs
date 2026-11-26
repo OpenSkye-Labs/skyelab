@@ -16,6 +16,7 @@ use crate::{Disconnect, DisconnectKind, Error, Options, Update, WatchId};
 
 mod connect;
 mod expire;
+mod fill;
 pub(crate) mod forward;
 mod forward_calls;
 mod watched;
@@ -42,6 +43,9 @@ pub(crate) enum Command {
     Forward {
         port: u16,
         reply: flume::Sender<Result<Forward, Error>>,
+    },
+    SubscribeShell {
+        reply: flume::Sender<Result<crate::ShellFeed, Error>>,
     },
 }
 
@@ -100,6 +104,9 @@ impl Ctx {
             Ok(Command::Unwatch(id)) => self.unwatch(id),
             Ok(Command::Approve(_)) => {} // for a connection that has gone
             Ok(Command::Forward { reply, .. }) => {
+                let _ = reply.send(Err(Error::NotConnected));
+            }
+            Ok(Command::SubscribeShell { reply }) => {
                 let _ = reply.send(Err(Error::NotConnected));
             }
         }
@@ -261,6 +268,7 @@ async fn session(cx: &mut Ctx) -> End {
         timing: HashMap::new(),
         retry_at: None,
         retry_delay: cx.options.backoff_min,
+        shell: None,
         session_ended: tokio::sync::watch::channel(()).0,
     };
     let end = live.serve(cx).await;
@@ -272,6 +280,9 @@ async fn session(cx: &mut Ctx) -> End {
         match waiter {
             Waiter::User(reply) => reply(Err(Error::ConnectionLost)),
             Waiter::Forward(_, _, reply) => {
+                let _ = reply.send(Err(Error::ConnectionLost));
+            }
+            Waiter::Shell(reply) => {
                 let _ = reply.send(Err(Error::ConnectionLost));
             }
             Waiter::Fill(_) => {}
@@ -292,6 +303,14 @@ enum Waiter {
     /// `forward_port` for this port, under this reservation. Never expires: a reply after the caller gave up would
     /// leave the environment forwarding a port no `Forward` stops. The daemon's probe bounds it (10 s).
     Forward(u16, u64, flume::Sender<Result<Forward, Error>>),
+    Shell(flume::Sender<Result<crate::ShellFeed, Error>>),
+}
+
+/// The shell stream this connection delivers: the seq it expects next, and where changes go. Dropped with the
+/// connection, on a gap, or by a new subscribe, which ends the subscriber's receiver.
+struct ShellStream {
+    next: u64,
+    tx: flume::Sender<skyelab_protocol::ShellChange>,
 }
 
 struct Live {
@@ -305,6 +324,7 @@ struct Live {
     /// When to refill the stale threads, and the delay after that (doubles while fills keep failing).
     retry_at: Option<Instant>,
     retry_delay: Duration,
+    shell: Option<ShellStream>,
     /// Dropped with this connection: every forward started on it stops.
     session_ended: tokio::sync::watch::Sender<()>,
 }
@@ -400,6 +420,16 @@ impl Live {
                 Ok(())
             }
             Command::Forward { port, reply } => self.forward(cx, port, reply).await,
+            Command::SubscribeShell { reply } if self.held.is_some() => {
+                let _ = reply.send(Err(Error::NotConnected));
+                Ok(())
+            }
+            Command::SubscribeShell { reply } => {
+                // The old stream ends now, so no change of it lands after the new snapshot.
+                self.shell = None;
+                self.request(cx, Call::SubscribeShell, Waiter::Shell(reply))
+                    .await
+            }
         }
     }
 
@@ -420,6 +450,19 @@ impl Live {
                 } else {
                     Ok(())
                 };
+            }
+            ServerMessage::Shell(change) => {
+                if let Some(stream) = &mut self.shell {
+                    if change.seq > stream.next {
+                        self.shell = None; // missed some: ending the stream tells the subscriber to resubscribe
+                    } else if change.seq == stream.next {
+                        stream.next += 1;
+                        if stream.tx.send(change).is_err() {
+                            self.shell = None;
+                        }
+                    }
+                }
+                return Ok(());
             }
             ServerMessage::Response { id, result } => (id, Ok(result)),
             ServerMessage::Error {
@@ -444,90 +487,24 @@ impl Live {
                 self.forwarded(cx, port, reservation, reply, result);
                 Ok(())
             }
+            Some((_, Waiter::Shell(reply))) => {
+                let feed = match result {
+                    Ok(Reply::Shell(snapshot)) => {
+                        let (tx, changes) = flume::unbounded();
+                        self.shell = Some(ShellStream {
+                            next: snapshot.seq + 1,
+                            tx,
+                        });
+                        Ok(crate::ShellFeed { snapshot, changes })
+                    }
+                    Ok(_) => Err(Error::UnexpectedReply),
+                    Err(e) => Err(e),
+                };
+                let _ = reply.send(feed);
+                Ok(())
+            }
             None => Ok(()), // timed out already, or an id we never sent
         }
-    }
-
-    /// Asks for the events after the thread's last delivered seq, unless a fill is already running.
-    async fn fill(&mut self, cx: &mut Ctx, thread_id: i64) -> Result<(), End> {
-        let Some(w) = cx.watched.get_mut(&thread_id) else {
-            return Ok(());
-        };
-        if w.filling {
-            return Ok(());
-        }
-        w.filling = true;
-        let call = Call::ThreadEventsSince {
-            thread_id,
-            seq: w.last,
-        };
-        self.request(cx, call, Waiter::Fill(thread_id)).await
-    }
-
-    /// One page arrived. Pages while pages make progress; if a gap is left after that (the fill failed, or raced a
-    /// push, or the server's store has a hole), retries after `backoff_min`.
-    async fn filled(
-        &mut self,
-        cx: &mut Ctx,
-        thread_id: i64,
-        result: Result<Reply, Error>,
-    ) -> Result<(), End> {
-        let Some(w) = cx.watched.get_mut(&thread_id) else {
-            return Ok(());
-        };
-        w.filling = false;
-        let page = match result {
-            Ok(Reply::Events(page)) => page,
-            other => {
-                eprintln!("skyelab-client: can't fetch events of thread {thread_id}: {other:?}");
-                self.mark_stale(cx, thread_id);
-                return Ok(());
-            }
-        };
-        let before = w.last;
-        let mut gap = !w.ahead.is_empty();
-        for ev in page {
-            if ev.thread_id == thread_id {
-                gap = w.accept(ev, &cx.updates);
-            }
-        }
-        if w.last > before {
-            self.retry_delay = cx.options.backoff_min;
-            self.fill(cx, thread_id).await
-        } else {
-            if gap {
-                self.mark_stale(cx, thread_id);
-            }
-            Ok(())
-        }
-    }
-
-    fn mark_stale(&mut self, cx: &mut Ctx, thread_id: i64) {
-        if let Some(w) = cx.watched.get_mut(&thread_id) {
-            w.stale = true;
-            let delay = self.retry_delay;
-            self.retry_at.get_or_insert_with(|| Instant::now() + delay);
-        }
-    }
-
-    async fn retry_stale(&mut self, cx: &mut Ctx) -> Result<(), End> {
-        self.retry_delay = self
-            .retry_delay
-            .saturating_mul(2)
-            .min(cx.options.backoff_max);
-        let stale: Vec<i64> = cx
-            .watched
-            .iter_mut()
-            .filter(|(_, w)| w.stale)
-            .map(|(id, w)| {
-                w.stale = false;
-                *id
-            })
-            .collect();
-        for thread_id in stale {
-            self.fill(cx, thread_id).await?;
-        }
-        Ok(())
     }
 
     async fn request(&mut self, cx: &Ctx, call: Call, waiter: Waiter) -> Result<(), End> {

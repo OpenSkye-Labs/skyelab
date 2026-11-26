@@ -68,7 +68,8 @@ connection stops and says so, and SkyeLab asks again the next time you connect.
 
 On a remote machine, the sidebar shows the same list as here: every project's threads under **Pinned**, **Working**,
 then **Today**, **Yesterday**, **Previous 7 days** and **Older**, each row with its project, the agent's last reply,
-its status and its account. Its projects follow; the selected one is where **New thread** starts. You can open threads,
+its status and its account. A thread started, renamed, settled or finished there shows here at once (a machine on
+an older SkyeLab, without the live list, is listed again a second after it changes instead). Its projects follow; the selected one is where **New thread** starts. You can open threads,
 start new ones, send follow-ups and stop them, answer permission requests and questions, approve plans, and find in a
 thread with ⌘F (Ctrl+F). Settle and snooze work on its threads too, from the row's hover buttons and right-click menu,
 with **Undo**: the thread is settled or snoozed on that machine, so its own sidebar shows it there as well, and the row

@@ -52,27 +52,8 @@ fn linked_and_listed(ws: &Entity<Workspace>, cx: &mut VisualTestContext) {
     });
 }
 
-/// Lists the linked machine's threads again and waits until the reply landed.
+/// Waits until the linked machine's stream brought its thread's stored status here: no listing is asked for.
 fn relist(ws: &Entity<Workspace>, remote: &RemoteSide, cx: &mut VisualTestContext) {
-    let asked = remote
-        .asked()
-        .iter()
-        .filter(|a| **a == "list_threads")
-        .count();
-    ws.update(cx, |ws, cx| {
-        for env in ws.linked_envs() {
-            env.update(cx, |e, cx| e.load_threads(cx));
-        }
-    });
-    wait_until(cx, "the listing", |_| {
-        remote
-            .asked()
-            .iter()
-            .filter(|a| **a == "list_threads")
-            .count()
-            > asked
-    });
-    // The request reaching the machine isn't the reply landing here: wait until the listing shows the stored status.
     let status = remote
         .store
         .lock()
@@ -81,7 +62,7 @@ fn relist(ws: &Entity<Workspace>, remote: &RemoteSide, cx: &mut VisualTestContex
         .expect("read")
         .expect("thread")
         .status;
-    wait_until(cx, "the listing landed", |cx| {
+    wait_until(cx, "the change streamed here", |cx| {
         ws.read_with(cx, |ws, cx| {
             ws.linked_envs().iter().all(|env| {
                 env.read(cx)
@@ -92,6 +73,43 @@ fn relist(ws: &Entity<Workspace>, remote: &RemoteSide, cx: &mut VisualTestContex
         })
     });
     cx.run_until_parked();
+}
+
+/// A thread started, renamed, settled and finished on the linked machine shows here with no listing at all.
+#[gpui::test]
+fn linked_rows_follow_the_machines_stream(cx: &mut TestAppContext) {
+    let remote = remote_side(FakeTailnet::default());
+    let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
+    linked_and_listed(&ws, cx);
+    let lists = |remote: &RemoteSide| remote.asked().iter().filter(|a| **a == "list_threads").count();
+    let listed = lists(&remote);
+    let started = {
+        let store = remote.store.lock().expect("store");
+        let id = store
+            .create_thread(&skyelab_store::NewThread {
+                project_id: remote.project_id,
+                title: "started over there",
+                cwd: Path::new("/remote/app"),
+                account_id: "work",
+                status: "running",
+            })
+            .expect("thread")
+            .id;
+        store.set_thread_title(id, "renamed over there").expect("rename");
+        id
+    };
+    wait_until(cx, "the started, renamed thread", |cx| {
+        rows(&ws, cx).contains(&"renamed over there".to_owned())
+    });
+    remote.store.lock().expect("store").set_thread_status(started, "idle").expect("finish");
+    wait_until(cx, "finished, unseen: Done", |cx| {
+        marks_of(&ws, "renamed over there", cx).map(|m| m.1) == Some(true)
+    });
+    remote.store.lock().expect("store").set_thread_settled(started, true).expect("settle");
+    wait_until(cx, "settled there, off the list here", |cx| {
+        !rows(&ws, cx).contains(&"renamed over there".to_owned())
+    });
+    assert_eq!(lists(&remote), listed, "nothing was listed again");
 }
 
 #[gpui::test]
