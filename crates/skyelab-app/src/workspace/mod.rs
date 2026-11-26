@@ -19,6 +19,8 @@ mod compare;
 mod compare_sidebar;
 mod compare_view;
 mod debug_hud;
+mod dock_fit;
+mod gh_account;
 mod local_shell;
 pub(crate) use debug_hud::ToggleDebugOverlay;
 mod details_panel;

@@ -64,7 +64,6 @@ icons! {
     Collapse => "collapse",
     Columns2 => "columns2",
     Copy => "copy",
-    Delete => "delete",
     Expand => "expand",
     ExternalLink => "external-link",
     File => "file",

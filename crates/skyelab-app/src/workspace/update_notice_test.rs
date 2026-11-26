@@ -21,6 +21,11 @@ fn each_state_has_a_short_label_and_only_a_failure_has_an_inline_action() {
     };
     let label = |s: &UpdateStatus, folder| look(s, folder).expect("shown").label;
     assert_eq!(label(&available, false), "Update available");
+    // The tooltip names the version the label leaves out.
+    assert_eq!(
+        look(&available, false).expect("shown").tip,
+        "SkyeLab 9.9.9 is available"
+    );
     let half = updating(Step::Downloading {
         done: 42,
         total: Some(100),

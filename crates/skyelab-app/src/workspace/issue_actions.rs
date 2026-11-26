@@ -29,6 +29,8 @@ pub(crate) struct Target {
     /// A canonical GitHub issue link.
     pub url: String,
     pub number: u64,
+    /// Shown in the dialog's title, so it says which issue it acts on.
+    pub title: String,
     pub closed: bool,
     /// The folder whose binding picks the account.
     pub dir: PathBuf,
@@ -91,14 +93,16 @@ pub(crate) fn open(
             on_done: Rc::new(on_done),
         }
     });
-    let title: SharedString = format!("Issue #{}", target.number).into();
+    let title: SharedString = format!("#{} {}", target.number, target.title).into();
     let view = entity.clone();
     crate::ui::open_dialog(window, cx, move |dialog, _, _| {
         dialog
             .w(px(480.))
             .title(title.clone())
             .child(view.clone())
-            .footer(ui::dialog_footer().child(ui::dialog_cancel("issue-actions-cancel")))
+            .footer(
+                ui::dialog_footer().child(ui::dialog_cancel("issue-actions-cancel").label("Close")),
+            )
     });
     entity
 }
@@ -269,6 +273,7 @@ impl GhPage {
         let target = Target {
             url,
             number,
+            title: issue.title.clone(),
             closed: issue.closed,
             dir: source.path.clone(),
             account: group.account.as_ref()?.0.clone(),

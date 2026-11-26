@@ -5,11 +5,9 @@
 //! showed, never the user's default gh login.
 
 use super::usage_page_render::segments;
-use super::worktree::resolves_to;
 use crate::ui;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Checkbox, TextField};
-use anyhow::bail;
 use gpui::{
     App, AppContext as _, Context, Entity, IntoElement, Render, SharedString, Task, Window, div,
     prelude::*, px,
@@ -21,7 +19,7 @@ use gpui_component::{
 };
 use skyelab_core::AccountsConfig;
 use skyelab_git::{Checks, GitHub, MergeMethod, ReviewComment, Verdict};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 /// The PR and who acts on it.
@@ -30,6 +28,8 @@ pub(crate) struct Target {
     /// A canonical GitHub PR link.
     pub url: String,
     pub number: u64,
+    /// The PR's title when the caller listed it, so the dialog says which PR it acts on.
+    pub title: Option<String>,
     /// `None` when the PR wasn't read yet: merging then asks once more, as for failing checks.
     pub checks: Option<Checks>,
     /// The head commit of the same read as `checks`: the merge is pinned to it. `None` refuses the merge.
@@ -82,20 +82,7 @@ pub(crate) struct PrActions {
     _read: Task<()>,
 }
 
-/// The bound account's gh config dir for `dir`, read from `config` (accounts.toml as saved now): the folder must
-/// still be bound to `account`, and that account signed in to GitHub.
-pub(super) fn account_gh_dir(
-    config: &AccountsConfig,
-    dir: &Path,
-    account: &str,
-) -> anyhow::Result<PathBuf> {
-    resolves_to(config, dir, account)?;
-    let gh_dir = config.github_config_dir(dir)?;
-    if !skyelab_git::gh_logged_in(&gh_dir) {
-        bail!("{account} isn't signed in to GitHub. Sign in under Settings, Source control.");
-    }
-    Ok(gh_dir)
-}
+pub(super) use super::gh_account::account_gh_dir;
 
 /// Opens the dialog for `target`; `on_done` runs after an action succeeds (the dialog is closed by then).
 pub(crate) fn open(
@@ -160,14 +147,19 @@ pub(crate) fn open(
             _read: read,
         }
     });
-    let title: SharedString = format!("Pull request #{}", target.number).into();
+    let title: SharedString = match &target.title {
+        Some(t) => format!("#{} {t}", target.number).into(),
+        None => format!("Pull request #{}", target.number).into(),
+    };
     let view = entity.clone();
     crate::ui::open_dialog(window, cx, move |dialog, _, _| {
         dialog
             .w(px(480.))
             .title(title.clone())
             .child(view.clone())
-            .footer(ui::dialog_footer().child(ui::dialog_cancel("pr-actions-cancel")))
+            .footer(
+                ui::dialog_footer().child(ui::dialog_cancel("pr-actions-cancel").label("Close")),
+            )
     });
     entity
 }

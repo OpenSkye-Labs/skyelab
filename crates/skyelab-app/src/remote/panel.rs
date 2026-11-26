@@ -204,14 +204,11 @@ impl Render for RemotePanel {
                     .pb_12()
                     .gap_8()
                     .text_size(ui::BODY)
-                    .child(
-                        v_flex()
-                            .gap_1()
-                            .child(ui::section_title("Sharing & access", theme))
-                            .child(div().text_color(theme.muted_foreground).child(
-                                "Use this machine's projects and agents from your other devices.",
-                            )),
-                    )
+                    .child(crate::settings::widgets::heading(
+                        "Sharing & access",
+                        "Use this machine's projects and agents from your other devices.",
+                        cx,
+                    ))
                     .child(
                         ui::group(theme).child(
                             ui::group_row(true, theme)

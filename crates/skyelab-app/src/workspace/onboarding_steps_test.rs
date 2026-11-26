@@ -97,3 +97,26 @@ fn done_saves_onboarded_and_open_onboarding_reopens_at_welcome(cx: &mut TestAppC
     assert!(cx.update(|_, cx| cx.all_action_names().contains(&"skyelab::OpenOnboarding")));
     assert_eq!(crate::palette::humanize("skyelab::OpenOnboarding"), "Open Onboarding");
 }
+
+#[gpui::test]
+fn each_step_opens_at_its_top(cx: &mut TestAppContext) {
+    let (rig, cx) = rig(cx);
+    keys("enter", cx);
+    rig.setup.update(cx, |o, _| o.scroll.set_offset(gpui::point(gpui::px(0.), gpui::px(-300.))));
+    keys("enter", cx);
+    assert_eq!(step(&rig, cx), Step::Agents);
+    let y = rig.setup.read_with(cx, |o, _| o.scroll.offset().y);
+    assert_eq!(y, gpui::px(0.), "the new step starts scrolled to its top");
+}
+
+#[gpui::test]
+fn the_actions_stay_in_a_short_window(cx: &mut TestAppContext) {
+    let (rig, cx) = rig(cx);
+    cx.simulate_resize(gpui::size(gpui::px(1280.), gpui::px(560.)));
+    rig.setup.update(cx, |o, cx| o.go(Step::Agents, cx));
+    cx.run_until_parked();
+    let next = cx.debug_bounds("onboarding-next").expect("Continue drawn");
+    let skip = cx.debug_bounds("onboarding-skip").expect("Skip drawn");
+    let h = cx.update(|window, _| window.viewport_size().height);
+    assert!(next.bottom() <= h && skip.bottom() <= h, "{next:?} {skip:?} inside {h:?}");
+}

@@ -9,6 +9,7 @@ use super::super::threads_test::wait_until;
 use super::*;
 use gpui::VisualTestContext;
 use skyelab_git::PrState;
+use std::path::Path;
 
 pub(super) const URL: &str = "https://github.com/acme/demo/pull/42";
 

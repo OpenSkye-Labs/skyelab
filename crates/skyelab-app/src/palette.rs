@@ -439,7 +439,14 @@ pub fn humanize(name: &str) -> String {
         prev_lower = c.is_lowercase();
         out.push(c);
     }
-    out
+    // Acronyms split as words ("Copy Url") read in capitals.
+    out.split(' ')
+        .map(|w| match w {
+            "Url" | "Pr" | "Ui" | "Mcp" | "Html" | "Ssh" | "Api" | "Cli" => w.to_uppercase(),
+            _ => w.to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub fn listed(name: &str) -> bool {

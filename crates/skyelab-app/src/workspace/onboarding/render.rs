@@ -74,15 +74,23 @@ pub(super) fn name_and_folder(name: impl IntoElement, folder: SharedString, cx: 
 }
 
 impl Onboarding {
-    /// The agent CLIs and gh found: one card each, with the version or why it is missing.
+    /// The agent CLIs and gh found: one line each in one bordered list (logo, name, version, status dot), so all five
+    /// fit a short window.
     fn agent_cards(&self, cx: &Context<Self>) -> Div {
         let theme = cx.theme();
         v_flex()
-            .gap_2()
+            .rounded(ui::RADIUS_LG)
+            .border_1()
+            .border_color(theme.border)
+            .bg(theme.background)
             .children(self.agents.iter().enumerate().map(|(i, a)| {
                 let (dot, text) = match &a.version {
                     None => (theme.muted_foreground, "checking…".to_owned()),
-                    Some(Ok(v)) => (theme.success, v.clone()),
+                    // Just the number: "2.1.0 (Claude Code)" would repeat the name beside it.
+                    Some(Ok(v)) => (
+                        theme.success,
+                        skyelab_core::update::version_in(v).unwrap_or(v).to_owned(),
+                    ),
                     Some(Err(_)) => (theme.warning, "not found in PATH".to_owned()),
                 };
                 // The providers' logos in their own colors; anything else a plain icon.
@@ -97,18 +105,45 @@ impl Onboarding {
                         .into_any_element(),
                     _ => Icon::new(SkyeIcon::Github)
                         .size_4()
-                        .text_color(theme.muted_foreground)
+                        .text_color(theme.foreground)
                         .into_any_element(),
                 };
                 let name = a.name;
-                card(("setup-agent", i), false, cx)
+                h_flex()
+                    .id(("setup-agent", i))
                     .debug_selector(move || format!("setup-agent-{name}"))
-                    .child(icon)
-                    .child(name_and_folder(a.name, text.into(), cx))
+                    .h(px(40.))
+                    .px_3p5()
+                    .gap_3()
+                    .when(i > 0, |d| d.border_t_1().border_color(theme.border))
+                    .child(
+                        h_flex()
+                            .size_4()
+                            .flex_shrink_0()
+                            .justify_center()
+                            .child(icon),
+                    )
+                    .child(
+                        div()
+                            .flex_shrink_0()
+                            .text_size(ui::BODY)
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(a.name),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .text_size(ui::META)
+                            .text_color(theme.muted_foreground)
+                            .child(text),
+                    )
                     .when_some(a.update.clone(), |d, v| {
                         d.child(
                             div()
                                 .debug_selector(|| "agent-update".into())
+                                .flex_shrink_0()
                                 .text_size(ui::META)
                                 .text_color(ui::ink(theme, theme.info))
                                 .child(format!("{v} available")),
@@ -238,11 +273,20 @@ impl Onboarding {
             cards.push(
                 card("setup-none", true, cx)
                     .child(Icon::new(SkyeIcon::CircleUser).size_4().text_color(cx.theme().muted_foreground))
-                    .child(name_and_folder(
-                        "No config folders found",
-                        "No Claude Code, Codex, Cursor or Antigravity config folder in your home folder. Add one by hand.".into(),
-                        cx,
-                    ))
+                    // The why wraps: cut at "in your…" it would not say what to do.
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .gap_0p5()
+                            .child(div().text_size(ui::BODY).font_weight(FontWeight::MEDIUM).child("No config folders found"))
+                            .child(
+                                div()
+                                    .text_size(ui::META)
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child("No Claude Code, Codex, Cursor or Antigravity config folder in your home folder. Add one by hand."),
+                            ),
+                    )
                     .child(
                         Button::new("setup-settings")
                             .outline()

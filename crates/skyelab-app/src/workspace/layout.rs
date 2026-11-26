@@ -336,6 +336,7 @@ impl Workspace {
                     dock.toggle_dock(DockPlacement::Right, window, cx);
                 }
             });
+            self.fit_right_dock(true, window, cx);
         }
         self.layout.path = path;
         // A change in the last moments before quitting would otherwise never be written.
@@ -352,6 +353,7 @@ impl Workspace {
             }
         }));
         self._window_bounds = Some(cx.observe_window_bounds(window, |this, window, cx| {
+            this.fit_right_dock(true, window, cx);
             this.schedule_layout_save(window, cx)
         }));
         self.sync_toggles(cx);
@@ -416,6 +418,7 @@ impl Workspace {
         }
         self.dock
             .update(cx, |dock, cx| dock.toggle_dock(at, window, cx));
+        self.fit_right_dock(false, window, cx);
     }
 
     pub(super) fn toggle_sidebar(
