@@ -6,7 +6,7 @@ In the composer, the chip next to the paperclip (**Full access ⌄** on a new th
 do without asking. Its menu lists the four modes with what each allows; **Full access** shows in the warning color:
 
 - **Ask**: it asks before anything its own rules don't already allow.
-- **Plan**: it reads and plans only, with no edits or commands (for Codex, a read-only sandbox).
+- **Plan**: it reads and plans only, with no edits or commands (for Codex, its Plan mode in a read-only sandbox).
 - **Accept edits**: file edits in the folder go ahead; anything else asks. (For Codex this is the same as Ask: its
   sandbox already lets it edit in the folder without asking.)
 - **Full access** (the default for a new thread, as in T3 Code): nothing asks. A Codex agent also leaves its sandbox,
@@ -32,9 +32,9 @@ write its line count and first 20 lines, and for an edit its diff, colored by th
 line wrapped whole (a line between a MultiEdit's edits); when that is
 only a part, the card says **Showing 20 of 2,000 lines** and **View all** opens the whole change, every line, in a
 read-only diff; for anything
-else, or text with hidden or control characters, the full input it sent), and the agent waits until you answer: **Allow once**, **Allow for this thread** (Claude's own suggested rule
-for this call, or this exact command when it has none; while this agent runs; after a resume it asks again;
-for a Codex command, SkyeLab itself allows that exact command again in this thread), for a Codex command also
+else, or text with hidden or control characters, the full input it sent), and the agent waits until you answer: **Allow once**, **Allow for this thread** (as its tooltip says: a command
+allows only that exact command again, for Claude and Codex alike; any other call allows calls like it (Claude's own
+suggested rule, or the tool when it has none); while this agent runs, and after a resume it asks again), for a Codex command also
 **Allow "cargo test …" for this thread** (any one plain command starting with those words, the first two to start, by
 the same rules as a project prefix below: never one that chains, pipes, substitutes or redirects, never a shell or
 interpreter; while this agent runs, and not in Plan mode; its row then says **Allowed for this thread** and the rule),
@@ -90,8 +90,8 @@ the button ignores clicks, so a click aimed at Next doesn't submit the next ques
 agent gets their paths with your answer and reads them with its own tools. A file alone answers a question. Attaching
 is offered only on the machine that runs the thread. In Plan mode, when the agent is ready it shows a
 **Proposed plan** card: **Approve** lets it start (the thread switches to Ask, so edits still ask first) and **Keep
-planning** tells it to keep refining. Antigravity writes its plan to a `plan.md` of its own and ends its turn: the
-same card shows that plan (taken from what it wrote, never read from its folder), its `plan.md` link scrolls to the
-card, and **Approve** switches to Ask and sends "The plan is approved. Implement it now." From another machine's view
-the plan's buttons work but don't switch the thread's mode (an Antigravity plan is approved on the machine that runs
-it), and the question card can only be read.
+planning** tells it to keep refining. Antigravity writes its plan to a `plan.md` of its own and ends its turn, and
+Codex (asked for its own Plan mode) ends its turn on a proposed plan: the same card shows that plan (for Antigravity,
+taken from what it wrote, never read from its folder; its `plan.md` link scrolls to the card), and **Approve**
+switches to Ask and sends "The plan is approved. Implement it now." Approving from another machine's view does the
+same, and the question card there can only be read.

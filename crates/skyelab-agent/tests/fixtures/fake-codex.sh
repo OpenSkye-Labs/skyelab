@@ -15,6 +15,7 @@
 # sessionStart hook ("Reporting status to Orca") and holds it until the folder has a .fake-hook-done file.
 # With a fake-mcp-status file in CODEX_HOME, thread/start/resume first reports its lines as MCP startup statuses
 # (`name status [error...]`, like `docs failed no such command`).
+# One starting "proposeplan" first ends on a proposed plan (a `plan` item), as Codex's Plan does.
 # model/list lists one model (gpt-fake, low/medium/high); turn/steer is accepted.
 # `login status` says "Logged in using ChatGPT" (exit 0) while CODEX_HOME has a fake-login file, else "Not logged in"
 # (exit 1), on stderr like codex; `login` writes that file. `mcp login -- <name>` writes the name and its folder to
@@ -123,6 +124,8 @@ while IFS= read -r line; do
               n=0
               while [ ! -f .fake-hook-done ] && [ $n -lt 1200 ]; do sleep 0.1; n=$((n + 1)); done
               printf '{"method":"hook/completed","params":{"threadId":"thr_fake","turnId":"turn_fake","run":{"id":"session-start:0:fake-hooks.json","eventName":"sessionStart","handlerType":"command","executionMode":"sync","scope":"thread","source":"user","status":"completed","statusMessage":"Reporting status to Orca","completedAt":1}}}\n' ;;
+            *'"text":"proposeplan'*)
+              printf '{"method":"item/completed","params":{"threadId":"thr_fake","turnId":"turn_fake","item":{"type":"plan","id":"item_plan","text":"1. Add subtract\\n2. Test it"}}}\n' ;;
             *'"text":"usage'*)
               now=$(date +%s)
               printf '{"method":"account/rateLimits/updated","params":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":47,"windowDurationMins":300,"resetsAt":%s},"secondary":{"usedPercent":83,"windowDurationMins":10080,"resetsAt":%s},"rateLimitReachedType":null}}}\n' "$((now + 7200))" "$((now + 300000))" ;;

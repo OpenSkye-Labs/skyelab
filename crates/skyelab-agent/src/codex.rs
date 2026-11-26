@@ -63,6 +63,10 @@ pub(crate) struct Codex {
     allow: allow::ThreadAllow,
     /// Starts every ask id, new per process (see `claude::Book`).
     pub(crate) nonce: String,
+    /// The thread's model, as codex opened it: a collaboration mode must name one.
+    model: Option<String>,
+    /// A turn asked for Codex's Plan: from then on every turn names its mode, so leaving Plan clears it.
+    planned: bool,
 }
 
 impl Codex {
@@ -98,6 +102,8 @@ impl Codex {
             mode_change: None,
             mode_sent: None,
             nonce: String::new(),
+            model: None,
+            planned: false,
             resuming: resume.is_some(),
             allow: allow::ThreadAllow::new(dir, mode),
         };
@@ -155,6 +161,16 @@ impl Codex {
             let (approval, sandbox) = policy(mode);
             params["approvalPolicy"] = json!(approval);
             params["sandboxPolicy"] = items::sandbox_policy(sandbox);
+        }
+        // Codex's own Plan, which ends on a proposed plan (a `plan` item), as T3 asks for it.
+        let plan = self.allow.picked == Mode::Plan;
+        let model = self.pick.model.clone().or_else(|| self.model.clone());
+        if let Some(model) = model.filter(|_| plan || self.planned) {
+            self.planned = true;
+            params["collaborationMode"] = json!({
+                "mode": if plan { "plan" } else { "default" },
+                "settings": { "model": model, "reasoning_effort": self.pick.effort },
+            });
         }
         vec![self.request("turn/start", params)]
     }
@@ -216,9 +232,11 @@ impl Codex {
             return match (error, v["result"]["thread"]["id"].as_str()) {
                 (None, Some(thread)) => {
                     self.thread_id = Some(thread.to_owned());
+                    let model = v["result"]["model"].as_str().unwrap_or_default();
+                    self.model = Some(model.to_owned()).filter(|m| !m.is_empty());
                     let init = Event::Init {
                         session_id: thread.to_owned(),
-                        model: v["result"]["model"].as_str().unwrap_or_default().to_owned(),
+                        model: model.to_owned(),
                     };
                     (vec![init], self.pump())
                 }
@@ -349,6 +367,19 @@ impl Codex {
                 if item["type"] == "agentMessage" {
                     self.last_text = item["text"].as_str().map(str::to_owned);
                 }
+                // The proposed plan Codex's Plan ends on: a plan card, settled as Antigravity's is (no request waits).
+                if item["type"] == "plan"
+                    && let Some(text) = item["text"].as_str().filter(|t| !t.trim().is_empty())
+                {
+                    let id = format!(
+                        "{}codex-plan-{}",
+                        self.nonce,
+                        item["id"].as_str().unwrap_or("plan")
+                    );
+                    let input = json!({ "plan": text, "artifact": null });
+                    let tool = crate::PLAN_TOOL.to_owned();
+                    return (vec![Event::Permission { id, tool, input }], Vec::new());
+                }
                 (completed(item, &v).into_iter().collect(), Vec::new())
             }
             // A subagent's thread streams and counts on its own; only this thread's go to this timeline.
@@ -433,3 +464,7 @@ mod mcp_auth_test;
 #[cfg(test)]
 #[path = "codex_stop_test.rs"]
 mod stop_test;
+
+#[cfg(test)]
+#[path = "codex_plan_tests.rs"]
+mod plan_tests;
