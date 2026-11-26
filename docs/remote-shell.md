@@ -17,9 +17,10 @@ snapshot and events:
   (started by the first subscribe) batches writes 100 ms apart, re-reads those rows and numbers the deltas; a
   streaming turn bumps its row on every event, so a busy thread sends at most about ten updates a second. This
   machine's own `LocalSource` subscribes to the same worker in-process.
-- The client checks the seqs. A missed one, a dropped connection, or a connection more than 1,024 changes behind
-  (the daemon closes it) ends the stream; the app subscribes again on the next approved connection, and the new
-  snapshot replays whatever changed meanwhile. Only approved connections past hello can subscribe; a revoke closes
+- The client checks the seqs. A missed one, a dropped connection, or a connection still more than 1,024 changes
+  behind when the next batch comes (the daemon closes it; one batch may be bigger, a project's update carries all
+  its threads) ends the stream; the app subscribes again on the next approved connection, and the new snapshot
+  replays whatever changed meanwhile. A subscribe that fails or times out while connected is tried again after 3 s. Only approved connections past hello can subscribe; a revoke closes
   the connection and its stream with it.
 - A 1.6 machine is never sent `subscribe_shell` (`Client::subscribe_shell` fails it locally, "update SkyeLab on
   <machine>"): the app lists it per project and lists again a second after pushed events, as before. A 1.6 client of

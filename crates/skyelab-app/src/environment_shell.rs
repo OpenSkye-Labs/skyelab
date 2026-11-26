@@ -5,6 +5,9 @@ use skyelab_client::Error;
 
 use super::{ConnState, RemoteEnv};
 
+/// After a subscribe that failed, the next try.
+const RETRY: std::time::Duration = std::time::Duration::from_secs(3);
+
 impl RemoteEnv {
     /// Whether this machine streams its list (1.7). An older one is listed again after pushed events instead.
     pub(super) fn streams(&self) -> bool {
@@ -19,7 +22,17 @@ impl RemoteEnv {
             let feed = pending.recv_async().await;
             let feed = match this.update(cx, |this, cx| this.show_snapshot(feed, cx)) {
                 Ok(Some(feed)) => feed,
-                _ => return,
+                Ok(None) => {
+                    // Refused or timed out (a slow first snapshot): try again while still connected.
+                    cx.background_executor().timer(RETRY).await;
+                    let _ = this.update(cx, |this, cx| {
+                        if this.state == ConnState::Connected {
+                            this.subscribe_shell(cx);
+                        }
+                    });
+                    return;
+                }
+                Err(_) => return,
             };
             while let Ok(change) = feed.changes.recv_async().await {
                 let applied = this.update(cx, |this, cx| {

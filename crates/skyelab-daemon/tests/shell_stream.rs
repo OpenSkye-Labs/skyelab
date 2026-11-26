@@ -150,3 +150,39 @@ fn a_1_6_client_gets_no_shell_messages() {
         "the old client's next message is its own reply, no shell push"
     );
 }
+
+/// One write that fans out past the backlog (renaming a project sends each of its threads) doesn't drop a
+/// subscriber that keeps up: the backlog is checked per batch.
+#[test]
+fn a_big_fan_out_keeps_the_stream() {
+    let store = Store::open_in_memory().expect("store");
+    let p = store
+        .create_project("app", Path::new("/src/app"))
+        .expect("project");
+    for i in 0..1100 {
+        let title = format!("t{i}");
+        store
+            .create_thread(&NewThread {
+                project_id: p.id,
+                title: &title,
+                cwd: Path::new("/src/app"),
+                account_id: "work",
+                status: "idle",
+            })
+            .expect("thread");
+    }
+    let store = Arc::new(Mutex::new(store));
+    let backend = StoreBackend::shared(store.clone(), NotWired, None);
+    let feed = backend.subscribe_shell().expect("snapshot");
+    store
+        .lock()
+        .expect("lock")
+        .rename_project(p.id, "renamed")
+        .expect("rename");
+    std::thread::sleep(std::time::Duration::from_millis(500)); // the whole batch is queued before we read
+    let wait = std::time::Duration::from_secs(10);
+    let got = std::iter::from_fn(|| feed.changes.recv_timeout(wait).ok())
+        .take(1101)
+        .count();
+    assert_eq!(got, 1101, "the project and each of its threads");
+}

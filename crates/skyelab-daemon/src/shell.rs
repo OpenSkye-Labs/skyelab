@@ -10,7 +10,8 @@ use skyelab_store::{RowChange, Store};
 
 /// Writes this close together become one read: a streaming turn bumps its thread's row on every event.
 const BATCH: Duration = Duration::from_millis(100);
-/// Changes a subscriber may fall behind by before it is dropped (its stream ends, and it subscribes again).
+/// Changes a subscriber may still have unread when a batch comes before it is dropped (its stream ends, and it
+/// subscribes again). Checked per batch, not per change: one write can fan out to a project's every thread.
 const BACKLOG: usize = 1024;
 
 /// A snapshot and every change after it. `changes` ends when the subscriber fell behind, or the backend it came
@@ -20,8 +21,8 @@ pub struct ShellFeed {
     pub changes: flume::Receiver<ShellChange>,
 }
 
-/// Re-reads changed rows into deltas, under the store's lock.
-pub(crate) type ReadRows = Box<dyn Fn(&Store, &[RowChange]) -> Vec<ShellDelta> + Send>;
+/// Re-reads changed rows into deltas. It takes the store's lock itself, so it can read files before it does.
+pub(crate) type ReadRows = Box<dyn Fn(&Mutex<Store>, &[RowChange]) -> Vec<ShellDelta> + Send>;
 
 #[derive(Default)]
 struct Subs {
@@ -57,7 +58,7 @@ impl Hub {
         &self,
         snapshot: impl FnOnce() -> Result<ShellSnapshot, skyelab_protocol::RpcError>,
     ) -> Result<ShellFeed, skyelab_protocol::RpcError> {
-        let (tx, changes) = flume::bounded(BACKLOG);
+        let (tx, changes) = flume::unbounded();
         let seq = {
             let mut subs = self.subs.lock().unwrap_or_else(PoisonError::into_inner);
             subs.senders.push(tx);
@@ -94,20 +95,18 @@ fn work(
             continue; // nobody listens: a later subscriber's snapshot has these rows
         }
         let Some(store) = store.upgrade() else { return };
-        let deltas = match store.lock() {
-            Ok(store) => read(&store, &rows),
-            Err(_) => return,
-        };
+        let deltas = read(&store, &rows);
         drop(store);
         let mut subs = subs.lock().unwrap_or_else(PoisonError::into_inner);
+        // Still behind by a whole backlog from earlier batches: drop it, so its stream ends and it resubscribes.
+        subs.senders.retain(|s| s.len() <= BACKLOG);
         for delta in deltas {
             subs.seq += 1;
             let change = ShellChange {
                 seq: subs.seq,
                 delta,
             };
-            // A full or closed subscriber is dropped: its stream ends, so it knows to subscribe again.
-            subs.senders.retain(|s| s.try_send(change.clone()).is_ok());
+            subs.senders.retain(|s| s.send(change.clone()).is_ok());
         }
     }
 }

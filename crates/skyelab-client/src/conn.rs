@@ -17,6 +17,8 @@ use crate::{Disconnect, DisconnectKind, Error, Options, Update, WatchId};
 mod connect;
 mod expire;
 mod fill;
+mod shell;
+use shell::ShellStream;
 pub(crate) mod forward;
 mod forward_calls;
 mod watched;
@@ -306,13 +308,6 @@ enum Waiter {
     Shell(flume::Sender<Result<crate::ShellFeed, Error>>),
 }
 
-/// The shell stream this connection delivers: the seq it expects next, and where changes go. Dropped with the
-/// connection, on a gap, or by a new subscribe, which ends the subscriber's receiver.
-struct ShellStream {
-    next: u64,
-    tx: flume::Sender<skyelab_protocol::ShellChange>,
-}
-
 struct Live {
     /// Waiting for [`Command::Approve`] of this hello: no request goes out and no pushed event is delivered.
     held: Option<Hello>,
@@ -452,16 +447,7 @@ impl Live {
                 };
             }
             ServerMessage::Shell(change) => {
-                if let Some(stream) = &mut self.shell {
-                    if change.seq > stream.next {
-                        self.shell = None; // missed some: ending the stream tells the subscriber to resubscribe
-                    } else if change.seq == stream.next {
-                        stream.next += 1;
-                        if stream.tx.send(change).is_err() {
-                            self.shell = None;
-                        }
-                    }
-                }
+                self.shell_change(change);
                 return Ok(());
             }
             ServerMessage::Response { id, result } => (id, Ok(result)),
@@ -488,19 +474,7 @@ impl Live {
                 Ok(())
             }
             Some((_, Waiter::Shell(reply))) => {
-                let feed = match result {
-                    Ok(Reply::Shell(snapshot)) => {
-                        let (tx, changes) = flume::unbounded();
-                        self.shell = Some(ShellStream {
-                            next: snapshot.seq + 1,
-                            tx,
-                        });
-                        Ok(crate::ShellFeed { snapshot, changes })
-                    }
-                    Ok(_) => Err(Error::UnexpectedReply),
-                    Err(e) => Err(e),
-                };
-                let _ = reply.send(feed);
+                self.shell_reply(reply, result);
                 Ok(())
             }
             None => Ok(()), // timed out already, or an id we never sent

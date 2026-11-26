@@ -222,8 +222,13 @@ impl<A: Agents> Backend for StoreBackend<A> {
             Some(hub) => hub,
             None => {
                 let path = self.accounts.clone();
-                let read = Box::new(move |s: &Store, rows: &[RowChange]| {
-                    read_rows(s, rows, &accounts(path.as_deref()))
+                let read = Box::new(move |s: &Mutex<Store>, rows: &[RowChange]| {
+                    // Read before the store's lock, which the app's UI thread may be waiting on.
+                    let accounts = accounts(path.as_deref());
+                    match s.lock() {
+                        Ok(s) => read_rows(&s, rows, &accounts),
+                        Err(_) => Vec::new(),
+                    }
                 });
                 let hub = Hub::start(&self.store, read).map_err(|e| {
                     eprintln!("skyelab-daemon: can't start the shell stream: {e}");
