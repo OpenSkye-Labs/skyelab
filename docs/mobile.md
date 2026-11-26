@@ -48,27 +48,14 @@ android/run-emulator.sh emulator-5554    # cargo ndk → gradle APK → adb inst
 
 ### Problems found, with the exact errors
 
-1. **Android debug builds crash on the emulator.** wgpu turns on Vulkan debug labels under `debug_assertions`, and
-   the emulator's software Vulkan driver (llvmpipe) segfaults on them:
-   ```
-   F libc: Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR) ... (android_main)
-   #01 ash::extensions::ext::debug_utils::Device::set_debug_utils_object_name
-   #02 wgpu_hal::vulkan::device::DeviceShared::set_object_name<DescriptorSetLayout>
-   #03 wgpu_hal::vulkan::device::Device::create_bind_group_layout
-   ```
-   The upstream example crashes the same way (logcat trace above is from it). The workaround is `[profile.dev] debug-assertions = false`. Real devices
-   were not tested.
-   The real client (`mobile/`) found a second debug-only crash: typing the first character into a field panics on an
-   integer underflow in `accesskit_android` 0.7.5. `mobile/Cargo.toml` turns off overflow checks for that crate in
-   dev; see `mobile/UPSTREAM.md`.
-2. **iOS has no accessibility tree.** `gpui_ios` gives XCTest a 1-node tree (just the application), so VoiceOver
-   can't read the UI and `agent-device type` fails with `TEXT_INPUT_NOT_FOCUSED`. `gpui_ios` implements `UITextInput`,
-   so keyboard input should work. No software keyboard appeared in the simulator, so typing on iOS is still unproven.
-   Android is better here: `gpui-pre-mobile` ships an AccessKit/TalkBack bridge (not checked in this spike).
-3. **Safe areas aren't automatic.** On iOS the spike pads the top by hand. On Android no status bar
-   shows over the view, so where content may safely start wasn't checked. `gpui-pre-mobile` has a safe-area API. `gpui_ios` needs checking.
-4. **Upstream drift.** `gpui-pre-mobile` follows its own GPUI snapshot and vendors a patched `gpui-pre-wgpu` (only for
-   its `offscreen` feature, which we turn off). Every GPUI bump on our side means re-porting it.
+1. **Android debug builds crash on the emulator.** wgpu enables Vulkan debug labels under `debug_assertions`, and
+   the emulator's llvmpipe driver segfaults in `vkSetDebugUtilsObjectNameEXT` (`create_bind_group_layout`). Workaround:
+   `[profile.dev] debug-assertions = false`. `mobile/Cargo.toml` also disables overflow checks for `accesskit_android`
+   0.7.5 in dev (underflow on first typed character; see `mobile/UPSTREAM.md`).
+2. **iOS has no accessibility tree.** `gpui_ios` exposes only a 1-node tree, so VoiceOver and `agent-device type`
+   can't drive inputs yet (typing on iOS is unproven; Android ships an AccessKit bridge).
+3. **Safe areas** need platform insets (`gpui-pre-mobile` provides them on Android; `gpui_ios` uses `window.insets()`).
+4. **Upstream drift.** `gpui-pre-mobile` tracks its own GPUI snapshot, so GPUI bumps require re-porting our patches.
 
 ## Trade-offs
 
@@ -138,13 +125,10 @@ Each step follows [CONTRIBUTING.md](../CONTRIBUTING.md).
    ever exposed, then pass a `PeerVerifier` like the desktop's.
    Tests run it against an in-process daemon with a fake tailnet: the shared harness in
    `skyelab_daemon::testing` and `skyelab_client::testing::options`, both behind `test-support`, dev-dependencies only.
-5. **Screens.** Environment picker (MagicDNS name, remembered) → projects → threads → thread view (events, live) with a
-   composer (send) and a stop button (interrupt). Handle safe areas on both platforms.
-   **Done (2026-11-23):** events stream live (the app drains the source's inbox in a task) into a `list` + `ListState`
-   that builds only the rows on screen, so a 10,000-event thread opens and appends in about a millisecond; the thread list's status
-   refreshes on connect and after send or stop, because the protocol pushes no thread status. Android reports the
-   keyboard inset (`mobile/upstream/0003`), so the composer stays above the soft keyboard. Build with
-   `SKYELAB_MOBILE_FEATURES=demo scripts/run-*.sh` for canned data (UI checks without an environment).
+5. **Screens.** Picker (MagicDNS name, remembered) → threads → thread view (live events) with composer (send) and
+   stop (interrupt), respecting safe areas. **Done (2026-11-23):** events stream into a `list` + `ListState` (visible
+   rows only; 10k-event threads open/append in ~1 ms). Android reports keyboard insets (`mobile/upstream/0003`). Build
+   with `SKYELAB_MOBILE_FEATURES=demo scripts/run-*.sh` for canned data.
 6. **Packaging.** iOS: a generated Xcode project (or the spike's plist) with signing for device builds. Android: the
    Gradle host from gpui-mobile, cut down to `GpuiActivity` and text input, with a pinned
    `distributionSha256Sum`. `android_main` needs `#[unsafe(no_mangle)]`, so it goes in a tiny crate that allows
@@ -188,32 +172,29 @@ Each step follows [CONTRIBUTING.md](../CONTRIBUTING.md).
      `SkyeLab.app` 9.2 MiB (9.1 MiB executable). Clean release builds take about 3 min (Android) and 1.5 min (iOS)
      on an M-series Mac.
    - **Limits:** no splash screen; Android is arm64 only; iOS is iPhone only.
-7. **Protocol parity (2026-11-24).** The phone shows what protocol 1.4 sends, read by the desktop's own code: the
-   timeline model, subagent model, fold rules, card text and the flat list's day sections and preview line moved from
-   skyelab-app into `skyelab_agent::{timeline, thread_list}` (the app's modules re-export them).
-   - **Threads** is the first screen after connecting: every project's threads (listed again on connect, on Back and after
-     a send, stop or answer) in Pinned, Working (starting or running), Today, Yesterday,
-     Previous 7 days and Older, newest first. A row is the title with a status dot, then project · account label (else
-     id) · status, then the preview as one plain line. No projects screen.
-   - **Timeline**: the desktop's items as compact rows (`src/timeline_rows.rs`). Thinking and agent
-     output are one closed line until tapped; a todo list is one row of ✓ ◐ ○; a shell call is `$ command · exit N`
-     with up to 20 output lines when open; an edit is `Edit <file> +N −N` with its first 12 changed lines; another
-     tool is its name and what it touched (its result when open, image placeholders always); a subagent card is its
-     type, description, status, time, activity and call count (its calls and report when open). A finished turn's work
-     rows fold under one "Worked for 4.2s · …" row; the reply stays. Lines are clipped (2000 chars,
-     500 lines) so a huge event can't stall a frame. Text is plain, not markdown.
-   - **Answers** sit above the composer in a box that scrolls: an AskUserQuestion's options (tap to pick; Submit
-     sends `answer_questions`, only to a 1.4 machine, else it says to answer there), a plan's Approve
-     (`answer_permission` AllowOnce) and Keep planning (Deny), and a permission's Allow once / Allow for this thread /
-     Deny. The question card has no "Other" field on the phone. Every call waits on the client's hold, so nothing is
-     sent before the device and node checks pass.
-   - **Usage**: the thread header says "account · status · Limited · 5h 61% · 7d 20%" from the thread's own
-     `RateLimit` events (Limited until a turn succeeds), and the limit is a row in the timeline. The thread list can't
-     show Limited: `Thread.status` doesn't carry it.
-   - **Touch**: rows, fold headers and buttons are at least 44 pt (`app::TAP`; `tests/touch_targets.rs` measures them
-     with `debug_selector`, which is why `[profile.test]` turns debug assertions back on). The theme follows the
-     phone's appearance; debug builds take `SKYELAB_VERIFY_THEME=dark|light`.
-   - The `demo` build's first thread has every row kind and a waiting question, plan and permission (`src/demo.rs`).
-8. **Verify.** Logic is tested in `skyelab-client`. Views get `#[gpui::test]`s. Android is driven with `agent-device`.
-   iOS can't be driven past taps until `gpui_ios` exposes accessibility, so confirm iOS typing by hand on the first build
-   and track upstream accessibility work.
+7. **Protocol parity (2026-11-24).** The phone renders protocol data with the desktop's shared models
+   (`skyelab_agent::{timeline, thread_list}`, `skyelab_core::snooze`):
+   - **Threads** is the first screen after connecting: every project's threads in Pinned, Working, Today, Yesterday,
+     Previous 7 days and Older, newest first (plus collapsible Snoozed and Settled shelves below). Each row shows
+     title + status dot, project · account · status, and a one-line plain preview.
+   - **Timeline**: compact rows (`src/timeline_rows.rs`); finished turns fold under "Worked for …"; lines clipped
+     (2000 chars, 500 lines); plain text.
+   - **Answers** above the composer: AskUserQuestion (`answer_questions`, >= 1.4), ExitPlanMode (Approve / Keep
+     planning), and tool permissions (Allow once / Allow for this thread / Deny), all gated on device + node approval.
+   - **Usage**: thread header shows `account · status · Limited · 5h … · 7d …` from `RateLimit` events.
+   - **Touch**: rows, turn/shelf fold headers, shelf/snooze actions, and buttons are >= 44 pt (`app::TAP`, verified by
+     `tests/touch_targets.rs`). Theme follows system appearance (`SKYELAB_VERIFY_THEME=dark|light` in debug).
+8. **Shell stream & thread shelving (protocol 1.6 / 1.7).**
+   - **Live shell stream (`subscribe_shell`, >= 1.7):** `RemoteSource` subscribes via `Client::subscribe_shell` and
+     reduces `ShellDelta` pushes with `skyelab_protocol::ShellSnapshot::apply`, keeping the thread list updated live
+     without polling or Back+refresh; a dropped stream while connected resubscribes automatically. Older servers
+     (< 1.7, e.g. 1.4–1.6) are never sent `subscribe_shell` and fall back to `list_projects` + `list_threads`. Any
+     refusal, `IdentityMismatch`, `NodeChanged`, or `VersionMismatch` clears projects, threads, and events immediately
+     and stops watching/subscribing.
+   - **Thread shelving (`shelve_thread`, >= 1.6):** `thread_rows::partition` matches desktop precedence (working beats
+     shelves; shelves beat pinned) with collapsible **Snoozed** (soonest-waking first, `Wakes in …` badge) and
+     **Settled** (most-recently-settled first) shelves. Each row has >= 44 pt controls (`⋯` opens Settle + desktop
+     snooze presets from `skyelab_core::snooze::presets`; shelved rows add direct Wake / Restore buttons). Servers
+     older than 1.6 are never sent `shelve_thread` and show `"update SkyeLab on <machine>"`.
+9. **Verify.** Logic is tested in `skyelab-client`; views use `#[gpui::test]`. Android uses `agent-device`; iOS typing
+   is checked manually until `gpui_ios` exposes accessibility.

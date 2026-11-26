@@ -1,37 +1,88 @@
 //! The thread list, the desktop's flat list at phone width: Pinned, Working, then by the day each thread last
-//! changed, each row with its project, account, status and preview. And the open thread's status line.
+//! changed, plus collapsible Snoozed and Settled shelves (protocol 1.6), each row with its project, account, status
+//! and preview. And the open thread's status line.
 
 use std::collections::BTreeMap;
 
 use skyelab_agent::Event;
 use skyelab_agent::thread_list::{DAYS, day_bucket, preview_text};
 use skyelab_agent::timeline::{Record, limit_after};
+use skyelab_core::snooze;
 use skyelab_protocol::{Project, Thread};
 
+/// Current wall-clock time in Unix milliseconds.
+pub fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as i64)
+}
+
 /// Whether a thread's agent is at work (the desktop's Starting or Running).
-fn working(t: &Thread) -> bool {
+pub fn working(t: &Thread) -> bool {
     matches!(t.status.as_str(), "starting" | "running")
 }
 
-/// The list's sections, empty ones left out: pinned, working, then `DAYS` by `updated_at` given where today,
-/// yesterday and the 7-day window start (`skyelab_agent::thread_list::day_starts`). Newest first in each.
-pub fn sections(mut threads: Vec<Thread>, starts: [i64; 3]) -> Vec<(&'static str, Vec<Thread>)> {
+/// The active flat list sections plus the Snoozed and Settled shelves.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct ThreadLists {
+    pub active: Vec<(&'static str, Vec<Thread>)>,
+    pub snoozed: Vec<Thread>,
+    pub settled: Vec<Thread>,
+}
+
+/// Splits `threads` into active sections (Pinned, Working, `DAYS`), Snoozed (still asleep at `now_ms`, soonest
+/// waking first), and Settled (most recently settled first). Matches desktop precedence: only working beats a
+/// shelf, and a shelf beats pinned.
+pub fn partition(mut threads: Vec<Thread>, starts: [i64; 3], now_ms: i64) -> ThreadLists {
     threads.sort_by_key(|t| std::cmp::Reverse(t.updated_at));
-    let mut shelves: Vec<(&'static str, Vec<Thread>)> = ["Pinned", "Working"]
+    let mut active: Vec<(&'static str, Vec<Thread>)> = ["Pinned", "Working"]
         .into_iter()
         .chain(DAYS)
         .map(|title| (title, Vec::new()))
         .collect();
+    let mut snoozed = Vec::new();
+    let mut settled = Vec::new();
     for t in threads {
-        let at = match (t.pinned, working(&t)) {
-            (true, _) => 0,
-            (false, true) => 1,
-            _ => 2 + day_bucket(starts, t.updated_at),
-        };
-        shelves[at].1.push(t);
+        let busy = working(&t);
+        if !busy && snooze::is_asleep(t.snoozed_until, now_ms) {
+            snoozed.push(t);
+        } else if !busy && t.settled_at.is_some() {
+            settled.push(t);
+        } else {
+            let at = match (t.pinned, busy) {
+                (true, _) => 0,
+                (false, true) => 1,
+                _ => 2 + day_bucket(starts, t.updated_at),
+            };
+            active[at].1.push(t);
+        }
     }
-    shelves.retain(|(_, ts)| !ts.is_empty());
-    shelves
+    active.retain(|(_, ts)| !ts.is_empty());
+    snoozed.sort_by_key(|t| t.snoozed_until);
+    settled.sort_by_key(|t| std::cmp::Reverse(t.settled_at));
+    ThreadLists {
+        active,
+        snoozed,
+        settled,
+    }
+}
+
+/// The active list's sections, empty ones left out: pinned, working, then `DAYS` by `updated_at` given where today,
+/// yesterday and the 7-day window start (`skyelab_agent::thread_list::day_starts`). Newest first in each.
+pub fn sections(threads: Vec<Thread>, starts: [i64; 3]) -> Vec<(&'static str, Vec<Thread>)> {
+    partition(threads, starts, now_ms()).active
+}
+
+/// A short label for a snoozed thread: `"Wakes in 2h"` while asleep, `"Woke"` once its time passed, `None` else.
+pub fn snooze_badge(t: &Thread, now_ms: i64) -> Option<String> {
+    let until = t.snoozed_until?;
+    if snooze::is_asleep(Some(until), now_ms) {
+        Some(format!("Wakes in {}", snooze::wake_label(until, now_ms)))
+    } else if snooze::is_woke(Some(until), now_ms) {
+        Some("Woke".into())
+    } else {
+        None
+    }
 }
 
 /// A row's second and third lines: "project · account · status", then the preview as one plain line.

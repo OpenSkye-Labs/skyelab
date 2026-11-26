@@ -6691,6 +6691,7 @@ name = "skyelab-mobile"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "flume",
  "gpui-component",
  "gpui-pre",
@@ -6700,11 +6701,13 @@ dependencies = [
  "serde_json",
  "skyelab-agent",
  "skyelab-client",
+ "skyelab-core",
  "skyelab-daemon",
  "skyelab-protocol",
  "skyelab-store",
  "skyelab-tailnet",
  "tempfile",
+ "tungstenite",
 ]
 
 [[package]]
