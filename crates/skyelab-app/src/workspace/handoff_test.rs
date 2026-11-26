@@ -315,3 +315,56 @@ fn handoff_keeps_the_source_worktree(cx: &mut TestAppContext) {
     assert_eq!(row.account_id, "oai");
     assert_eq!(row.cwd, wt, "HANDOFF_LOST_WORKTREE");
 }
+
+/// The bind dialog lists the Codex accounts; picking one binds the folder to it and the handoff goes on, with no
+/// folder picker and no account chosen for the user.
+#[gpui::test]
+fn the_bind_dialog_binds_the_picked_account_and_continues(cx: &mut TestAppContext) {
+    setup(cx);
+    cx.update(|cx| cx.set_global(CodexBin(fake_codex())));
+    let f = fixture(true);
+    bind(&f, Some("acme"));
+    let (ws, cx) = open_workspace(&f, cx);
+    rebind(&f, &ws, Some("acme"), cx);
+    let src = project_thread(&f, &ws, cx);
+    type_and_send(&src, cx);
+    wait_done(&src, cx);
+    let src_id = src.read_with(cx, |t, _| t.thread.as_ref().expect("row").id);
+    cx.dispatch_action(HandOffThread {
+        id: src_id,
+        to: Provider::Codex,
+    });
+    wait_until(cx, "the bind dialog", |cx| {
+        cx.update(|window, cx| window.has_active_dialog(cx))
+    });
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("handoff-account-acme").is_none(),
+        "only Codex accounts are offered"
+    );
+    let at = cx
+        .debug_bounds("handoff-account-oai")
+        .expect("the Codex account is offered")
+        .center();
+    cx.simulate_click(at, gpui::Modifiers::default());
+    wait_until(cx, "the handoff opened", |cx| {
+        ws.read_with(cx, |ws, _| {
+            ws.threads.iter().any(|t| t.forked_from == Some(src_id))
+        })
+    });
+    let row = ws
+        .read_with(cx, |ws, _| {
+            ws.threads
+                .iter()
+                .find(|t| t.forked_from == Some(src_id))
+                .cloned()
+        })
+        .expect("row");
+    assert_eq!(row.account_id, "oai");
+    let saved = AccountsConfig::load(&f.accounts_path).expect("load");
+    assert_eq!(
+        saved.resolve(&f.project_dir).map(|a| a.id.as_str()),
+        Some("oai"),
+        "the folder is bound to the picked account"
+    );
+}

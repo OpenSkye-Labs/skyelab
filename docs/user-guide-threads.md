@@ -90,8 +90,9 @@ thread in the same project whose header says **Continued from** and links to the
 
 A folder is bound to one account, so the new thread runs under the account the folder is bound to, and only when that
 account is of the other provider. If the folder is still bound to the original's account (or to nothing), SkyeLab asks
-you to bind it to a Codex (or Claude) account in Settings → Accounts first; it never picks one for you. Once you do,
-the original's threads in that folder can't send any more, and their notice offers the handoff.
+which of your Codex (or Claude) accounts to bind it to, right in that dialog, and continues once you pick one; it never
+picks one for you (with no such account yet, it points you at Settings → Accounts). Once it is bound, the original's
+threads in that folder can't send any more, and their notice offers the handoff.
 
 A session can't move between providers, so the new thread's first message starts with a portable transcript of the
 original: your messages and the agent's answers kept whole, each command as the command, whether it failed and its
