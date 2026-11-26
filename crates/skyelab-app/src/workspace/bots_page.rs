@@ -1,29 +1,31 @@
-//! The Bots center page: a "Coming soon" placeholder that points back to Home and to Scheduled tasks.
+//! The Bots center page: every scheduled task and bot (a task GitHub can also start) in one list, with its editor
+//! and run history (`scheduled::ScheduledPage`).
 
-use super::{OpenHome, OpenSettingsSection};
-use crate::settings::Section;
-use crate::ui::{self, Button, Pill, SkyeIcon};
+use super::SharedStore;
+use super::scheduled::ScheduledPage;
+use crate::ui::{self, SkyeIcon};
 use gpui::{
-    App, Context, FocusHandle, Focusable, FontWeight, IntoElement, Render, Window, div, prelude::*,
-    px,
+    App, AppContext as _, Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement, Render,
+    Window, div, prelude::*, px,
 };
 use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use std::path::PathBuf;
 
 pub struct BotsPage {
-    focus: FocusHandle,
+    pub(crate) list: Entity<ScheduledPage>,
 }
 
 impl BotsPage {
-    pub fn new(cx: &mut Context<Self>) -> Self {
+    pub fn new(store: SharedStore, accounts: Option<PathBuf>, cx: &mut Context<Self>) -> Self {
         Self {
-            focus: cx.focus_handle(),
+            list: cx.new(|cx| ScheduledPage::new(store, accounts, cx)),
         }
     }
 }
 
 impl Focusable for BotsPage {
-    fn focus_handle(&self, _: &App) -> FocusHandle {
-        self.focus.clone()
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        self.list.read(cx).focus_handle(cx)
     }
 }
 
@@ -48,88 +50,9 @@ impl Render for BotsPage {
                             .text_size(ui::BODY)
                             .font_weight(FontWeight::MEDIUM)
                             .child("Bots"),
-                    )
-                    .child(Pill::new("Coming soon")),
+                    ),
             )
             .child(super::layout::panel_toggles(window, cx));
-
-        let hero = v_flex()
-            .gap_3()
-            .child(
-                h_flex()
-                    .gap_3()
-                    .items_center()
-                    .child(
-                        div()
-                            .size(px(36.))
-                            .flex_shrink_0()
-                            .rounded(ui::RADIUS)
-                            .border_1()
-                            .border_color(theme.border)
-                            .bg(theme.muted)
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child(
-                                Icon::new(SkyeIcon::Bot)
-                                    .size(px(18.))
-                                    .text_color(theme.foreground),
-                            ),
-                    )
-                    .child(ui::page_title("Bots", theme))
-                    .child(Pill::new("Coming soon")),
-            )
-            .child(
-                div()
-                    .max_w(px(640.))
-                    .text_size(ui::BODY)
-                    .text_color(theme.muted_foreground)
-                    .child(
-                        "Bots are coming soon. They will live here.",
-                    ),
-            )
-            .child(
-                h_flex()
-                    .pt_1()
-                    .gap_2()
-                    .items_center()
-                    .child(
-                        Button::new("bots-back-home")
-                            .debug_selector(|| "bots-back-home".into())
-                            .primary()
-                            .medium()
-                            .icon(SkyeIcon::Home)
-                            .label("Back to Home")
-                            .on_click(|_, window, cx| {
-                                crate::workspace::dispatch(Box::new(OpenHome), window, cx)
-                            }),
-                    )
-                    .child(
-                        Button::new("bots-open-scheduled")
-                            .debug_selector(|| "bots-open-scheduled".into())
-                            .outline()
-                            .medium()
-                            .icon(SkyeIcon::Clock)
-                            .label("Open Scheduled tasks")
-                            .on_click(|_, window, cx| {
-                                crate::workspace::dispatch(
-                                    Box::new(OpenSettingsSection {
-                                        section: Section::Scheduled,
-                                    }),
-                                    window, cx,
-                                )
-                            }),
-                    ),
-            )
-            .child(
-                div()
-                    .text_size(ui::META)
-                    .text_color(theme.muted_foreground)
-                    .child(
-                        "Need recurring runs today? Scheduled tasks already run prompts on a schedule in any bound folder.",
-                    ),
-            );
-
         let body = div()
             .id("bots-scroll")
             .flex_1()
@@ -138,18 +61,15 @@ impl Render for BotsPage {
             .child(
                 v_flex()
                     .w_full()
-                    .max_w(px(760.))
+                    .max_w(px(860.))
                     .mx_auto()
                     .px_5()
-                    .py_8()
-                    .gap_6()
-                    .child(hero),
+                    .py_6()
+                    .child(self.list.clone()),
             );
-
         v_flex()
             .id("bots-page")
             .debug_selector(|| "bots-page".into())
-            .track_focus(&self.focus)
             .size_full()
             .bg(theme.background)
             .child(header)

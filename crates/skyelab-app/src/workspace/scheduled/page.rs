@@ -1,5 +1,5 @@
-//! Settings → Scheduled tasks (T3's scheduled tasks settings): the list, its controls and the editor. It reads and
-//! writes the store directly; runs go through the one scheduler (`run_now`).
+//! The Bots page's list (T3's scheduled tasks settings): tasks and bots, their controls, run history and the editor.
+//! It reads and writes the store directly; runs go through the one scheduler (`run_now`).
 
 use super::super::{SharedStore, lock};
 use super::Scheduler;
@@ -11,9 +11,14 @@ use gpui::{
 use gpui_component::input::{InputEvent, InputState, TextareaState};
 use skyelab_agent::Mode;
 use skyelab_core::AccountsConfig;
+use skyelab_core::bots::Trigger;
 use skyelab_store::Project;
-use skyelab_store::scheduled::ScheduledTask;
+use skyelab_store::scheduled::{BotRun, ScheduledTask};
+use std::collections::HashMap;
 use std::path::PathBuf;
+
+/// History rows a card shows at first, and per "Show more".
+pub(crate) const HISTORY_PAGE: i64 = 50;
 
 /// A choice from one of the editor's menus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,6 +27,9 @@ pub(crate) enum Pick {
     Kind(Kind),
     Mode(Mode),
     Worktree(bool),
+    Trigger(Trigger),
+    Mine(bool),
+    PerHour(u32),
 }
 
 /// One listed task: what the store has, plus its project's name and its newest thread.
@@ -29,6 +37,10 @@ pub(crate) struct Row {
     pub task: ScheduledTask,
     pub project: SharedString,
     pub thread: Option<(i64, SharedString)>,
+    /// The saved account's label (its id when accounts.toml no longer has it).
+    pub account: SharedString,
+    /// Its run history while the card is expanded, newest first.
+    pub runs: Option<Vec<BotRun>>,
 }
 
 /// The open editor: its text fields, and the rest of the draft.
@@ -39,6 +51,9 @@ pub(crate) struct Editor {
     pub value: Entity<InputState>,
     pub model: Entity<InputState>,
     pub error: Option<SharedString>,
+    /// Whether the picked project can take GitHub triggers (a github.com origin, its account's gh signed in), or why
+    /// not; `None` while that is being checked.
+    pub github: Option<Result<(), SharedString>>,
     /// Typing in any field clears `error`: it was about what was there before.
     _edits: Vec<Subscription>,
 }
@@ -53,6 +68,8 @@ pub(crate) struct ScheduledPage {
     pub(crate) error: Option<SharedString>,
     /// The task whose Delete was clicked once: the next click deletes.
     pub(crate) deleting: Option<i64>,
+    /// Expanded cards, with how many history rows each shows.
+    pub(crate) expanded: HashMap<i64, i64>,
     seen: u64,
     focus: FocusHandle,
     _subs: Vec<Subscription>,
@@ -79,6 +96,7 @@ impl ScheduledPage {
             editor: None,
             error: None,
             deleting: None,
+            expanded: HashMap::new(),
             seen: 0,
             focus: cx.focus_handle(),
             _subs: vec![sub],
@@ -90,6 +108,11 @@ impl ScheduledPage {
     /// Reads the tasks, their projects and newest threads from the store.
     pub(crate) fn reload(&mut self, cx: &mut Context<Self>) {
         self.seen = cx.try_global::<Scheduler>().map_or(0, |s| s.changes);
+        let config = self
+            .accounts_path
+            .as_deref()
+            .and_then(|p| AccountsConfig::load(p).ok())
+            .unwrap_or_default();
         let read = lock(&self.store).and_then(|s| {
             let (tasks, projects, runs) = (
                 s.scheduled_tasks()?,
@@ -106,14 +129,27 @@ impl ScheduledPage {
                     Some(r) => s.thread(r.1)?.map(|t| (t.id, t.title.into())),
                     None => None,
                 };
+                let runs = match self.expanded.get(&task.id) {
+                    Some(&n) => Some(s.bot_runs(task.id, n)?),
+                    None => None,
+                };
+                let account = config
+                    .accounts
+                    .iter()
+                    .find(|a| a.id == task.account_id)
+                    .map_or_else(|| task.account_id.clone(), |a| a.label.clone())
+                    .into();
                 rows.push(Row {
+                    account,
                     task,
                     project,
                     thread,
+                    runs,
                 });
             }
             Ok((rows, projects))
         });
+        super::count_paused(&self.store, cx);
         match read {
             Ok((rows, projects)) => (self.rows, self.projects) = (rows, projects),
             Err(e) => self.error = Some(format!("{e:#}").into()),
@@ -169,9 +205,82 @@ impl ScheduledPage {
             model,
             draft,
             error: None,
+            github: None,
             _edits,
         });
+        self.check_github(cx);
         cx.notify();
+    }
+
+    /// Checks off the main thread whether the editor's project can take GitHub triggers.
+    fn check_github(&mut self, cx: &mut Context<Self>) {
+        let Some(editor) = &mut self.editor else {
+            return;
+        };
+        editor.github = None;
+        let Some(project) = editor.draft.project else {
+            return;
+        };
+        let Some(dir) = self
+            .projects
+            .iter()
+            .find(|p| p.id == project)
+            .map(|p| p.path.clone())
+        else {
+            return;
+        };
+        let accounts = self.accounts_path.clone();
+        let ready = cx.background_spawn(async move {
+            super::gh_triggers::github_ready(accounts.as_deref(), &dir)
+        });
+        cx.spawn(async move |this, cx| {
+            let ready = ready.await.map_err(SharedString::from);
+            let _ = this.update(cx, |this, cx| {
+                if let Some(e) = this
+                    .editor
+                    .as_mut()
+                    .filter(|e| e.draft.project == Some(project))
+                {
+                    e.github = Some(ready);
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
+
+    /// Opens or closes a card's run history.
+    pub(crate) fn toggle_history(&mut self, id: i64, cx: &mut Context<Self>) {
+        if self.expanded.remove(&id).is_none() {
+            self.expanded.insert(id, HISTORY_PAGE);
+        }
+        self.reload(cx);
+    }
+
+    pub(crate) fn show_more(&mut self, id: i64, cx: &mut Context<Self>) {
+        *self.expanded.entry(id).or_insert(0) += HISTORY_PAGE;
+        self.reload(cx);
+    }
+
+    /// A new bot from a starter: its name, prompt and trigger, in Plan mode.
+    pub(crate) fn new_from(
+        &mut self,
+        title: &str,
+        prompt: &str,
+        trigger: Trigger,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let draft = Draft {
+            title: title.into(),
+            prompt: prompt.into(),
+            kind: Kind::Never,
+            value: String::new(),
+            triggers: vec![trigger],
+            project: self.projects.first().map(|p| p.id),
+            ..Draft::default()
+        };
+        self.open_editor(draft, window, cx);
     }
 
     /// A new task, prefilled with a prompt and project when it comes from a composer.
@@ -212,7 +321,26 @@ impl ScheduledPage {
     pub(crate) fn pick(&mut self, pick: Pick, window: &mut Window, cx: &mut Context<Self>) {
         match pick {
             Pick::Kind(kind) => self.set_kind(kind, window, cx),
-            Pick::Project(id) => self.update_draft(|d| d.project = Some(id), cx),
+            Pick::Project(id) => {
+                self.update_draft(|d| d.project = Some(id), cx);
+                self.check_github(cx);
+            }
+            Pick::Trigger(t) => self.update_draft(
+                |d| {
+                    if d.triggers.contains(&t) {
+                        d.triggers.retain(|x| *x != t);
+                    } else {
+                        d.triggers.push(t);
+                        // GitHub text is anyone's: such a bot plans or asks, never edits on its own.
+                        if !matches!(d.mode, Mode::Plan | Mode::Default) {
+                            d.mode = Mode::Plan;
+                        }
+                    }
+                },
+                cx,
+            ),
+            Pick::Mine(on) => self.update_draft(|d| d.mine = on, cx),
+            Pick::PerHour(n) => self.update_draft(|d| d.per_hour = n, cx),
             Pick::Mode(mode) => self.update_draft(|d| d.mode = mode, cx),
             Pick::Worktree(on) => self.update_draft(|d| d.worktree = on, cx),
         }

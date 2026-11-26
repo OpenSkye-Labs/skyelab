@@ -93,9 +93,8 @@ projects by folder, so a project you remove is skipped. The **Working** header s
 row): see [user-guide-managing-threads.md](user-guide-managing-threads.md#settle-and-snooze).
 
 A slim rail on the far left of the window switches what the window shows: **Home** (your threads; it reopens the
-sidebar and the last thread you had open), **Bots** (coming soon), **Pull requests**, **Issues** and **Scheduled
-tasks** at the top, and **Usage** and **Settings** at the bottom. Scheduled tasks, Usage and Settings open the Settings
-window; clicking the highlighted one again closes it. Usage shows a yellow dot when an account is at 75%
+sidebar and the last thread you had open), **Bots** (scheduled tasks and bots GitHub starts; a count when some need you), **Pull requests** and **Issues** at
+the top, and **Usage** and **Settings** at the bottom. Usage and Settings open the Settings window; clicking the highlighted one again closes it. Usage shows a yellow dot when an account is at 75%
 of a usage window and a red one at 90% or when it is limited; its tooltip says which. The sidebar's bottom row keeps **Refresh**, which reloads
 the thread list.
 
@@ -189,10 +188,11 @@ Starting threads, scratch threads, the composer, permissions, queueing and steer
 [user-guide-using-threads.md](user-guide-using-threads.md). Browser tabs, yours and agents':
 [user-guide-browser.md](user-guide-browser.md).
 
-## Scheduled tasks
+## Bots and scheduled tasks
 
-Saved prompts that start a thread on a schedule (intervals, daily, weekdays, cron), missed runs, and the account
-rule for unattended runs: [user-guide-scheduled.md](user-guide-scheduled.md).
+Saved prompts that start a thread on a schedule (intervals, daily, weekdays, cron) or when GitHub has a new PR, a new
+issue or failing checks; missed runs, rate limits, how GitHub text is kept from acting as instructions, and the
+account rule for unattended runs: [user-guide-bots.md](user-guide-bots.md).
 
 ## Pull requests and issues
 

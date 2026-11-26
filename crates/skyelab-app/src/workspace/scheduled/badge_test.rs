@@ -1,4 +1,4 @@
-//! Acceptance 10: the sidebar's "Scheduled" badge comes from the stored row, so it shows after a restart with no view
+//! Acceptance 10: the sidebar's "Bot" badge comes from the stored row, so it shows after a restart with no view
 //! of the thread ever opened; a thread the user started has none.
 
 use super::super::lock;

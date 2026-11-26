@@ -3,7 +3,7 @@
 use super::center::Page;
 use super::details_panel::{AccountUsage, limit_text};
 use super::gh_pages::{Kind as GhKind, OpenIssues, OpenPullRequests};
-use super::{CONTEXT, OpenBots, OpenHome, OpenSettings, OpenSettingsSection, OpenUsage, Workspace};
+use super::{CONTEXT, OpenBots, OpenHome, OpenSettings, OpenUsage, Workspace};
 use crate::settings::Section;
 use crate::ui::{self, Button, SkyeIcon};
 use gpui::{Action, App, Context, IntoElement, SharedString, WeakEntity, div, prelude::*, px};
@@ -16,7 +16,6 @@ pub(super) enum RailItem {
     Bots,
     PullRequests,
     Issues,
-    Scheduled,
     Usage,
     Settings,
 }
@@ -86,10 +85,25 @@ fn rail_button(
 }
 
 impl Workspace {
+    /// Bots paused until fixed, plus open bot runs waiting on an approval: the Bots rail item's count.
+    pub(super) fn bots_needing_you(&self, cx: &App) -> usize {
+        let paused = cx
+            .try_global::<super::scheduled::Scheduler>()
+            .map_or(0, |s| s.paused);
+        let waiting = self
+            .open_threads
+            .iter()
+            .filter(|v| {
+                let v = v.read(cx);
+                v.scheduled_task.is_some() && super::thread_rows::waiting_ask(v).is_some()
+            })
+            .count();
+        paused + waiting
+    }
+
     pub(super) fn rail_active(&self, cx: &App) -> RailItem {
         if self.settings_open {
             return match self.settings.as_ref().map(|s| s.read(cx).section) {
-                Some(Section::Scheduled) => RailItem::Scheduled,
                 Some(Section::Usage) => RailItem::Usage,
                 _ => RailItem::Settings,
             };
@@ -119,6 +133,11 @@ impl Workspace {
             Some(UsageAlert::Critical) => "Usage · an account is at or near its limit".into(),
             Some(UsageAlert::Low) => "Usage · an account is past 75% of a limit".into(),
             None => "Usage".into(),
+        };
+        let bots_need = self.bots_needing_you(cx);
+        let bots_tip: SharedString = match bots_need {
+            0 => "Bots".into(),
+            n => format!("Bots · {n} need you (paused, or waiting on an approval)").into(),
         };
         let ws = cx.entity().downgrade();
         let close = |item: RailItem| (active == item && self.settings_open).then(|| ws.clone());
@@ -163,15 +182,37 @@ impl Workspace {
                 None,
                 theme,
             ))
-            .child(rail_button(
-                "rail-bots",
-                SkyeIcon::Bot,
-                "Bots".into(),
-                Box::new(OpenBots),
-                active == RailItem::Bots,
-                None,
-                theme,
-            ))
+            .child(
+                div()
+                    .relative()
+                    .child(rail_button(
+                        "rail-bots",
+                        SkyeIcon::Bot,
+                        bots_tip,
+                        Box::new(OpenBots),
+                        active == RailItem::Bots,
+                        None,
+                        theme,
+                    ))
+                    .children((bots_need > 0).then(|| {
+                        div()
+                            .debug_selector(|| "rail-bots-count".into())
+                            .absolute()
+                            .top(px(2.))
+                            .right(px(2.))
+                            .min_w(px(14.))
+                            .h(px(14.))
+                            .px(px(3.))
+                            .rounded_full()
+                            .bg(theme.danger)
+                            .text_color(theme.danger_foreground)
+                            .text_size(px(9.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(bots_need.to_string())
+                    })),
+            )
             .child(
                 rail_button(
                     "rail-prs",
@@ -196,17 +237,6 @@ impl Workspace {
                 )
                 .disabled(remote),
             )
-            .child(rail_button(
-                "rail-scheduled",
-                SkyeIcon::Clock,
-                "Scheduled tasks".into(),
-                Box::new(OpenSettingsSection {
-                    section: Section::Scheduled,
-                }),
-                active == RailItem::Scheduled,
-                close(RailItem::Scheduled),
-                theme,
-            ))
             .child(div().flex_1())
             .child(usage_btn)
             .child(

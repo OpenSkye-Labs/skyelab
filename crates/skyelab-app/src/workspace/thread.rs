@@ -142,8 +142,8 @@ pub struct ThreadView {
     pub(super) required_account: Option<String>,
     /// The multi-model send this draft is one model of: written on its row when the launch saves it.
     pub(super) compare_group: Option<i64>,
-    /// The scheduled task this new thread runs for: written on its row (the sidebar's badge).
-    pub(super) scheduled_task: Option<i64>,
+    /// The scheduled task (bot) run this new thread is: written on its row (the sidebar's badge).
+    pub(super) scheduled_task: Option<super::scheduled::RunTag>,
     pub(super) children: Vec<ChildLink>,
     /// The details card's state for this thread.
     pub(super) details: super::thread_details::Details,

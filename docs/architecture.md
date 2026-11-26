@@ -94,12 +94,17 @@ tracked in GitHub issues.
 8. **Orchestration:** delegate tasks between threads and environments. Built.
 9. **Mobile client:** GPUI on iOS and Android, plan in [mobile.md](mobile.md). In progress.
 
-## Scheduled tasks
+## Scheduled tasks and bots
 
 One scheduler per app (`workspace/scheduled`): a `Global` whose 15 s tick runs through the hub window, deciding by
 the wall clock. Rules in `skyelab_core::schedule` (croner for cron and times of day), tasks in the store (schema 21).
-A run resolves the folder's account at run time and pauses the task on any mismatch. See
-[user-guide-scheduled.md](user-guide-scheduled.md).
+A run resolves the folder's account at run time and pauses the task on any mismatch. A bot is a task with GitHub
+triggers (schema 28: `triggers`, `bot_runs` history, `bot_seen` keys): the same tick polls each (account, project)
+every 5 min through that account's gh (`scheduled/gh_triggers.rs`, after the same binding check), queues new items as
+`bot_runs` rows with their framed prompt, and starts them like scheduled runs. Rules (hits, framing, Plan/Ask cap,
+rate limits) in `skyelab_core::bots`. A thread started from GitHub text launches without SkyeLab's MCP tools, on
+resume too (`Store::thread_untrusted`). The Bots page (`bots_page.rs`) hosts the list. See
+[user-guide-bots.md](user-guide-bots.md).
 
 ## CI
 

@@ -4,16 +4,26 @@
 //! task is due, which account a run may use) live in `skyelab_core::schedule`; the tasks live in the store.
 
 mod compose;
+mod editor_render;
 mod form;
+mod gh_triggers;
+mod history;
 mod page;
 mod page_render;
+mod runs;
 mod start;
 pub(crate) use page::ScheduledPage;
+pub(crate) use runs::RunTag;
+use runs::{How, skip, start_run};
 pub(super) use start::Refused;
 #[cfg(test)]
 mod account_test;
 #[cfg(test)]
 mod badge_test;
+#[cfg(test)]
+mod bots_page_test;
+#[cfg(test)]
+mod bots_test;
 #[cfg(test)]
 mod bypass_test;
 #[cfg(test)]
@@ -68,6 +78,10 @@ pub(crate) struct Scheduler {
     store: Option<SharedStore>,
     /// Opens a window (as the dock does) for a run that comes due while none is open.
     opener: Option<Opener>,
+    /// Bots' GitHub polls: when each project was last listed, which are in flight, and why the last failed.
+    pub(crate) polls: gh_triggers::Polls,
+    /// Bots paused until the user fixes them (the Bots rail item's count).
+    pub(crate) paused: usize,
     _tick: Option<Task<()>>,
 }
 
@@ -235,8 +249,50 @@ pub(super) fn tick(cx: &mut App) {
         }
         changed = true;
     }
+    // GitHub hits wait in their bot's queue for the bot's own run to end and a free slot.
+    for task in tasks.iter().filter(|t| t.enabled && !t.triggers.is_empty()) {
+        if busy.contains(&task.id) || busy.len() >= cap {
+            continue;
+        }
+        let queued = match lock(&store).and_then(|s| s.queued_bot_run(task.id)) {
+            Ok(Some(run)) => run,
+            Ok(None) => continue,
+            Err(e) => {
+                eprintln!("scheduled task {}: {e:#}", task.id);
+                continue;
+            }
+        };
+        if hub.is_none() && !tried_open {
+            tried_open = true;
+            hub = hub_or_open(cx);
+        }
+        let Some((window, ws)) = hub.clone() else {
+            continue;
+        };
+        start_run(task, now, How::Hit(queued), window, &ws, cx);
+        busy.insert(task.id);
+        changed = true;
+    }
     if changed {
         cx.default_global::<Scheduler>().changes += 1;
+    }
+    gh_triggers::poll(&store, now, cx);
+    count_paused(&store, cx);
+}
+
+/// Recounts the paused bots; a change redraws the windows (the rail's count).
+pub(crate) fn count_paused(store: &SharedStore, cx: &mut App) {
+    let Ok(tasks) = lock(store).and_then(|s| s.scheduled_tasks()) else {
+        return;
+    };
+    let paused = tasks
+        .iter()
+        .filter(|t| !t.enabled && t.last_status.as_deref() == Some("paused"))
+        .count();
+    let s = cx.default_global::<Scheduler>();
+    if s.paused != paused {
+        s.paused = paused;
+        cx.refresh_windows();
     }
 }
 
@@ -254,7 +310,7 @@ pub(super) fn run_now(id: i64, cx: &mut App) -> Result<(), String> {
             .to_string());
     }
     let now = now_ms(cx);
-    start_run(&task, now, window, &ws, cx);
+    start_run(&task, now, How::RunNow, window, &ws, cx);
     cx.default_global::<Scheduler>().changes += 1;
     Ok(())
 }
@@ -281,16 +337,6 @@ fn launching(cx: &mut App) -> HashSet<i64> {
     live
 }
 
-fn skip(store: &SharedStore, task: &ScheduledTask, now: i64, why: &str) {
-    let saved = lock(store).and_then(|s| {
-        s.set_scheduled_next_run(task.id, next_after_run(task, now))?;
-        s.record_scheduled_run(task.id, now, "skipped", Some(why))
-    });
-    if let Err(e) = saved {
-        eprintln!("scheduled task {}: {e:#}", task.id);
-    }
-}
-
 /// A scheduled run: its next slot is set first, so a run that fails or pauses never fires again every tick.
 fn run(
     task: &ScheduledTask,
@@ -304,48 +350,5 @@ fn run(
     if let Err(e) = lock(&store).and_then(|s| s.set_scheduled_next_run(task.id, next)) {
         return eprintln!("scheduled task {}: {e:#}", task.id);
     }
-    start_run(task, now, window, ws, cx);
-}
-
-fn start_run(
-    task: &ScheduledTask,
-    now: i64,
-    window: AnyWindowHandle,
-    ws: &Entity<Workspace>,
-    cx: &mut App,
-) {
-    let started = window
-        .update(cx, |_, window, cx| {
-            ws.update(cx, |ws, cx| ws.start_scheduled(task, window, cx))
-        })
-        .unwrap_or_else(|_| Err(Refused::Fail("its window closed".into())));
-    let store = ws.read(cx).backend.store.clone();
-    let saved = match &started {
-        Ok(view) => {
-            let view = view.downgrade();
-            cx.default_global::<Scheduler>()
-                .launching
-                .insert(task.id, view);
-            lock(&store).and_then(|s| s.record_scheduled_run(task.id, now, "started", None))
-        }
-        Err(Refused::Fail(why)) => {
-            lock(&store).and_then(|s| s.record_scheduled_run(task.id, now, "failed", Some(why)))
-        }
-        Err(Refused::Pause(why)) => {
-            let _ = window.update(cx, |_, window, cx| {
-                let note = crate::ui::toast::Toast::warning(format!(
-                    "Scheduled task \"{}\" is paused: {why}",
-                    task.title
-                ));
-                crate::ui::toast::push(window, note, cx);
-            });
-            lock(&store).and_then(|s| {
-                s.set_scheduled_task_enabled(task.id, false)?;
-                s.record_scheduled_run(task.id, now, "paused", Some(why))
-            })
-        }
-    };
-    if let Err(e) = saved {
-        eprintln!("scheduled task {}: {e:#}", task.id);
-    }
+    start_run(task, now, How::Schedule, window, ws, cx);
 }

@@ -1,4 +1,4 @@
-//! Acceptance 8: Settings → Scheduled tasks' controls do what they say, driven headlessly: pause, run now, edit and
+//! Acceptance 8: the Bots page's task controls do what they say, driven headlessly: pause, run now, edit and
 //! save, Full access refused without its confirm, the thread link, and delete.
 
 use super::super::center::Page;
@@ -6,19 +6,14 @@ use super::super::threads_test::wait_until;
 use super::super::{Workspace, lock};
 use super::page::{Pick, ScheduledPage};
 use super::test_util::{NOW, Rig, open, read, rig, runs, task};
-use crate::settings::Section;
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use skyelab_agent::Mode;
 
 fn page(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<ScheduledPage> {
-    ws.update_in(cx, |ws, window, cx| {
-        ws.open_settings_at(Section::Scheduled, window, cx)
-    });
+    ws.update_in(cx, |ws, window, cx| ws.show(Page::Bots, window, cx));
     cx.run_until_parked();
     ws.read_with(cx, |ws, cx| {
-        ws.settings
-            .as_ref()
-            .and_then(|s| s.read(cx).scheduled.clone())
+        ws.bots.as_ref().map(|b| b.read(cx).list.clone())
     })
     .expect("the page")
 }

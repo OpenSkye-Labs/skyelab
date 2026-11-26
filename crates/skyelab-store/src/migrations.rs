@@ -383,6 +383,8 @@ ALTER TABLE threads ADD COLUMN scroll_mark TEXT;
     "
 ALTER TABLE threads ADD COLUMN limit_resume_at INTEGER;
 ",
+    // Version 28: bots (GitHub triggers on scheduled tasks), their run history and seen items.
+    crate::scheduled::MIGRATION_V28,
 ];
 
 // After the macros: the migration builds its trigger with `turn_cost!` and `fork_copy!`.
