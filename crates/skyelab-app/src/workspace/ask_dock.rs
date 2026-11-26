@@ -27,7 +27,7 @@ mod keys;
 pub(in crate::workspace) use keys::{FOCUS_QUESTION_KEY, FocusQuestion};
 #[path = "ask_dock_send.rs"]
 mod send;
-#[cfg(test)]
+#[cfg(all(test, unix))] // its test drives the fake agent, a shell script
 pub(super) use send::next_label;
 
 impl ThreadView {
