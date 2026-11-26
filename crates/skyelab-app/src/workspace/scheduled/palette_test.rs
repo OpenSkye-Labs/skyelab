@@ -1,9 +1,9 @@
-//! Acceptance 9: "Schedule this prompt…" is offered from a composer and opens Settings → Scheduled tasks with the
+//! Acceptance 9: "Schedule this prompt…" is offered from a composer and opens the Bots page with the
 //! composer's text and project in a new task.
 
+use super::super::center::Page;
 use super::super::{NewThread, SelectProject};
 use super::test_util::{open, rig};
-use crate::settings::Section;
 use gpui::TestAppContext;
 
 #[gpui::test]
@@ -36,16 +36,11 @@ fn schedule_this_prompt_prefills_a_new_task(cx: &mut TestAppContext) {
 
     cx.dispatch_action(super::compose::SchedulePrompt);
     cx.run_until_parked();
-    let shown = ws.read_with(cx, |ws, cx| {
-        ws.settings_open
-            && ws.settings.as_ref().map(|s| s.read(cx).section) == Some(Section::Scheduled)
-    });
-    assert!(shown, "Settings → Scheduled tasks is shown");
+    let shown = ws.read_with(cx, |ws, _| !ws.settings_open && ws.page == Page::Bots);
+    assert!(shown, "the Bots page is shown");
     let page = ws
         .read_with(cx, |ws, cx| {
-            ws.settings
-                .as_ref()
-                .and_then(|s| s.read(cx).scheduled.clone())
+            ws.bots.as_ref().map(|b| b.read(cx).list.clone())
         })
         .expect("the page");
     let (prompt, project) = page.read_with(cx, |p, cx| {

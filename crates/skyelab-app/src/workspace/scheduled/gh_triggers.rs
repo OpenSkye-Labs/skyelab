@@ -296,3 +296,25 @@ fn queue(
     })?;
     Ok(())
 }
+
+/// Whether `dir` can take GitHub triggers: bound, a github.com `origin`, and its account's gh signed in. Blocking.
+pub(super) fn github_ready(
+    accounts: Option<&std::path::Path>,
+    dir: &std::path::Path,
+) -> Result<(), String> {
+    let config = accounts
+        .and_then(|p| AccountsConfig::load(p).ok())
+        .unwrap_or_default();
+    let account = config
+        .resolve(dir)
+        .ok_or("Its folder isn't bound to an account.")?;
+    skyelab_git::repo_slug(dir).map_err(|e| format!("No GitHub repo: {e}."))?;
+    let signed_in = account.gh_config_dir.is_some()
+        && config
+            .github_config_dir(dir)
+            .is_ok_and(|d| skyelab_git::gh_logged_in(&d));
+    match signed_in {
+        true => Ok(()),
+        false => Err(format!("{}'s GitHub CLI isn't signed in.", account.label)),
+    }
+}

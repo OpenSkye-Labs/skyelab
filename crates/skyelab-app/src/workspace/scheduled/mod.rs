@@ -4,8 +4,10 @@
 //! task is due, which account a run may use) live in `skyelab_core::schedule`; the tasks live in the store.
 
 mod compose;
+mod editor_render;
 mod form;
 mod gh_triggers;
+mod history;
 mod page;
 mod page_render;
 mod runs;
@@ -18,6 +20,8 @@ pub(super) use start::Refused;
 mod account_test;
 #[cfg(test)]
 mod badge_test;
+#[cfg(test)]
+mod bots_page_test;
 #[cfg(test)]
 mod bots_test;
 #[cfg(test)]
@@ -76,6 +80,8 @@ pub(crate) struct Scheduler {
     opener: Option<Opener>,
     /// Bots' GitHub polls: when each project was last listed, which are in flight, and why the last failed.
     pub(crate) polls: gh_triggers::Polls,
+    /// Bots paused until the user fixes them (the Bots rail item's count).
+    pub(crate) paused: usize,
     _tick: Option<Task<()>>,
 }
 
@@ -271,6 +277,23 @@ pub(super) fn tick(cx: &mut App) {
         cx.default_global::<Scheduler>().changes += 1;
     }
     gh_triggers::poll(&store, &tasks, now, cx);
+    count_paused(&store, cx);
+}
+
+/// Recounts the paused bots; a change redraws the windows (the rail's count).
+pub(crate) fn count_paused(store: &SharedStore, cx: &mut App) {
+    let Ok(tasks) = lock(store).and_then(|s| s.scheduled_tasks()) else {
+        return;
+    };
+    let paused = tasks
+        .iter()
+        .filter(|t| !t.enabled && t.last_status.as_deref() == Some("paused"))
+        .count();
+    let s = cx.default_global::<Scheduler>();
+    if s.paused != paused {
+        s.paused = paused;
+        cx.refresh_windows();
+    }
 }
 
 /// Runs task `id` now, outside its schedule (its next run stays). Refused while its last run is still going.
