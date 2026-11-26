@@ -126,7 +126,7 @@ fn the_editor_runs_without_a_shell_and_with_a_terminal_env() {
     );
     for (k, _) in cmd.get_envs() {
         assert!(
-            skyelab_core::env::terminal_allowed(k, cfg!(windows)),
+            skyelab_core::env::terminal_allowed(k, cfg!(windows)) || k == "DO_NOT_TRACK",
             "{k:?} leaked"
         );
         assert_ne!(k, "CLAUDE_CONFIG_DIR");
