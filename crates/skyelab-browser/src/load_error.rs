@@ -94,7 +94,8 @@ pub fn describe(domain: &str, code: isize, description: &str, url: &str) -> Opti
 
 /// The error page for a local http(s) address with nothing listening on its port (every address it names refused
 /// the connection), checked before loading it; `None` when something answers, it isn't local, or the check can't
-/// tell (a timeout), so the page engine loads it as usual.
+/// tell (a timeout), so the page engine loads it as usual. On Windows that is every closed port: its TCP stack
+/// answers a refusing RST by retrying the SYN for about two seconds, well past the cap.
 pub fn refused_local(url: &url::Url) -> Option<LoadError> {
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream};
     if !matches!(url.scheme(), "http" | "https") {
@@ -222,7 +223,13 @@ mod tests {
             format!("http://localhost:{port}/"),
             format!("http://127.0.0.1:{port}/x"),
         ] {
-            let e = refused_local(&url::Url::parse(&url).expect("url")).expect("refused");
+            let got = refused_local(&url::Url::parse(&url).expect("url"));
+            if cfg!(windows) {
+                // Windows retries a refused SYN for ~2 s, past the cap: it can't tell, so the engine loads it.
+                assert_eq!(got, None, "{url}");
+                continue;
+            }
+            let e = got.expect("refused");
             assert_eq!(e.title, format!("Nothing is running at {}", e.host));
             assert_eq!(e.url, url, "Retry loads it again");
         }
