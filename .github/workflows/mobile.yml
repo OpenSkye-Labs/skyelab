@@ -8,6 +8,8 @@ on:
       - crates/skyelab-protocol/**
       # The app uses skyelab-client; its tests run an in-process skyelab-daemon over skyelab-store and skyelab-tailnet.
       - crates/skyelab-client/**
+      # skyelab-mobile also links skyelab-agent (without its default features).
+      - crates/skyelab-agent/**
       - crates/skyelab-daemon/**
       - crates/skyelab-store/**
       - crates/skyelab-tailnet/**
