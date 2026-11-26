@@ -28,7 +28,7 @@ fn migrates_empty_db() {
     let version: i64 = raw
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("test setup");
-    assert_eq!(version, 27);
+    assert_eq!(version, 28);
     let tables: Vec<String> = raw
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'event_text%' ORDER BY name")
         .expect("test setup")
@@ -169,7 +169,10 @@ fn thread_crud() {
     assert_eq!(got.status, "running");
     assert_eq!(got.agent_session_id.as_deref(), Some("sess-1"));
     assert_eq!(got.account_id, "work");
-    assert!(got.updated_at > t.updated_at);
+    assert_eq!(
+        got.updated_at, t.updated_at,
+        "bookkeeping keeps the thread's time"
+    );
 
     store.set_agent_session_id(t.id, None).expect("test setup");
     assert_eq!(
@@ -234,12 +237,14 @@ fn list_threads_orders_by_updated_desc() {
     assert_eq!(ids(&store), [t2.id, t1.id]);
 
     tick();
-    store.append_event(t1.id, "msg", "{}").expect("test setup");
+    store
+        .append_event(t1.id, "prompt", "\"hi\"")
+        .expect("test setup");
     assert_eq!(ids(&store), [t1.id, t2.id]);
 
     tick();
     store.set_thread_status(t2.id, "done").expect("test setup");
-    assert_eq!(ids(&store), [t2.id, t1.id]);
+    assert_eq!(ids(&store), [t1.id, t2.id], "a status write is no activity");
 }
 
 #[test]

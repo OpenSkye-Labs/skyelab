@@ -55,6 +55,7 @@ pub struct Thread {
     /// Opaque to the store; the agent layer defines the values.
     pub status: String,
     pub created_at: i64,
+    /// Last activity (`events::is_activity`), else its start: the sidebar's time. Bookkeeping never moves it.
     pub updated_at: i64,
     /// The git worktree the thread runs in, when it got its own. Cleared once the worktree is discarded.
     pub worktree_path: Option<PathBuf>,
@@ -426,8 +427,8 @@ impl Store {
     ) -> Result<()> {
         let path = path.map(path_str).transpose()?;
         let n = self.conn.execute(
-            "UPDATE threads SET worktree_path = ?2, worktree_branch = ?3, updated_at = ?4 WHERE id = ?1",
-            params![id, path, branch, now_ms()],
+            "UPDATE threads SET worktree_path = ?2, worktree_branch = ?3 WHERE id = ?1",
+            params![id, path, branch],
         )?;
         expect_one(n, "thread", id)
     }
@@ -443,8 +444,8 @@ impl Store {
     /// Links (or unlinks) the thread's pull request; the state read for the old one goes with it.
     pub fn set_thread_pr_url(&self, id: i64, url: Option<&str>) -> Result<()> {
         let n = self.conn.execute(
-            "UPDATE threads SET pr_url = ?2, pr_state = NULL, updated_at = ?3 WHERE id = ?1",
-            params![id, url, now_ms()],
+            "UPDATE threads SET pr_url = ?2, pr_state = NULL WHERE id = ?1",
+            params![id, url],
         )?;
         expect_one(n, "thread", id)
     }
@@ -465,8 +466,8 @@ impl Store {
         column: &'static str,
         value: impl rusqlite::ToSql,
     ) -> Result<()> {
-        let sql = format!("UPDATE threads SET {column} = ?2, updated_at = ?3 WHERE id = ?1");
-        let n = self.conn.execute(&sql, params![id, value, now_ms()])?;
+        let sql = format!("UPDATE threads SET {column} = ?2 WHERE id = ?1");
+        let n = self.conn.execute(&sql, params![id, value])?;
         expect_one(n, "thread", id)
     }
 
