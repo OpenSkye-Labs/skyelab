@@ -35,3 +35,7 @@ second copy, which would run scheduled tasks and resume threads twice. A build f
 (`skyelab-dev`), so it runs next to the installed app with its own threads.
 
 <kbd>⌘W</kbd> (<kbd>Ctrl+W</kbd> on Linux and Windows) closes the right panel's active tab, as in T3 Code; in a focused terminal it closes that terminal instead (<kbd>Ctrl+Shift+W</kbd> off macOS). It never closes the window: on macOS use File → Close Window or the window's close button.
+
+On a narrow window the right panel gives up width so the thread keeps at least 360 pt. A window too narrow for both
+puts the panel away when it opens or shrinks (its width is kept for later); opening the panel yourself then hides the
+sidebar to make room.

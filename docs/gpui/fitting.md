@@ -28,3 +28,10 @@ Lessons from the sidebar's update pill (`workspace/update_notice.rs`).
   short window they fall below the fold with nothing saying there is more. Where the column can still overflow, lay a
   short `linear_gradient` fade (background with alpha 0 → background) over its bottom padding: it covers only empty
   space when nothing is hidden, and a div without listeners takes no mouse.
+
+## Docks on a narrow window
+
+- **gpui-component's `DockArea` has no maximum for a side dock**: a saved 560 px right dock on a 760 px window left the
+  center (the thread) 0 px wide. Fit it yourself from the viewport (`dock_fit.rs`): on restore, on
+  `observe_window_bounds` and after a toggle, shrink the dock to leave the center its minimum, and close it (or hide
+  the other dock) when even its own minimum doesn't fit.
