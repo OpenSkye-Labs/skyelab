@@ -146,7 +146,7 @@ impl PreviewPanel {
         self.body = match read {
             Ok((_, Some(image))) => Body::Image(image),
             Ok((Preview::Text(text), _)) => {
-                let lang = language(&self.path);
+                let lang = crate::ui::syntax::language(&self.path);
                 let row = line.map_or(0, |l| l.saturating_sub(1));
                 self.editor.update(cx, |e, cx| {
                     e.set_highlighter(lang, cx);
@@ -308,14 +308,6 @@ pub(in crate::workspace) fn image(full: &Path) -> anyhow::Result<Arc<gpui::Image
         _ => anyhow::bail!("This file isn't an image this preview draws."),
     };
     Ok(Arc::new(gpui::Image::from_bytes(format, bytes)))
-}
-
-/// The highlighter's language for a file: its extension, or its name for `Makefile`, `Dockerfile` and the like.
-fn language(path: &Path) -> String {
-    path.extension()
-        .or_else(|| path.file_name())
-        .map(|e| e.to_string_lossy().to_ascii_lowercase())
-        .unwrap_or_default()
 }
 
 impl EventEmitter<PanelEvent> for PreviewPanel {}

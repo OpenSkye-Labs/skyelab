@@ -8527,6 +8527,7 @@ dependencies = [
  "skyelab-store",
  "skyelab-tailnet",
  "skyelab-terminal",
+ "syntect",
  "sysinfo 0.40.4",
  "tempfile",
  "tokio",
@@ -8535,6 +8536,7 @@ dependencies = [
  "tracing-subscriber",
  "tracing-tracy",
  "tungstenite",
+ "two-face",
 ]
 
 [[package]]

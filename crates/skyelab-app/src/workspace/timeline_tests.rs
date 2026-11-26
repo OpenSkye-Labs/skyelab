@@ -19,6 +19,10 @@ mod timeline_fold_stopped_test;
 #[path = "image_placeholder_test.rs"]
 mod image_placeholder_test;
 
+#[cfg(unix)] // builds its thread on the fake agent, a shell script
+#[path = "diff_view_render_test.rs"]
+mod diff_view_render_test;
+
 #[path = "card_path_test.rs"]
 mod card_path_test;
 
