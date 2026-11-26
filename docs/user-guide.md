@@ -178,6 +178,9 @@ Checking for, downloading and installing updates: [user-guide-updates.md](user-g
 First-run onboarding (or **Open Onboarding** in the palette), binding folders to accounts, and a GitHub
 login per account: see [user-guide-accounts.md](user-guide-accounts.md).
 
+Every agent, git or gh call and terminal SkyeLab starts gets `DO_NOT_TRACK=1`, so tools that honor it (Claude Code,
+gh, Bun) skip their telemetry. SkyeLab itself sends none.
+
 ## Threads
 
 Starting threads, scratch threads, the composer, permissions, queueing and steering:

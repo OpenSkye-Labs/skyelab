@@ -378,6 +378,9 @@ fn launch(
 ) -> (String, Vec<String>, HashMap<String, String>) {
     env.entry("TERM".into()).or_insert("xterm-256color".into());
     env.entry("COLORTERM".into()).or_insert("truecolor".into());
+    // Overrides the parent's and the caller's: a terminal is a child like any other (`skyelab_core::env`).
+    let (k, v) = skyelab_core::env::DO_NOT_TRACK;
+    env.insert(k.into(), v.into());
     let (program, args) = command.unwrap_or_else(default_command);
     let unset: Vec<String> = parent
         .iter()

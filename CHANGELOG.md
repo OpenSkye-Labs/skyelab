@@ -6,6 +6,10 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Every agent, git/gh call and terminal SkyeLab starts gets `DO_NOT_TRACK=1`, so tools that honor it skip telemetry.
+
 ## [0.1.5]
 
 ### Fixed

@@ -1,5 +1,5 @@
 //! Acceptance: a terminal's child env is exactly the terminal-allowed parent vars, the caller's env, and
-//! TERM/COLORTERM. Checked for both launch styles (unix `env -u`, Windows empty overrides) on every OS.
+//! TERM/COLORTERM/DO_NOT_TRACK=1. Checked for both launch styles (unix `env -u`, Windows empty overrides) on every OS.
 
 use super::launch;
 use std::collections::{BTreeMap, HashMap};
@@ -18,6 +18,7 @@ const PARENT: &[(&str, &str)] = &[
     ("GH_TOKEN", "ghp_personal"),
     ("AWS_SECRET_ACCESS_KEY", "aws"),
     ("GIT_CONFIG_COUNT", "1"),
+    ("DO_NOT_TRACK", "0"),
 ];
 
 /// What the child ends up with: the parent minus what the launch removes, plus what it sets.
@@ -63,6 +64,7 @@ fn child_env_is_the_allowlist_plus_the_caller_env() {
             ("CLAUDE_CONFIG_DIR".into(), "/acct".into()),
             ("TERM".into(), "xterm-256color".into()),
             ("COLORTERM".into(), "truecolor".into()),
+            ("DO_NOT_TRACK".into(), "1".into()),
         ]);
         if !windows {
             want.insert("HOME".into(), "/home/me".into()); // a Windows profile is USERPROFILE, not HOME

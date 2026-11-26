@@ -65,6 +65,9 @@ const PLUMBING: &[&str] = &[
 
 const SHELL_ONLY: &[&str] = &["EDITOR", "VISUAL", "PAGER", "LESS", "COLORTERM"];
 
+/// Not inherited: SkyeLab sets it on every child (`env::DO_NOT_TRACK`).
+const DNT: &[&str] = &["DO_NOT_TRACK"];
+
 const WINDOWS: &[&str] = &["SystemRoot", "USERPROFILE", "APPDATA", "TEMP", "Path"];
 
 fn parent() -> Vec<(OsString, OsString)> {
@@ -104,9 +107,9 @@ fn set(items: &[&[&str]]) -> BTreeSet<String> {
 #[test]
 fn agents_get_exactly_the_plumbing_on_unix() {
     let got = names(&agent_vars(parent(), false, false));
-    assert_eq!(got, set(&[PLUMBING]));
+    assert_eq!(got, set(&[PLUMBING, DNT]));
     let got = names(&agent_vars(parent(), false, true));
-    assert_eq!(got, set(&[PLUMBING, &["SSH_AUTH_SOCK"]]));
+    assert_eq!(got, set(&[PLUMBING, DNT, &["SSH_AUTH_SOCK"]]));
 }
 
 #[test]
@@ -119,15 +122,15 @@ fn agents_get_exactly_the_plumbing_on_windows() {
         "TZ",
     ];
     let got = names(&agent_vars(parent(), true, false));
-    assert_eq!(got, set(&[&expected, WINDOWS]));
+    assert_eq!(got, set(&[&expected, WINDOWS, DNT]));
     let got = names(&agent_vars(parent(), true, true));
-    assert_eq!(got, set(&[&expected, WINDOWS, &["SSH_AUTH_SOCK"]]));
+    assert_eq!(got, set(&[&expected, WINDOWS, DNT, &["SSH_AUTH_SOCK"]]));
 }
 
 #[test]
 fn terminals_add_shell_vars_and_ssh_but_no_credentials() {
     let got = names(&terminal_vars(parent(), false));
-    assert_eq!(got, set(&[PLUMBING, SHELL_ONLY, &["SSH_AUTH_SOCK"]]));
+    assert_eq!(got, set(&[PLUMBING, SHELL_ONLY, DNT, &["SSH_AUTH_SOCK"]]));
     let got = names(&terminal_vars(parent(), true));
     let expected = [
         "HTTPS_PROXY",
@@ -138,7 +141,7 @@ fn terminals_add_shell_vars_and_ssh_but_no_credentials() {
     ];
     assert_eq!(
         got,
-        set(&[&expected, WINDOWS, SHELL_ONLY, &["SSH_AUTH_SOCK"]])
+        set(&[&expected, WINDOWS, SHELL_ONLY, DNT, &["SSH_AUTH_SOCK"]])
     );
 }
 
@@ -150,15 +153,26 @@ fn path_keeps_relative_entries_only_for_terminals() {
         OsString::from("PATH"),
         OsString::from("/usr/bin:bin:.:/bin"),
     )];
+    let dnt = ("DO_NOT_TRACK".into(), "1".into());
     let agent = agent_vars(parent.clone(), false, false);
-    assert_eq!(agent, vec![("PATH".into(), "/usr/bin:/bin".into())]);
-    assert_eq!(terminal_vars(parent.clone(), false), parent);
+    assert_eq!(
+        agent,
+        vec![("PATH".into(), "/usr/bin:/bin".into()), dnt.clone()]
+    );
+    assert_eq!(
+        terminal_vars(parent.clone(), false),
+        [parent, vec![dnt]].concat()
+    );
 }
 
-/// The values pass unchanged, so a var is either the user's own or absent.
+/// The values pass unchanged, so a var is either the user's own or absent (DO_NOT_TRACK is SkyeLab's, always 1).
 #[test]
 fn values_pass_unchanged() {
     for (k, v) in terminal_vars(parent(), false) {
+        if k == "DO_NOT_TRACK" {
+            assert_eq!(v, "1");
+            continue;
+        }
         assert_eq!(v, OsString::from(value(&k.to_string_lossy())));
     }
 }
