@@ -20,7 +20,8 @@ pub(crate) fn mcp_servers(grant: &Path) -> Result<Value> {
     )
 }
 
-/// Codex's `approvalPolicy` and `sandbox` for a mode. Codex has no plan mode, so Plan is a read-only sandbox.
+/// Codex's `approvalPolicy` and `sandbox` for a mode. Plan is also a read-only sandbox (its `plan` collaboration mode
+/// goes with each turn, `Codex::pump`).
 pub(crate) fn policy(mode: Mode) -> (&'static str, &'static str) {
     match mode {
         // Edits inside the folder never ask under workspace-write, so Accept edits differs only for Claude.

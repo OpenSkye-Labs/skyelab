@@ -399,3 +399,18 @@ pub(super) fn render_output<V: ItemsView>(
         })
         .into_any_element()
 }
+
+/// The first argument's value, as T3 shows it (`ls crates`, not `"command": "ls crates"`).
+pub(super) fn tool_summary(tool: &ToolItem) -> String {
+    tool.input
+        .lines()
+        .filter_map(|l| l.split_once(':').map(|(_, v)| v.trim()))
+        // A nested list or object (`"questions": [`) says nothing; its first plain value does.
+        .find(|v| !v.starts_with(['[', '{']))
+        .unwrap_or_default()
+        .trim_end_matches(',')
+        .trim_matches('"')
+        .chars()
+        .take(80)
+        .collect()
+}

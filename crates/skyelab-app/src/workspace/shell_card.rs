@@ -23,7 +23,9 @@ pub(super) fn render_bash<V: ItemsView>(
         .unwrap_or_else(|| tool.raw["command"].to_string());
     let status = exit_status(tool);
     let live = tool.result.is_some() || this.tool_live(&tool.id);
+    let waits = waits(this.items(), tool);
     let (icon, color) = match (&tool.result, &status) {
+        (None, _) if waits => (SkyeIcon::Clock, ui::ink(theme, theme.warning)),
         (None, _) if !live => (SkyeIcon::CircleAlert, theme.muted_foreground),
         (None, _) => (SkyeIcon::LoaderCircle, theme.info),
         (Some(_), Some(_)) => (SkyeIcon::CircleAlert, theme.danger),
@@ -63,12 +65,12 @@ pub(super) fn render_bash<V: ItemsView>(
             d.child(
                 div()
                     .flex_shrink_0()
-                    .text_color(if live {
-                        theme.info
-                    } else {
-                        theme.muted_foreground
-                    })
-                    .child(if live { "running" } else { "interrupted" }),
+                    .text_color(color)
+                    .child(match (waits, live) {
+                        (true, _) => "waiting for approval",
+                        (false, true) => "running",
+                        (false, false) => "interrupted",
+                    }),
             )
         })
         .child(chevron(open, cx));
@@ -105,4 +107,19 @@ pub(super) fn render_bash<V: ItemsView>(
         .child(line)
         .children(output)
         .into_any_element()
+}
+
+/// Whether call `tool` waits on an approval still open in its turn (the same input, or the same command: Codex's ask
+/// carries more fields than its call): it is drawn as waiting, not running.
+pub(super) fn waits(items: &super::thread_model::Items, tool: &ToolItem) -> bool {
+    use super::thread_model::Item;
+    tool.result.is_none()
+        && items
+            .iter()
+            .rev()
+            .take_while(|i| !matches!(i, Item::Prompt(_)))
+            .any(|i| {
+                matches!(i, Item::Approval(a) if a.decision.is_none()
+                    && (a.raw == tool.raw || (a.raw["command"].is_string() && a.raw["command"] == tool.raw["command"])))
+            })
 }

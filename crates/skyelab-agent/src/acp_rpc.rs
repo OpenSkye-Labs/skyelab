@@ -40,6 +40,19 @@ pub(crate) fn rpc_error_message(v: &Value) -> Option<String> {
     })
 }
 
+/// A prompt result's token counts (ACP's `usage`, `inputTokens` / `outputTokens`), or `None` when the agent reports
+/// none (Antigravity's is null), so the turn divider leaves tokens out rather than saying 0.
+pub(crate) fn usage_of(usage: &Value) -> Option<crate::Usage> {
+    let (input, output) = (
+        usage["inputTokens"].as_u64(),
+        usage["outputTokens"].as_u64(),
+    );
+    (input.is_some() || output.is_some()).then(|| crate::Usage {
+        input: input.unwrap_or(0),
+        output: output.unwrap_or(0),
+    })
+}
+
 pub(crate) fn is_auth_required_error(code: i64, msg: &str) -> bool {
     let lower = msg.to_ascii_lowercase();
     code == -32000

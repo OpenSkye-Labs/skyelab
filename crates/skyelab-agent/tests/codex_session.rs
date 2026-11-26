@@ -3,7 +3,7 @@
 #![cfg(unix)]
 
 use serde_json::Value;
-use skyelab_agent::{Block, DeltaKind, Event, Launch, Session, Usage, start_with_bin};
+use skyelab_agent::{Block, Decision, DeltaKind, Event, Launch, Session, Usage, start_with_bin};
 use skyelab_core::{Account, AccountsConfig, Binding, Provider};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -400,5 +400,52 @@ fn stop_ends_a_command_codex_leaves_running_but_not_what_it_started_before() {
         None,
         "the agent stays up"
     );
+    session.kill().expect("kill");
+}
+
+#[test]
+fn killing_the_agent_ends_a_command_in_its_own_session() {
+    let f = bound();
+    let mut session = start(&f, None, "hang longcmd", None).expect("start");
+    let command = pid_in(&f.dir.join(".fake-cmd-pid"));
+    assert!(alive(&command), "the command runs");
+    session.kill().expect("kill");
+    let mut waited = Duration::ZERO;
+    while alive(&command) && waited < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(100));
+        waited += Duration::from_millis(100);
+    }
+    assert!(!alive(&command), "killing the agent ended its command");
+}
+
+/// Codex's proposed plan is a plan card no request waits on: settling it reports the decision and sends codex nothing.
+#[test]
+fn a_proposed_plan_is_a_card_settled_without_a_request() {
+    let f = bound();
+    let mut session = start(&f, None, "proposeplan", None).expect("start");
+    let rx = session.events().clone();
+    let mut reports = Vec::new();
+    let events = turn(&rx, &mut reports);
+    let id = events
+        .iter()
+        .find_map(|e| match e {
+            Event::Permission { id, tool, input } if tool == skyelab_agent::PLAN_TOOL => {
+                assert_eq!(input["plan"], "1. Add subtract\n2. Test it");
+                Some(id.clone())
+            }
+            _ => None,
+        })
+        .expect("a plan card");
+    assert!(
+        session.answer(&id, Decision::AllowOnce).is_err(),
+        "no request waits on it"
+    );
+    session
+        .settle_plan_review(&id, Decision::AllowOnce)
+        .expect("settled");
+    assert!(matches!(
+        next(&rx),
+        Event::PermissionResolved { id: r, decision: Decision::AllowOnce, .. } if r == id
+    ));
     session.kill().expect("kill");
 }

@@ -46,7 +46,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`,
   `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `chart` calls `html_render` with a small bar chart (a visual reply card; `chart cdn` adds a script from a host off the allowlist, so the card offers Allow) and `peek` calls `html_preview` on it; `delegate <project id> hold` starts a child that keeps working,
   `usage` reports two usage windows for the thread details card and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
-  `make deploy` and waits for the answer (`permit write` asks a 2,000-line Write, `permit edit` an Edit, `permit multi` a MultiEdit), `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
+  `make deploy` and waits for the answer (`permit tool` streams the Bash call first, `permit write` asks a 2,000-line Write, `permit edit` an Edit, `permit multi` a MultiEdit), `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
   a `.fake-hold-init` file in the folder holds its start until removed and a `.fake-start-hook` file runs a SessionStart hook before init, held until `.fake-hook-done` exists (the startup step and hook lines), `context` ends a turn at 85% of its context window (170k of 200k), `auth login` prints its config dir, writes `fake-login` (`fake@example.com`) there and exits 0 (the Log in terminal),
 `auth status` answers Claude Code's JSON, signed in as `fake-login`'s content while the account dir has that file, else `loggedIn: false` (the account cards' sign-in),
   `table` replies with a markdown table, `mermaid` replies with a mermaid diagram, a mermaid block that doesn't parse and a plain code block,
@@ -56,7 +56,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `{name, status}` in the account dir goes into its init line as `mcp_servers` (the details card's MCP servers), and a `fake-claudeai-status.json` list there (`"source":"claudeai"` entries) is added only to a launch without `--strict-mcp-config` and without `ENABLE_CLAUDEAI_MCP_SERVERS=false` (claude.ai connectors; `fake_env` reports `strict`, `claudeai_env` and `argv`), `mcp login -- <name>` writes the name and its folder to `fake-mcp-login` in the account dir and exits 0 (the card's Sign in), it prints
   the `--mcp-config` file it got as a `fake_mcp` line, and one starting `crash` writes
   to stderr and exits 3), Codex with
-  `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (`login status`/`login`, `usage`, `hook` held until `.fake-hook-done`, `approve2`, `.fake-session-gone`, `fake-mcp-status`, `mcp login`), Cursor with
+  `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (`login status`/`login`, `usage`, `proposeplan` (a proposed plan), `hook` held until `.fake-hook-done`, `approve2`, `.fake-session-gone`, `fake-mcp-status`, `mcp login`), Cursor with
   `SKYELAB_CURSOR_BIN=crates/skyelab-agent/tests/fixtures/fake-cursor.sh` (see [docs/cursor.md](docs/cursor.md)), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in
   when the account's GitHub dir has a `fake-login` file; PR status also needs a `hosts.yml` there listing `github.com:`,

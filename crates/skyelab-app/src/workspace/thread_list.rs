@@ -80,6 +80,13 @@ impl Workspace {
                 .or_else(|| previews.branches.get(&t.project_id).cloned())
                 .map(SharedString::from);
             let account = self.project_accounts.get(&t.project_id);
+            // The account the thread runs on (its session lives there), which a rebind since doesn't change.
+            let own = self
+                .config
+                .accounts
+                .iter()
+                .find(|a| a.id == t.account_id)
+                .map(|a| RowAccount::Bound(a.clone()));
             let card = RowCard {
                 title: t.title.clone().into(),
                 project: projects
@@ -96,13 +103,7 @@ impl Workspace {
                     .map(|w| crate::ui::short_path(w, home.as_deref()).into()),
                 branch: branch.clone(),
                 pr_url: t.pr_url.clone().map(Into::into),
-                // The account the thread runs on, which a rebind since its start doesn't change.
-                account: self
-                    .config
-                    .accounts
-                    .iter()
-                    .find(|a| a.id == t.account_id)
-                    .map(|a| RowAccount::Bound(a.clone())),
+                account: own.clone(),
                 binding: match account {
                     Some(Some(a)) if a.id != t.account_id => {
                         Some(format!("Folder now bound to {}", a.label).into())
@@ -156,10 +157,11 @@ impl Workspace {
                 action: Box::new(OpenThread { id: t.id }),
                 status: Some(state.status),
                 updated_ms: Some(t.updated_at),
-                account: Some(match account {
-                    Some(Some(a)) => RowAccount::Bound(a.clone()),
-                    Some(None) => RowAccount::Unbound,
-                    None => RowAccount::Hidden,
+                account: Some(match (account, own) {
+                    (None, _) => RowAccount::Hidden,
+                    (_, Some(a)) => a,
+                    (Some(Some(a)), None) => RowAccount::Bound(a.clone()),
+                    (Some(None), None) => RowAccount::Unbound,
                 }),
                 // Empty under a one-project filter: the row's meta line leaves it out.
                 project: Some(

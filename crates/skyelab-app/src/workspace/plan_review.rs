@@ -33,44 +33,37 @@ impl ThreadView {
     }
 
     /// Approve: the agent leaves Plan (on its stdin ahead of the follow-up, so it carries on in Ask), the card settles
-    /// and [`APPROVED`] is sent. Keep planning settles it and hands the composer back.
+    /// and [`APPROVED`] is sent. Keep planning settles it. From a click here or another device; `Err` says why not.
     pub(in crate::workspace) fn answer_review_plan(
         &mut self,
         id: &str,
         approve: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Result<(), String> {
         if approve && self.is_side_chat() {
-            let why = crate::workspace::side_chat::PLAN_ONLY;
-            return self.show_error(anyhow::anyhow!(why), cx);
+            return Err(crate::workspace::side_chat::PLAN_ONLY.into());
         }
-        let session = match self.answer_session(cx) {
-            Ok(s) => s,
-            Err(why) => return self.show_error(anyhow::anyhow!(why), cx),
-        };
+        let session = self.answer_session(cx)?;
         let decision = if approve {
             Decision::AllowOnce
         } else {
             Decision::Deny
         };
-        let settled = lock(&session).and_then(|mut s| {
-            if approve && self.mode == Mode::Plan {
-                s.set_mode(Mode::Default)?;
-            }
-            s.settle_plan_review(id, decision)
-        });
-        if let Err(e) = settled {
-            return self.show_error(e, cx);
-        }
+        lock(&session)
+            .and_then(|mut s| {
+                if approve && self.mode == Mode::Plan {
+                    s.set_mode(Mode::Default)?;
+                }
+                s.settle_plan_review(id, decision)
+            })
+            .map_err(|e| format!("{e:#}"))?;
         if !approve {
-            return self.focus_prompt(window, cx);
+            return Ok(());
         }
         if self.mode == Mode::Plan {
             self.set_mode(Mode::Default, cx);
         }
-        if let Err(why) = self.submit_remote(APPROVED, window, cx) {
-            self.show_error(anyhow::anyhow!(why), cx);
-        }
+        self.submit_remote(APPROVED, window, cx)
     }
 }

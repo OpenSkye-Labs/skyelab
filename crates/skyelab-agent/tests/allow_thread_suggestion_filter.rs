@@ -96,3 +96,17 @@ fn allow_thread_without_suggestions_is_scoped_to_the_command() {
         "TOOL_WIDE_RULE"
     );
 }
+
+/// The button says "this exact command", so a wider rule Claude suggests for a command (`npm run:*`) isn't taken.
+#[test]
+fn allow_thread_on_a_command_allows_only_that_command() {
+    let rules = rules_sent(
+        r#"{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"npm run test"},"permission_suggestions":[{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"npm run:*"}],"behavior":"allow","destination":"localSettings"}]}}"#,
+    );
+    assert_eq!(
+        rules,
+        [
+            json!({"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"npm run test"}],"behavior":"allow","destination":"session"})
+        ],
+    );
+}

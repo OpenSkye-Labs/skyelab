@@ -8,13 +8,14 @@
 # A folder with a .fake-codex-refuse-open file gets its thread/start refused after a 1 s pause.
 # A folder with a .fake-session-gone file has no rollouts: thread/resume is refused as real codex refuses it.
 # A prompt containing "hang" starts a turn that only an interrupt ends ("hang longcmd" also starts `sleep 40` as a
-# running command item, pid in .fake-cmd-pid, which the interrupt leaves running as real codex can; a .fake-helper
+# running command item in its own session, pid in .fake-cmd-pid, which the interrupt leaves running as real codex can; a .fake-helper
 # file makes thread/start first start a `sleep 60` helper, pid in .fake-helper-pid, like an MCP server); "approve" first asks for an approval;
 # "approve2" asks for `cargo test --lib` and then `cargo test --doc` (in the folder), reading an answer after each;
 # one starting "usage" first reports rate limits (5h at 47%, weekly at 83%); one starting "hook" first starts a
 # sessionStart hook ("Reporting status to Orca") and holds it until the folder has a .fake-hook-done file.
 # With a fake-mcp-status file in CODEX_HOME, thread/start/resume first reports its lines as MCP startup statuses
 # (`name status [error...]`, like `docs failed no such command`).
+# One starting "proposeplan" first ends on a proposed plan (a `plan` item), as Codex's Plan does.
 # model/list lists one model (gpt-fake, low/medium/high); turn/steer is accepted.
 # `login status` says "Logged in using ChatGPT" (exit 0) while CODEX_HOME has a fake-login file, else "Not logged in"
 # (exit 1), on stderr like codex; `login` writes that file. `mcp login -- <name>` writes the name and its folder to
@@ -100,7 +101,8 @@ while IFS= read -r line; do
           case "$line" in *longcmd*)
             sleep 2.5 # over a second after anything started with the thread (start times can read 1 s early)
             printf '{"method":"item/started","params":{"threadId":"thr_fake","turnId":"turn_hang","item":{"type":"commandExecution","id":"item_cmd","command":"sleep 40","cwd":"%s","status":"inProgress"}}}\n' "$(pwd -P)"
-            sleep 40 >/dev/null 2>&1 &
+            # in a session of its own, as codex runs its commands: the agent's process group doesn't hold it
+            perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' sleep 40 >/dev/null 2>&1 &
             echo $! > .fake-cmd-pid ;;
           esac ;;
         *)
@@ -122,6 +124,8 @@ while IFS= read -r line; do
               n=0
               while [ ! -f .fake-hook-done ] && [ $n -lt 1200 ]; do sleep 0.1; n=$((n + 1)); done
               printf '{"method":"hook/completed","params":{"threadId":"thr_fake","turnId":"turn_fake","run":{"id":"session-start:0:fake-hooks.json","eventName":"sessionStart","handlerType":"command","executionMode":"sync","scope":"thread","source":"user","status":"completed","statusMessage":"Reporting status to Orca","completedAt":1}}}\n' ;;
+            *'"text":"proposeplan'*)
+              printf '{"method":"item/completed","params":{"threadId":"thr_fake","turnId":"turn_fake","item":{"type":"plan","id":"item_plan","text":"1. Add subtract\\n2. Test it"}}}\n' ;;
             *'"text":"usage'*)
               now=$(date +%s)
               printf '{"method":"account/rateLimits/updated","params":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":47,"windowDurationMins":300,"resetsAt":%s},"secondary":{"usedPercent":83,"windowDurationMins":10080,"resetsAt":%s},"rateLimitReachedType":null}}}\n' "$((now + 7200))" "$((now + 300000))" ;;

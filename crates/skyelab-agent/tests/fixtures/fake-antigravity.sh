@@ -120,6 +120,11 @@ while IFS= read -r line; do
           printf '{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Implementing the plan."}}}}\n' "$sess"
           printf '{"jsonrpc":"2.0","id":%s,"result":{"stopReason":"end_turn"}}\n' "$id"
           ;;
+        *slow_turn*)
+          # agy's real result: a stop reason, no duration and a null usage.
+          sleep 0.3
+          printf '{"jsonrpc":"2.0","id":%s,"result":{"stopReason":"end_turn","usage":null}}\n' "$id"
+          ;;
         *huge_plan*)
           entries=$(awk 'BEGIN{printf "["; for(i=1;i<=300;i++){if(i>1)printf ","; printf "{\"content\":\"Step %d\",\"status\":\"pending\"}", i}; printf "]"}')
           printf '{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"plan","entries":%s}}}\n' "$sess" "$entries"

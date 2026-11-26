@@ -34,10 +34,12 @@ impl Session {
         Ok(())
     }
 
-    /// Settles plan card `id` that no request waits on (a plan Antigravity wrote for review and ended its turn on):
-    /// reports the decision and sends the agent nothing; the follow-up message is the caller's to send.
+    /// Settles plan card `id` that no request waits on (a plan Antigravity wrote for review, or Codex proposed, ending
+    /// its turn on): reports the decision and sends the agent nothing; the follow-up message is the caller's to send.
     pub fn settle_plan_review(&mut self, id: &str, decision: Decision) -> Result<()> {
-        if self.acp.is_none() || !id.contains("acp-plan-") || decision == Decision::Withdrawn {
+        let review = (self.acp.is_some() && id.contains("acp-plan-"))
+            || (self.codex.is_some() && id.contains("codex-plan-"));
+        if !review || decision == Decision::Withdrawn {
             bail!("that isn't a plan waiting for review");
         }
         self.report(id, decision, None);
