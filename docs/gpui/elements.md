@@ -57,7 +57,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - GPUI checks a shown (or late-showing) tooltip against its trigger's bounds, not whether something now covers it, so
   the tooltip of the button that opened a dialog stayed drawn over the dialog. `ui::open_dialog` records the opening
   (`tooltip::dialog_opened`), and a `ui::Tooltip` built before it, or at the pointer that opened it, draws nothing
-  while the dialog is up. Open every dialog through `ui::open_dialog`.
+  while the dialog is up. Open every dialog through `ui::open_dialog`. Our own modal (Settings)
+  calls `tooltip::modal_shown` as it opens and closes.
 - A `PopupMenu` centers a left check on a multi-line item (an icon, a name and a description), so it sits beside
   the description; use `.check_side(Side::Right)`.
 - A `ThemeConfig` with no `highlight` keeps the code colors applied before it (gpui-component starts with its light

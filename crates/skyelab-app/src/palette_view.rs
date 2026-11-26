@@ -9,8 +9,10 @@ use gpui::{
 };
 #[path = "palette_rows.rs"]
 mod rows;
-use rows::{back_row, footer, row};
+use rows::{back_row, footer, row, search_field};
 
+use gpui::Subscription;
+use gpui_component::input::{InputEvent, InputState};
 use gpui_component::{
     ActiveTheme as _, IndexPath, WindowExt as _,
     command::{Command, CommandGroup, CommandItem, CommandState},
@@ -70,6 +72,8 @@ impl Page {
 
 struct Palette {
     state: Entity<CommandState>,
+    /// The search field: ours, at T3's large size (the Command's own field is a fixed medium one).
+    field: Entity<InputState>,
     /// The root's entries: top-level, then submenu items from `nested`, then the last search's from `fixed`.
     entries: Vec<Entry>,
     nested: usize,
@@ -83,6 +87,7 @@ struct Palette {
     prev: FocusHandle,
     search: Option<Search>,
     _search: Option<Task<()>>,
+    _field: Option<Subscription>,
 }
 
 /// Opens the palette over `entries`; `search` adds more for each query.
@@ -123,9 +128,23 @@ fn open_with(
     let nested = entries.len();
     let entries = flatten(entries);
     let state = cx.new(|cx| CommandState::new(window, cx));
+    let field = cx.new(|cx| InputState::new(window, cx));
     let palette = cx.new(|cx| {
+        // Typing in our field drives the palette and keeps the Command's query (its Escape and empty state) in step.
+        let sub = cx.subscribe_in(
+            &field,
+            window,
+            |p: &mut Palette, field, e: &InputEvent, window, cx| {
+                if matches!(e, InputEvent::Change) {
+                    let query = field.read(cx).value();
+                    p.set_query(&query, cx);
+                    p.state.update(cx, |s, cx| s.set_query(query, window, cx));
+                }
+            },
+        );
         let mut p = Palette {
             state: state.clone(),
+            field: field.clone(),
             nested,
             fixed: entries.len(),
             entries,
@@ -136,6 +155,7 @@ fn open_with(
             prev,
             search,
             _search: None,
+            _field: Some(sub),
         };
         p.arrange();
         p.find_more(cx);
@@ -143,8 +163,9 @@ fn open_with(
     });
     #[cfg(all(test, unix))]
     cx.set_global(OpenPalette(palette.downgrade()));
+    let shown = palette.clone();
     crate::ui::open_dialog(window, cx, move |dialog, _, _| {
-        let palette = palette.clone();
+        let palette = shown.clone();
         // T3's card: max-w-xl, rounded-2xl, the list and footer reaching its edges.
         // Rex's palette opens and closes in one frame.
         dialog
@@ -156,7 +177,26 @@ fn open_with(
             .close_button(false)
             .content(move |content, _, _| content.p_0().child(palette.clone()))
     });
-    state.update(cx, |state, cx| state.focus(window, cx));
+    sync_field(&palette, "".into(), window, cx);
+    field.update(cx, |f, cx| f.focus(window, cx));
+}
+
+/// Our field shows `query` (set without a change event) and the shown page's hint.
+fn sync_field(palette: &Entity<Palette>, query: SharedString, window: &mut Window, cx: &mut App) {
+    let (field, hint) = {
+        let p = palette.read(cx);
+        let hint = match &p.page {
+            Some(page) => page.placeholder.clone().unwrap_or_else(|| "Search…".into()),
+            None => PLACEHOLDER.into(),
+        };
+        (p.field.clone(), hint)
+    };
+    field.update(cx, |f, cx| {
+        f.set_placeholder(hint, window, cx);
+        if f.value() != query {
+            f.set_value(query, window, cx);
+        }
+    });
 }
 
 impl Palette {
@@ -339,9 +379,10 @@ fn set_field(palette: &Entity<Palette>, query: SharedString, window: &mut Window
         p.state.clone()
     });
     state.update(cx, |s, cx| {
-        s.set_query(query, window, cx);
+        s.set_query(query.clone(), window, cx);
         s.set_selected_index(Some(IndexPath::default()), window, cx);
     });
+    sync_field(palette, query, window, cx);
 }
 
 /// Tab: the highlighted row's folder into the field.
@@ -368,6 +409,7 @@ fn show_page(palette: &Entity<Palette>, page: Option<Page>, window: &mut Window,
         s.set_query("", window, cx);
         s.set_selected_index(Some(IndexPath::default()), window, cx);
     });
+    sync_field(palette, "".into(), window, cx);
 }
 
 /// Escape, Backspace on an empty query and the Back row: a page goes back to the root; the root (or a page opened
@@ -427,18 +469,15 @@ impl Render for Palette {
             .collect();
         let this = cx.entity().downgrade();
         let paged = self.page.as_ref().map(|p| p.title.clone());
-        let placeholder = self
-            .page
-            .as_ref()
-            .map(|p| p.placeholder.clone().unwrap_or_else(|| "Search…".into()));
         let completes = self.page.as_ref().is_some_and(|p| p.search.is_some());
         let stacked = !self.stack.is_empty();
         let mut command = Command::new(&self.state)
             .filterable(false)
+            // Our own field in the header instead (T3's large search field); it drives the query.
+            .searchable(false)
             .bordered(false)
             .bg(gpui::transparent_black())
             .max_h(px(420.))
-            .placeholder(placeholder.unwrap_or_else(|| PLACEHOLDER.into()))
             .empty(|_, _, cx| {
                 div()
                     .py_10()
@@ -453,21 +492,20 @@ impl Render for Palette {
                 let back = paged.is_some() && (stacked || !self.entries.is_empty());
                 move |_, _, cx| footer(back, completes, cx)
             })
-            .on_query({
-                let this = this.clone();
-                move |query, _, cx| {
-                    // A confirm deferred after this query must index the rows it ranks, before any redraw.
-                    _ = this.update(cx, |p, cx| p.set_query(query, cx));
-                }
-            })
             .on_confirm({
                 let this = this.clone();
                 move |ix, window, cx| choose(&this, ix, window, cx)
             });
-        if let Some(title) = paged {
+        let field = self.field.clone();
+        command = command.header({
             let this = this.clone();
-            command = command.header(move |_, _, cx| back_row(title.clone(), this.clone(), cx));
-        }
+            move |_, _, cx| {
+                gpui_component::v_flex()
+                    .children(paged.clone().map(|t| back_row(t, this.clone(), cx)))
+                    .child(search_field(&field, cx))
+                    .into_any_element()
+            }
+        });
         for group in groups {
             command = command.group(group);
         }

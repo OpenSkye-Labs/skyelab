@@ -53,6 +53,8 @@ pub struct BrowserView {
     #[cfg(target_os = "macos")]
     _failures: Option<skyelab_webkit_sys::FailureWatch>,
     _failed: Task<()>,
+    /// The local-port check of the load in flight (see [`Self::load`]).
+    _probe: Task<()>,
     focus: FocusHandle,
     zoom: f64,
     /// The host shows the pane ([`Self::set_visible`]); the page is also hidden while the ⋯ menu is open.
@@ -198,6 +200,7 @@ impl BrowserView {
             agent_page: false,
             find: None,
             _find_task: Task::ready(()),
+            _probe: Task::ready(()),
             _data_dir: None,
             _subscription: subscription,
             _sync_url_bar: sync_url_bar,
@@ -238,13 +241,32 @@ impl BrowserView {
         }
         // Nothing listening on a local port: say so on every OS, rather than a blank page (macOS) or the engine's own
         // error page (Linux, Windows).
+        // The connect blocks (up to 3 s an address on Windows), so it runs in the background and the load follows it.
         if self.probe_local
-            && let Some(refused) = crate::load_error::refused_local(url)
+            && let Some(addrs) = crate::load_error::local_addrs(url)
         {
-            self.error = None;
-            self.load_failed(Some(refused), cx);
+            let url = url.clone();
+            let probe = {
+                let url = url.clone();
+                cx.background_spawn(async move { crate::load_error::refused_at(&addrs, &url) })
+            };
+            // A newer load replaces this task, which drops (cancels) this one's follow-up.
+            self._probe = cx.spawn(async move |this, cx| {
+                let refused = probe.await;
+                let _ = this.update(cx, |this, cx| {
+                    this.error = None;
+                    match refused {
+                        Some(refused) => this.load_failed(Some(refused), cx),
+                        None => {
+                            let loaded = this.engine().and_then(|e| e.load(url.as_str(), cx));
+                            this.report(loaded, cx);
+                        }
+                    }
+                });
+            });
             return Ok(());
         }
+        self._probe = Task::ready(());
         self.engine()?.load(url.as_str(), cx)?;
         self.error = None;
         cx.notify();
@@ -273,6 +295,7 @@ impl BrowserView {
 
     /// Hides and drops the native webview, for when the pane closes.
     pub fn close(&mut self, cx: &mut Context<Self>) {
+        self._probe = Task::ready(()); // a pending local-port check never loads into a closed pane
         self.set_visible(false, cx);
         self.webview = None;
         self.engine = None;
@@ -286,6 +309,7 @@ impl BrowserView {
     }
 
     fn back(&mut self, cx: &mut Context<Self>) {
+        self._probe = Task::ready(()); // the user moved on: a pending local-port check must not load over it
         if self.dismiss_load_error(cx) {
             return;
         }
@@ -296,6 +320,7 @@ impl BrowserView {
     }
 
     fn forward(&mut self, cx: &mut Context<Self>) {
+        self._probe = Task::ready(()); // the user moved on: a pending local-port check must not load over it
         if self.load_error.is_some() {
             return; // the history is the page underneath's: forward from it isn't forward from here
         }
@@ -308,6 +333,7 @@ impl BrowserView {
     /// Reloads the page, which also ends every script running in it.
     /// On the error page: loads the failed address again ([`Self::retry`]).
     pub fn reload(&mut self, cx: &mut Context<Self>) {
+        self._probe = Task::ready(()); // the user moved on: a pending local-port check must not load over it
         if self.load_error.is_some() {
             return self.retry(cx);
         }

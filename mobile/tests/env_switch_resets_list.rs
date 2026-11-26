@@ -21,6 +21,7 @@ impl ThreadSource for Src {
             id: 1,
             name: "app".into(),
             path: "/src/app".into(),
+            created_at: 0,
         }]
     }
     fn threads(&self) -> Vec<Thread> {
@@ -37,6 +38,7 @@ impl ThreadSource for Src {
             snoozed_until: None,
             created_at: 0,
             updated_at: 0,
+            row: Default::default(),
         }]
     }
     fn events(&self, id: i64) -> &[ThreadEvent] {

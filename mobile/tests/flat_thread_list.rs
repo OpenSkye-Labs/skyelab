@@ -23,6 +23,7 @@ fn thread(id: i64, status: &str, pinned: bool, updated_at: i64) -> Thread {
         snoozed_until: None,
         created_at: 0,
         updated_at,
+        row: Default::default(),
     }
 }
 
@@ -66,6 +67,7 @@ fn a_row_says_project_status_account_and_preview() {
         id: 1,
         name: "skyelab".into(),
         path: "/x".into(),
+        created_at: 0,
     };
     let detail = row_detail(&thread(1, "idle", false, 0), Some(&project));
     assert_eq!(detail, "skyelab · Work · idle\nDone The tests pass.");

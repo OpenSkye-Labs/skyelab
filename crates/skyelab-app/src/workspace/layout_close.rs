@@ -29,6 +29,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.unzoom(window, cx) {
+            return;
+        }
         if self.dock.read(cx).is_dock_open(DockPlacement::Right) {
             self.toggle(DockPlacement::Right, window, cx);
             self.focus.focus(window, cx);

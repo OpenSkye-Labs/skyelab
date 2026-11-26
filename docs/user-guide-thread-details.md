@@ -20,7 +20,7 @@ bound account.
     when the branch has no upstream yet, and when the branch has commits the upstream doesn't (merge or rebase by hand). Each runs in the
     Changes tab with the same checks as its buttons there: the folder must still be bound to the thread's account,
     and Push and Open PR need that account's GitHub login. Commit and Open PR use the message and title typed in
-    Changes; with none typed, the field is focused and nothing runs.
+    Changes (its **Pull request…** button shows the title field); with none typed, the field is focused and nothing runs.
   - **Changes vs <base>** shows the lines added and removed since the worktree's base commit, or since `HEAD`
     (untracked files aren't counted), and opens Changes.
   - A worktree thread also has **Open terminal here** and **Discard worktree** (see **Worktrees**).

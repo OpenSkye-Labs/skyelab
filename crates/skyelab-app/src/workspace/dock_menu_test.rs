@@ -38,3 +38,29 @@ fn the_devices_tab_zooms(cx: &mut gpui::TestAppContext) {
     cx.run_until_parked();
     assert!(zoomed(&ws, cx), "Zoom In works on the Devices tab");
 }
+
+#[gpui::test]
+fn escape_puts_an_expanded_dock_back_before_hiding_it(cx: &mut gpui::TestAppContext) {
+    use gpui_component::dock::DockPlacement;
+    let (ws, panel, cx) = open(cx, Arc::<Fake>::default());
+    panel.update_in(cx, |p, window, cx| p.focus_handle(cx).focus(window, cx));
+    cx.run_until_parked();
+    cx.dispatch_action(ToggleZoom);
+    cx.run_until_parked();
+    assert!(zoomed(&ws, cx), "precondition: expanded");
+    // The picker's and the workspace's Esc both land here.
+    ws.update_in(cx, |ws, window, cx| {
+        ws.hide_right(&super::layout::HideRightPanel, window, cx)
+    });
+    cx.run_until_parked();
+    assert!(!zoomed(&ws, cx), "Esc restores the expanded panel");
+    let open = ws.read_with(cx, |ws, cx| ws.dock.read(cx).is_dock_open(DockPlacement::Right));
+    assert!(open, "and leaves it open: a second Esc hides it");
+    cx.dispatch_action(ToggleZoom);
+    cx.run_until_parked();
+    ws.update_in(cx, |ws, window, cx| {
+        ws.focus_composer(&super::focus_areas::FocusComposer, window, cx)
+    });
+    cx.run_until_parked();
+    assert!(!zoomed(&ws, cx), "the workspace's Esc restores it too");
+}

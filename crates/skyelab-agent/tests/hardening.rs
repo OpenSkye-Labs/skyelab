@@ -124,9 +124,11 @@ fn env_allowlist_in_child() {
         "LC_ALL",
         "CLAUDE_CONFIG_DIR",
         "GIT_TERMINAL_PROMPT",
+        "DO_NOT_TRACK",
     ]
     .into();
     assert_eq!(keys, want);
+    assert_eq!(env["do_not_track"], "1"); // the parent's 0 never wins
     assert_eq!(env["config_dir"], acct.to_str().expect("utf-8"));
 }
 
@@ -153,6 +155,7 @@ fn env_allowlist() {
             ("ANTHROPIC_BASE_URL", "http://evil.invalid"),
             ("CLAUDE_CODE_USE_BEDROCK", "1"),
             ("CLAUDE_CODE_USE_VERTEX", "1"),
+            ("DO_NOT_TRACK", "0"),
         ],
     );
 }

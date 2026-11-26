@@ -59,4 +59,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. The browser tab is `sk
   A tab with no address draws **No page yet** in GPUI and keeps the native view hidden until a load is asked: ⌥⌘B's
   empty tab read as a dead `localhost:3000` because that is the bar's placeholder. That also runs the local-port check (`load_error::refused_local`), which
   shows **Nothing is running at …** before the engine is asked, so Linux and Windows get it too instead of their
-  engine's own page.
+  engine's own page. The check runs in the background with a 3 s limit per address: Windows retries the SYN
+  to a closed loopback port for ~2 s before refusing (a 250 ms limit read as a timeout there), and every navigation
+  (a load, Back, Forward, Reload, closing) drops a pending check so it never loads over what the user did next.

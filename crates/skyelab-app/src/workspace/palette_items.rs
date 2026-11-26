@@ -120,8 +120,10 @@ impl Workspace {
             let mut entry =
                 dispatch(palette::humanize(name), Kind::Action(name), action).binding(binding);
             // A toggle shows where it stands now, as T3's toggle rows do.
-            if name == "skyelab::ToggleSharing" {
-                entry.checked = self.sharing_enabled(cx);
+            match name {
+                "skyelab::ToggleSharing" => entry.checked = self.sharing_enabled(cx),
+                "skyelab::ToggleArchivedThreads" => entry.checked = Some(self.show_archived),
+                _ => {}
             }
             // T3's "New thread in **project**".
             if let (Some(p), "skyelab::NewThread") = (&self.project, name) {

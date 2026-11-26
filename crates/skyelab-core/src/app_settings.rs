@@ -192,7 +192,7 @@ impl Default for ScheduledSettings {
 }
 
 /// How the Changes tab draws a diff (T3's diff layout, word wrap and whitespace settings).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DiffSettings {
     /// Old and new side by side; off is one unified column.
@@ -201,6 +201,17 @@ pub struct DiffSettings {
     pub wrap: bool,
     /// Whitespace-only changes are hidden (`git diff -w`).
     pub ignore_whitespace: bool,
+}
+
+/// T3's defaults: unified, long lines wrapped (its `wordWrap` starts on), whitespace shown.
+impl Default for DiffSettings {
+    fn default() -> Self {
+        Self {
+            split: false,
+            wrap: true,
+            ignore_whitespace: false,
+        }
+    }
 }
 
 /// The defaults a new thread starts with. A thread's own pick (and a project's remembered model) still wins.

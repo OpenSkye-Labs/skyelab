@@ -3,7 +3,7 @@
 use skyelab_client::Client;
 use skyelab_protocol::{PermissionAnswer, Project, Thread, ThreadEvent};
 
-use crate::{EnvironmentId, Error, Source};
+use crate::{EnvironmentId, Error, ShellFeed, Source};
 
 pub struct RemoteSource(Client);
 
@@ -69,5 +69,8 @@ impl Source for RemoteSource {
         self.0
             .shelve_thread(thread_id, settled, snoozed_until)
             .recv()
+    }
+    fn subscribe_shell(&self) -> Result<ShellFeed, Error> {
+        self.0.subscribe_shell().recv()
     }
 }

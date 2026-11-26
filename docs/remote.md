@@ -138,10 +138,10 @@ machine, your own online tailnet devices (same ownership rule as the gate: your 
 recent ones. Settings → Machines lists the same machines with Connect / Disconnect / Forget and takes a MagicDNS name
 typed by hand. Recents are saved as `recent_environments` in `settings.toml`; Forget removes one there and leaves its
 trusted node in `environment_nodes`.
-On a remote machine the sidebar comes from its daemon through `skyelab-client`: every project's threads
-(`list_threads` per project, listed again a second after pushed events) in the local flat list's sections, with each
-thread's pin and last reply (1.4: `Thread.pinned`, `Thread.preview`, the reply's first 400 chars; absent from an older
-server), then its projects. Opening a thread watches its events (the client fills gaps and replays after reconnects) into a remote thread page that draws
+On a remote machine the sidebar comes from its daemon through `skyelab-client`, in the local flat list's sections,
+with each thread's pin and last reply (1.4: `Thread.pinned`, `Thread.preview`, the reply's first 400 chars), then its
+projects. **The shell stream (1.7)** keeps it current without polling: see [remote-shell.md](remote-shell.md).
+Opening a thread watches its events (the client fills gaps and replays after reconnects) into a remote thread page that draws
 items with the same renderer as a local thread. Send starts a thread or sends a follow-up there; Stop interrupts it.
 The status bar and the thread header say which machine you are on and its connection state (connecting, connected,
 reconnecting, version mismatch, "that machine didn't accept this device" when its whois refuses you, or
@@ -158,7 +158,8 @@ what the switcher can there. Rows are built by the switcher's `remote_row`, plus
 meta line, and open a `RemoteThreadView` on that machine's env as the page, without switching (`is_remote()` stays
 false, so local-only actions still see this machine). Linking is a command palette toggle (`ToggleLinkedEnvironment`) over the
 recents and linked names. A refused or untrusted connection closes that machine's pages; a machine not connected
-shows one short "Linked machines" row whose hover card holds the full state (it doesn't switch). Its listings rebuild the sidebar only when a hash
+shows one short "Linked machines" row whose hover card holds the full state (it doesn't switch). Its rows follow the
+machine's shell stream, so a thread started, renamed, settled or finished there shows here at once. Its listings rebuild the sidebar only when a hash
 of everything its rows draw changed; a "Done" mark is kept in memory for a thread that stopped working unseen.
 
 **A name that moves.** In a shared tailnet a device name can be reused by another node. So the desktop client checks

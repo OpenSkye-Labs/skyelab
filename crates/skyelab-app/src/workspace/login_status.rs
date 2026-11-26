@@ -43,7 +43,7 @@ impl Status {
             Some(Self::SignedIn(None)) => ("Signed in".into(), ink(theme.success), None),
             Some(Self::SignedOut) => ("Not signed in".into(), ink(theme.warning), None),
             Some(Self::Unknown(e)) => (
-                "Sign-in unknown".into(),
+                "Couldn't check sign-in".into(),
                 theme.muted_foreground,
                 Some(e.clone().into()),
             ),

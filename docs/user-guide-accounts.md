@@ -63,7 +63,8 @@ launch), they appear without moving.
 
 Each account card says whether that account is signed in: **Signed in as you@example.com**, **Not signed in** (and
 **Log in** turns blue), **claude not found** (or codex, cursor-agent) when the CLI isn't on the PATH SkyeLab searched
-(hover it for that PATH), or **Sign-in unknown** when the CLI couldn't answer (hover it for why). Opened from the Dock,
+(hover it for that PATH), or **Couldn't check sign-in** when the CLI couldn't answer (hover it for why). On a signed-in card the button reads **Log in again**: it signs
+the account in afresh, for example as another user. Opened from the Dock,
 Finder or a desktop launcher, SkyeLab reads PATH and a few setup variables from your login shell at startup (as a
 terminal would), so CLIs in `~/.local/bin`, Homebrew or npm folders are found. SkyeLab asks the
 account's own CLI with only that account's folder (`claude auth status`, `codex login status`, `cursor-agent status`, or an Antigravity ACP `session/new` probe), never reads a token,
@@ -112,7 +113,7 @@ Accounts and bindings are saved in `accounts.toml` in the platform config folder
 
 ### Bind a folder
 
-In Settings → **Projects & folders**, under **Folder bindings**, pick the account and click **Choose folder…**. Each
+In Settings → **Folder bindings**, pick the account and click **Choose folder…**. Each
 binding shows as folder → account. Everything under that folder now runs on that account. A deeper binding wins over a
 shallower one, so you can bind `~/work` to your work account and `~/work/oss-fork` to your personal one. Use **Test a
 folder** to check which account a path resolves to.
@@ -148,7 +149,8 @@ account the GitHub folder `~/.config/gh-<id>` and opens the login below. To use 
 Settings → **Accounts** and set its **GitHub folder** (an absolute path such as `/Users/me/.config/gh-work`), then
 press **Log in** in Source control. That
 opens a terminal running `gh auth login` with `GH_CONFIG_DIR` set to that dir. SkyeLab never sees the token. The
-**Source control** section then shows which GitHub user is logged in.
+**Source control** section then shows which GitHub user is logged in, and its button reads **Log in again** (to
+switch to another GitHub user).
 
 Agents, project terminals and the Changes tab's **Commit**, **Push**, **Pull** and **Open PR** use the folder's
 account's GitHub login. If the account has none, Push, Pull and Open PR refuse instead of using your global `gh` login.

@@ -1,4 +1,4 @@
-//! Debug builds: the palette lists Open Ui Gallery from a real workspace, and choosing it opens the gallery window.
+//! Debug builds: the palette lists Open UI Gallery from a real workspace, and choosing it opens the gallery window.
 
 use super::palette_test::{open, setup};
 use super::threads_test::test_backend;

@@ -42,7 +42,7 @@ fn round_trip_hello() {
             capabilities: vec!["events".into()],
             device_key: Some("k".into()),
         },
-        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 6}, "capabilities": ["events"], "device_key": "k"}}),
+        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 7}, "capabilities": ["events"], "device_key": "k"}}),
     );
 }
 
@@ -136,6 +136,7 @@ fn round_trip_every_reply() {
             id: 1,
             name: "app".into(),
             path: "/src/app".into(),
+            created_at: 0,
         }]),
         Reply::Threads(vec![Thread {
             id: 3,
@@ -150,6 +151,7 @@ fn round_trip_every_reply() {
             snoozed_until: None,
             created_at: 1,
             updated_at: 2,
+            row: Default::default(),
         }]),
         Reply::Events(vec![event()]),
         Reply::ThreadStarted { thread_id: 3 },

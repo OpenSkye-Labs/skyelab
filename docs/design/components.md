@@ -6,7 +6,7 @@ Each looks like its T3 counterpart ([t3-reference.md §6](t3-reference.md#6-prim
 view, built when the pointer rests). Colors come from the theme
 and geometry from `ui::Size` and the `ui` constants, so a redesign changes tokens, not call sites.
 
-**The gallery.** In a debug build, or with Developer mode on (Settings → General), open the palette and run **Open Ui Gallery** (`skyelab::OpenUiGallery`). It opens a
+**The gallery.** In a debug build, or with Developer mode on (Settings → General), open the palette and run **Open UI Gallery** (`skyelab::OpenUiGallery`). It opens a
 window showing every component, variant, size and state in the current theme and family. Redesign from there:
 change a token, rebuild, and check both appearances with `SKYELAB_VERIFY_THEME=light|dark`.
 
@@ -82,6 +82,8 @@ reaches for these.
 - **`Input` / `Textarea`**: text editing. GPUI has no text input of its own.
 - **`Dialog`** and **`HoverCard`**: layers inside `Root`. (gpui-component's `Notification` is banned; see `Toast`.)
 - **The dock and its tab bars**, and **`TextView`** (markdown).
+- **`Command`** (the palette's list): its own query field is private and a fixed medium size, so the palette turns
+  it off (`searchable(false)`) and draws a large field of ours in the header that drives `CommandState::set_query`.
 - **The browser crate** (`skyelab-browser`) keeps gpui-component's buttons, since it can't depend on the app's `ui`.
 
 ## Restyling

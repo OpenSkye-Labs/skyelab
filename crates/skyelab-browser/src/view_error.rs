@@ -99,7 +99,7 @@ impl BrowserView {
         .into_iter()
         .find(|u| !u.is_empty());
         let Some(url) = url else { return };
-        // A refused local address fails inside `load`, which ends the spinner.
+        // A refused local address fails once `load`'s background check answers, which ends the spinner.
         self.retrying = true;
         let result = crate::parse_url(&url).and_then(|url| self.load(&url, cx));
         if result.is_err() {

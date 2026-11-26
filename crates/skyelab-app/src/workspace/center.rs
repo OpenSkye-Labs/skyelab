@@ -195,6 +195,7 @@ impl Workspace {
                     v.attach(window, cx);
                     v.focus_prompt(window, cx)
                 });
+                self.follow_shown_thread(&view, cx);
                 view.into()
             }
             Page::RemoteThread(view) => {
@@ -205,6 +206,7 @@ impl Workspace {
             Page::Compare(group) => self.compare_page(group, window, cx).into(),
         };
         self.sync_terminals(window, cx);
+        self.fit_docks_to_page(window, cx);
         self.refresh_details(cx);
         self.center.update(cx, |c, cx| {
             c.content = view;
@@ -215,6 +217,40 @@ impl Workspace {
         self.refresh_sidebar(cx);
         self.schedule_layout_save(window, cx);
         cx.notify();
+    }
+
+    /// A full-width page (Pull requests, Issues, Bots) has no thread for the terminal drawer or the tools panel to
+    /// serve: put them away while it shows, and bring back the ones that were open when a thread page returns.
+    fn fit_docks_to_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let full = matches!(self.page, Page::Github(_) | Page::Bots);
+        let docks = [DockPlacement::Right, DockPlacement::Bottom];
+        let open = |this: &Self, at, cx: &App| this.dock.read(cx).is_dock_open(at);
+        match (full, self.page_docks) {
+            (true, None) => {
+                let was = (
+                    open(self, DockPlacement::Right, cx),
+                    open(self, DockPlacement::Bottom, cx),
+                );
+                self.page_docks = Some(was);
+                for at in docks {
+                    if open(self, at, cx) {
+                        self.toggle(at, window, cx);
+                    }
+                }
+            }
+            (false, Some((right, bottom))) => {
+                self.page_docks = None;
+                for (at, was) in [
+                    (DockPlacement::Right, right),
+                    (DockPlacement::Bottom, bottom),
+                ] {
+                    if was && !open(self, at, cx) {
+                        self.toggle(at, window, cx);
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     /// Drops a thread's view: its agent stops at once (the last drawn frames may hold the view a moment longer) and

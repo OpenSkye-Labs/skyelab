@@ -35,7 +35,7 @@ worktree /r/wt with space\0HEAD 2222222222222222222222222222222222222222\0detach
     assert_eq!(list[1].branch, None);
 }
 
-/// Every var the command sets on top of `env_clear` is allowlisted (or the locale and the lock opt-out).
+/// Every var the command sets on top of `env_clear` is allowlisted (or the locale, the lock opt-out and DO_NOT_TRACK).
 /// `get_envs` can't show `env_clear` itself; scrubbed_env_hooks.rs checks the real child env.
 #[test]
 fn command_env_is_only_the_allowlist() {
@@ -43,7 +43,8 @@ fn command_env_is_only_the_allowlist() {
     for (k, _) in cmd.get_envs() {
         let ok = skyelab_core::env::agent_allowed(k, cfg!(windows), false)
             || k == "LC_ALL"
-            || k == "GIT_OPTIONAL_LOCKS";
+            || k == "GIT_OPTIONAL_LOCKS"
+            || k == "DO_NOT_TRACK";
         assert!(ok, "{k:?} reaches git");
     }
 }

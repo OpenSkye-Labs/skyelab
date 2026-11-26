@@ -63,3 +63,13 @@ fn lists_actions_with_their_keys_and_follows_the_file(cx: &mut TestAppContext) {
         assert!(bind.binds.iter().all(|b| !b.custom));
     });
 }
+
+#[test]
+fn a_context_reads_as_words_not_as_a_key() {
+    assert_eq!(super::keys::context_words("BrowserFind"), "in Browser Find");
+    assert_eq!(super::keys::context_words("Terminal"), "in Terminal");
+    assert_eq!(
+        super::keys::context_words("Thread > Composer"),
+        "when Thread > Composer"
+    );
+}

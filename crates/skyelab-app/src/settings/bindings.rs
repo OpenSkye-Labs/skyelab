@@ -1,4 +1,4 @@
-//! Settings → Projects & folders: folder bindings as folder → account rows, a stale binding explained in one
+//! Settings → Folder bindings: folder bindings as folder → account rows, a stale binding explained in one
 //! sentence with Re-confirm, and a field that tells which account a folder runs on.
 
 use super::widgets::{path_line, path_text, section};

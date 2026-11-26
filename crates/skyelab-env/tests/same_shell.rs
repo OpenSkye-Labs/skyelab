@@ -20,9 +20,9 @@ fn client(env: &Env) -> skyelab_client::Client {
 #[test]
 fn same_shell_from_local_and_remote() {
     let env = common::env();
-    let local = LocalSource::new(env.store.clone(), env.backend());
+    let local = LocalSource::new(env.backend());
     let remote = RemoteSource::new(client(&env));
-    let shell = local.shell().expect("local shell");
+    let shell = local.subscribe_shell().expect("local shell").snapshot;
     assert_eq!(shell.projects.len(), 2);
     assert_eq!(shell.threads.len(), 3);
     assert!(
@@ -32,7 +32,11 @@ fn same_shell_from_local_and_remote() {
             .any(|t| t.pinned && t.preview.is_some())
     );
     assert!(shell.threads.iter().any(|t| t.settled_at.is_some()));
-    assert_eq!(remote.shell().expect("remote shell"), shell);
+    let remote = remote.subscribe_shell().expect("remote shell").snapshot;
+    assert_eq!(
+        (remote.projects, remote.threads),
+        (shell.projects, shell.threads)
+    );
 }
 
 #[test]

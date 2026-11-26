@@ -124,6 +124,10 @@ impl DaemonBackend for Stall {
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError> {
         self.inner.interrupt(thread_id)
     }
+    fn subscribe_shell(&self) -> Result<skyelab_daemon::ShellFeed, RpcError> {
+        let _ = self.release.recv();
+        self.inner.subscribe_shell()
+    }
 }
 
 #[gpui::test]
@@ -151,7 +155,7 @@ fn remote_waiting_on_a_reply_never_blocks_the_ui(cx: &mut TestAppContext) {
     switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "connected", |cx| state(&ws, cx) == "Connected");
 
-    // list_projects is in flight and stuck. The UI still runs actions and renders.
+    // The shell snapshot is in flight and stuck. The UI still runs actions and renders.
     let open = |cx: &mut gpui::VisualTestContext| {
         ws.read_with(cx, |ws, cx| ws.env_picker().expect("picker").read(cx).open)
     };

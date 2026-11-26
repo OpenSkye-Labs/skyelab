@@ -19,6 +19,7 @@ mod compare;
 mod compare_sidebar;
 mod compare_view;
 mod debug_hud;
+mod local_shell;
 pub(crate) use debug_hud::ToggleDebugOverlay;
 mod details_panel;
 mod device_agent;
@@ -281,6 +282,8 @@ pub struct Workspace {
     _load: Option<Task<()>>,
     _add: Option<Task<()>>,
     _threads: Option<Task<()>>,
+    /// This machine's shell stream (`local_shell.rs`), followed from the first thread load.
+    _local_shell: Option<Task<()>>,
     _settings_saved: Option<Subscription>,
     /// Answers delegated starts and sends (see `orchestrate_ui`).
     _orchestrate: Option<Task<()>>,
@@ -298,6 +301,8 @@ pub struct Workspace {
     starts: remote::StartQueue,
     /// Archived threads are listed under their toggle row.
     show_archived: bool,
+    /// Which docks (right, bottom) a full-width page (Pull requests, Issues, Bots) put away, to bring back on leaving.
+    page_docks: Option<(bool, bool)>,
     compare: compare::State,
     /// A project whose removal waits for the user's OK (it has running agents).
     pending_removal: Option<i64>,
@@ -412,7 +417,7 @@ impl Workspace {
             },
             |b| b.0.clone(),
         );
-        let local = Arc::new(skyelab_env::LocalSource::new(backend.store.clone(), served));
+        let local = Arc::new(skyelab_env::LocalSource::new(served));
         let mut this = Self {
             _live: skyelab_core::debug::Live::new("windows"),
             debug_hud: crate::debug_mode::take_open_at_start()
@@ -481,6 +486,7 @@ impl Workspace {
             _load: None,
             _add: None,
             _threads: None,
+            _local_shell: None,
             _settings_saved: None,
             _orchestrate: None,
             _settings_events: None,
@@ -492,6 +498,7 @@ impl Workspace {
             env: Default::default(),
             starts: remote::StartQueue::new(),
             show_archived: false,
+            page_docks: None,
             compare: Default::default(),
             pending_removal: None,
             _dialog_input: None,

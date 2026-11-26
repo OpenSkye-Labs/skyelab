@@ -325,6 +325,10 @@ impl Backend for Flaky {
         self.ask("shelve_thread");
         self.inner.shelve_thread(thread_id, settled, snoozed_until)
     }
+    fn subscribe_shell(&self) -> Result<crate::ShellFeed, RpcError> {
+        self.ask("subscribe_shell");
+        self.inner.subscribe_shell()
+    }
 }
 
 /// Another machine: a store on disk (one project "app", one thread on account "work") and, once served, a daemon

@@ -87,6 +87,7 @@ fn serve(stream: TcpStream, n: usize, how: Misbehave, log: &Log) {
                             id: 1,
                             name: "x".repeat(64 * 1024),
                             path: "/p".into(),
+                            created_at: 0,
                         }]),
                     };
                     let _ = ws.send(Message::text(big.to_json()));

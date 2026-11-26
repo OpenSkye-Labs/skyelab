@@ -126,6 +126,8 @@ impl RenderOnce for CommandRow {
                 h_flex()
                     .flex_none()
                     .h(px(20.))
+                    // Clear of the list's overlay scrollbar, which otherwise covers the keys once it shows.
+                    .pr_3()
                     .gap_2()
                     .children(tick)
                     .children(self.shortcut.map(Kbd::bare))

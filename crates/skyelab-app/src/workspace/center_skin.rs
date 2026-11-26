@@ -326,6 +326,16 @@ impl TabGroupRenderer for CenterTabs {
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
+        // The hidden terminal drawer keeps a strip above the status bar: draw it as the button it is (T3 shows the
+        // drawer's toggle, not a bare tab), opening the drawer on click.
+        if group.is_collapsed()
+            && group
+                .panels()
+                .iter()
+                .any(|p| matches!(p.panel_name(cx), "Terminal" | "TerminalsEmpty"))
+        {
+            return collapsed_drawer(window, cx);
+        }
         let bar = self.tabs.render_tab_bar(group, window, cx);
         // Windows: the right dock's tab bar is the top row's end there, so it leaves the caption buttons room. Only the
         // right dock holds the Surfaces panel; a zoomed group fills the window, so it reaches them too.
@@ -425,4 +435,40 @@ impl TabGroupRenderer for CenterTabs {
     ) -> Option<AnyElement> {
         self.tabs.render_empty(group, window, cx)
     }
+}
+
+/// The hidden terminal drawer's strip: an icon, "Terminal", its key and a chevron, all one button.
+fn collapsed_drawer(window: &Window, cx: &App) -> AnyElement {
+    use crate::ui::{self, SkyeIcon};
+    use gpui_component::{ActiveTheme as _, Icon, h_flex};
+    let theme = cx.theme();
+    h_flex()
+        .id("drawer-collapsed")
+        .debug_selector(|| "drawer-collapsed".into())
+        .w_full()
+        .h(gpui::px(30.))
+        .flex_shrink_0()
+        .px_3()
+        .gap_2()
+        .border_t_1()
+        .border_color(theme.border)
+        .bg(theme.tokens.tab_bar)
+        .text_size(ui::META)
+        .text_color(theme.muted_foreground)
+        .cursor_pointer()
+        .hover(|s| s.bg(theme.accent).text_color(theme.foreground))
+        .child(Icon::new(SkyeIcon::SquareTerminal).size_3p5())
+        .child("Terminal")
+        .children(ui::Kbd::for_action(
+            &super::ToggleBottomPanel,
+            Some(super::CONTEXT),
+            window,
+        ))
+        .child(div().flex_1())
+        .child(Icon::new(SkyeIcon::ChevronUp).size_3p5())
+        .tooltip(ui::Tooltip::text("Show terminal"))
+        .on_click(|_, window, cx| {
+            crate::workspace::dispatch(Box::new(super::ToggleBottomPanel), window, cx)
+        })
+        .into_any_element()
 }

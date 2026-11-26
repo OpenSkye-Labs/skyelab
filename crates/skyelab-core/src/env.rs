@@ -160,6 +160,7 @@ pub fn agent_vars(
                 .filter(|p| !p.is_empty())
                 .map(|p| (k, p))
         })
+        .chain([do_not_track()])
         .collect()
 }
 
@@ -171,7 +172,16 @@ pub fn terminal_vars(
     parent
         .into_iter()
         .filter(|(k, _)| terminal_allowed(k, windows))
+        .chain([do_not_track()])
         .collect()
+}
+
+/// `DO_NOT_TRACK=1`: every child gets it, whatever the parent's says, so tools that honor it (Claude Code, gh, Bun)
+/// skip telemetry. Not on either allowlist, so a parent's own value never reaches a child.
+pub const DO_NOT_TRACK: (&str, &str) = ("DO_NOT_TRACK", "1");
+
+fn do_not_track() -> (OsString, OsString) {
+    (DO_NOT_TRACK.0.into(), DO_NOT_TRACK.1.into())
 }
 
 /// [`agent_vars`] of this process's env.
@@ -291,6 +301,26 @@ mod tests {
 
     fn ok(name: &str, windows: bool) -> bool {
         agent_allowed(OsStr::new(name), windows, false)
+    }
+
+    #[test]
+    fn every_child_env_sets_do_not_track() {
+        use std::ffi::OsString;
+        let parent = || {
+            vec![
+                (OsString::from("DO_NOT_TRACK"), OsString::from("0")),
+                (OsString::from("HOME"), OsString::from("/h")),
+            ]
+        };
+        for windows in [false, true] {
+            for env in [
+                super::agent_vars(parent(), windows, false),
+                super::terminal_vars(parent(), windows),
+            ] {
+                let dnt: Vec<_> = env.iter().filter(|(k, _)| k == "DO_NOT_TRACK").collect();
+                assert_eq!(dnt, [&("DO_NOT_TRACK".into(), "1".into())], "{env:?}");
+            }
+        }
     }
 
     #[test]

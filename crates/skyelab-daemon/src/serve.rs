@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use futures::{SinkExt, StreamExt};
 use skyelab_protocol::{
-    Call, ErrorCode, Hello, Reply, Request, RpcError, ServerMessage, TUNNEL_CAPABILITY,
-    ThreadEvent, negotiate,
+    Call, ErrorCode, Hello, Reply, Request, RpcError, ServerMessage, ShellChange,
+    TUNNEL_CAPABILITY, ThreadEvent, negotiate,
 };
 use tokio::sync::{Notify, Semaphore, broadcast, mpsc};
 use tokio::task::JoinSet;
@@ -15,7 +15,21 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::access::{self, Verdict, Who};
 use crate::peers::lock_peers;
-use crate::{Backend, Shared, Ws, forward};
+use crate::{Shared, Ws, forward};
+
+#[path = "serve_dispatch.rs"]
+mod dispatch;
+use dispatch::{dispatch, without_paths};
+
+/// A reply, and for `subscribe_shell` its arrival number and the changes to forward once it is written.
+type Out = (ServerMessage, Option<(u64, flume::Receiver<ShellChange>)>);
+
+/// Where replies go, and how many `subscribe_shell` calls this connection sent: each is numbered as it arrives, so
+/// the newest one's stream wins however the replies cross (request ids needn't increase).
+struct Outbox {
+    tx: mpsc::Sender<Out>,
+    subscribes: u64,
+}
 
 enum Step {
     Send(ServerMessage),
@@ -34,9 +48,13 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
     let config = &shared.config;
     let (mut sink, mut stream) = ws.split();
     let in_flight = Arc::new(Semaphore::new(config.max_in_flight));
-    let (replies_tx, mut replies) = mpsc::channel(config.max_in_flight);
+    let (tx, mut replies) = mpsc::channel(config.max_in_flight);
+    let mut outbox = Outbox { tx, subscribes: 0 };
     let mut running = JoinSet::new();
     let mut events: Option<broadcast::Receiver<ThreadEvent>> = None;
+    // Set with the snapshot reply, so no change goes out before the snapshot it follows. Kept with its arrival
+    // number: subscribes are answered as they finish, and an older one's late reply must not replace a newer stream.
+    let mut shell: Option<(u64, flume::Receiver<ShellChange>)> = None;
     let mut idle_at = Instant::now() + config.idle_timeout;
 
     loop {
@@ -56,7 +74,7 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
                 idle_at = Instant::now() + config.idle_timeout;
                 match incoming {
                     Some(Ok(Message::Text(text))) => {
-                        on_text(&text, shared, who, &mut events, &in_flight, &replies_tx, &mut running)
+                        on_text(&text, shared, who, &mut events, &in_flight, &mut outbox, &mut running)
                     }
                     Some(Ok(Message::Binary(_))) => Step::Send(ServerMessage::Error {
                         id: None,
@@ -71,7 +89,21 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
                     }
                 }
             }
-            Some(reply) = replies.recv() => Step::Send(reply),
+            Some((reply, changes)) = replies.recv() => {
+                if let Some((arrival, changes)) = changes
+                    && shell.as_ref().is_none_or(|(newest, _)| arrival > *newest)
+                {
+                    shell = Some((arrival, changes));
+                }
+                Step::Send(reply)
+            }
+            change = next_change(&mut shell) => match change {
+                Some(change) => Step::Send(ServerMessage::Shell(change)),
+                None => {
+                    eprintln!("skyelab-daemon: closing {peer}: too slow for the shell stream, it must reconnect and resubscribe");
+                    Step::Close
+                }
+            },
             event = next_event(&mut events) => match event {
                 Some(event) => Step::Send(ServerMessage::Event(event)),
                 None => {
@@ -150,7 +182,7 @@ fn on_text(
     who: &Who,
     events: &mut Option<broadcast::Receiver<ThreadEvent>>,
     in_flight: &Arc<Semaphore>,
-    replies: &mpsc::Sender<ServerMessage>,
+    replies: &mut Outbox,
     running: &mut JoinSet<()>,
 ) -> Step {
     let mut timed = skyelab_core::debug::RpcCall::start("daemon", text);
@@ -294,7 +326,7 @@ fn on_call(
     shared: &Shared,
     who: &Who,
     in_flight: &Arc<Semaphore>,
-    replies: &mpsc::Sender<ServerMessage>,
+    replies: &mut Outbox,
     running: &mut JoinSet<()>,
 ) -> Step {
     let error = move |code, message: &str| ServerMessage::Error {
@@ -313,7 +345,8 @@ fn on_call(
                         "too many requests in flight",
                     ));
                 };
-                let (peers, replies, peer) = (shared.peers.clone(), replies.clone(), who.peer_id);
+                let (peers, replies, peer) =
+                    (shared.peers.clone(), replies.tx.clone(), who.peer_id);
                 let timed = timed.take();
                 running.spawn(async move {
                     // Probe first, so the user hears at once that nothing listens there.
@@ -328,7 +361,7 @@ fn on_call(
                         },
                     };
                     log_message(timed, &reply);
-                    let _ = replies.send(reply).await;
+                    let _ = replies.send((reply, None)).await;
                     drop(permit);
                 });
                 Step::Nothing
@@ -341,14 +374,19 @@ fn on_call(
                 })
             }
             call => {
+                let subscribe = matches!(call, Call::SubscribeShell);
                 let Ok(permit) = in_flight.clone().try_acquire_owned() else {
                     return Step::Send(error(
                         ErrorCode::TooManyRequests,
                         "too many requests in flight",
                     ));
                 };
+                let arrival = subscribe.then(|| {
+                    replies.subscribes += 1;
+                    replies.subscribes
+                });
                 let backend = shared.backend.clone();
-                let replies = replies.clone();
+                let replies = replies.tx.clone();
                 let gate = who.gate.clone();
                 let timed = timed.take();
                 running.spawn(async move {
@@ -358,22 +396,39 @@ fn on_call(
                             ErrorCode::NotApproved,
                             "this device was cut off",
                         )),
-                        false => gate.run(|| dispatch(&*backend, call)),
+                        false if subscribe => gate.run(|| {
+                            backend.subscribe_shell().map(|f| {
+                                (
+                                    Reply::Shell(crate::backend::bound(f.snapshot)),
+                                    Some(f.changes),
+                                )
+                            })
+                        }),
+                        false => gate.run(|| dispatch(&*backend, call).map(|r| (r, None))),
                     };
-                    let reply = match tokio::task::spawn_blocking(run).await {
-                        Ok(Ok(result)) => ServerMessage::Response { id, result },
-                        Ok(Err(error)) => ServerMessage::Error {
-                            id: Some(id),
-                            error,
-                        },
-                        Err(_) => ServerMessage::Error {
-                            id: Some(id),
-                            error: RpcError::new(ErrorCode::Internal, "request failed"),
-                        },
+                    let (reply, changes) = match tokio::task::spawn_blocking(run).await {
+                        Ok(Ok((result, changes))) => {
+                            (ServerMessage::Response { id, result }, changes)
+                        }
+                        Ok(Err(error)) => (
+                            ServerMessage::Error {
+                                id: Some(id),
+                                error,
+                            },
+                            None,
+                        ),
+                        Err(_) => (
+                            ServerMessage::Error {
+                                id: Some(id),
+                                error: RpcError::new(ErrorCode::Internal, "request failed"),
+                            },
+                            None,
+                        ),
                     };
                     log_message(timed, &reply);
                     // Waits only while `serve` is busy writing; it drains this channel every turn.
-                    let _ = replies.send(reply).await;
+                    let changes = arrival.zip(changes);
+                    let _ = replies.send((reply, changes)).await;
                     drop(permit);
                 });
                 Step::Nothing
@@ -415,74 +470,6 @@ fn hello(
     }
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
-#[tracing::instrument(name = "daemon.dispatch", skip_all)]
-fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
-    match call {
-        Call::Hello { .. } => Err(RpcError::new(ErrorCode::BadRequest, "already said hello")),
-        Call::ListProjects => backend.list_projects().map(Reply::Projects),
-        Call::ListThreads { project_id } => backend.list_threads(project_id).map(Reply::Threads),
-        Call::ThreadEventsSince { thread_id, seq } => backend
-            .thread_events_since(thread_id, seq)
-            .map(Reply::Events),
-        Call::StartThread { project_id, prompt } => backend
-            .start_thread(project_id, &prompt)
-            .map(|thread_id| Reply::ThreadStarted { thread_id }),
-        Call::SendMessage { thread_id, text } => {
-            backend.send_message(thread_id, &text).map(|()| Reply::Ok)
-        }
-        Call::Interrupt { thread_id } => backend.interrupt(thread_id).map(|()| Reply::Ok),
-        // `on_text` serves these itself: they act on the connection, not the backend.
-        Call::ForwardPort { .. } | Call::StopForward { .. } | Call::OpenTunnel { .. } => {
-            Err(RpcError::new(ErrorCode::BadRequest, "not a backend call"))
-        }
-        Call::AnswerPermission {
-            thread_id,
-            request_id,
-            decision,
-        } => backend
-            .answer_permission(thread_id, &request_id, decision)
-            .map(|()| Reply::Ok),
-        Call::AnswerQuestions {
-            thread_id,
-            request_id,
-            answers,
-        } => backend
-            .answer_questions(thread_id, &request_id, &answers)
-            .map(|()| Reply::Ok),
-        Call::ShelveThread {
-            thread_id,
-            settled,
-            snoozed_until,
-        } => backend
-            .shelve_thread(thread_id, settled, snoozed_until)
-            .map(|()| Reply::Ok),
-    }
-}
-
-/// Error text can name this machine's folders (a refusal that quotes one). The app's refusals are written
-/// without paths; this catches the rest.
-fn without_paths(mut msg: ServerMessage) -> ServerMessage {
-    if let ServerMessage::Error { error, .. } = &mut msg {
-        error.message = redact_paths(&error.message);
-    }
-    msg
-}
-
-/// Every space-separated word with a `/` or `\` in it becomes `<local path>`.
-// shortcut: a path with spaces keeps its slash-free words ("North" in "/work/Project North"); errors that may
-// quote a path must be written without it at the source (workspace/remote.rs), as the known ones are.
-fn redact_paths(message: &str) -> String {
-    message
-        .split(' ')
-        .map(|word| match word.contains(['/', '\\']) {
-            true => "<local path>",
-            false => word,
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 /// The next pushed event; `None` if this connection fell behind and missed some. Pends forever before hello.
 async fn next_event(events: &mut Option<broadcast::Receiver<ThreadEvent>>) -> Option<ThreadEvent> {
     if let Some(rx) = events {
@@ -493,4 +480,15 @@ async fn next_event(events: &mut Option<broadcast::Receiver<ThreadEvent>>) -> Op
         }
     }
     std::future::pending().await
+}
+
+/// The next shell change; `None` once the stream ended (this connection fell behind). Pends forever before
+/// `subscribe_shell` was answered.
+async fn next_change(
+    shell: &mut Option<(u64, flume::Receiver<ShellChange>)>,
+) -> Option<ShellChange> {
+    match shell {
+        Some((_, rx)) => rx.recv_async().await.ok(),
+        None => std::future::pending().await,
+    }
 }

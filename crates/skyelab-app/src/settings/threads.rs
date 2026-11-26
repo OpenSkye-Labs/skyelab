@@ -10,7 +10,7 @@ use gpui::{AnyElement, Context, div, prelude::*};
 use gpui_component::{h_flex, v_flex};
 use skyelab_agent::{CLAUDE_EFFORTS, CLAUDE_MODELS, Mode};
 use skyelab_core::thread_defaults::ThreadField;
-use skyelab_core::{DiffSettings, SendShortcut, ThreadSettings};
+use skyelab_core::{DiffSettings, Provider, SendShortcut, ThreadSettings};
 use std::rc::Rc;
 
 /// The permission modes a new thread may start in. Unset shows the first: Full access, the default.
@@ -126,7 +126,7 @@ impl Settings {
             .map(|(m, l)| (Some(m.as_str().to_owned()), (*l).to_owned()))
             .collect();
         let claude_models: Vec<(Option<String>, String)> =
-            std::iter::once((None, "Default".to_owned()))
+            std::iter::once((None, "Default model".to_owned()))
                 .chain(
                     CLAUDE_MODELS
                         .iter()
@@ -134,22 +134,24 @@ impl Settings {
                 )
                 .collect();
         let efforts = |list: &[&str]| -> Vec<(Option<String>, String)> {
-            std::iter::once((None, "Default".to_owned()))
+            std::iter::once((None, "Default effort".to_owned()))
                 .chain(
                     list.iter()
                         .map(|e| (Some((*e).to_owned()), effort_label(e))),
                 )
                 .collect()
         };
+        // A provider's row shows only when an account uses it (T3 lists only the providers you have).
+        let has = |p: Provider| self.config.accounts.iter().any(|a| a.provider == p);
         let defaults = [
-            setting(
+            Some(setting(
                 true,
                 "Default permissions",
                 "What a new thread's agent may do without asking. Pick Ask to have it ask before anything its rules don't allow.",
                 self.field_choice("threads-mode", ThreadField::PermissionMode, modes, cx),
                 cx,
-            ),
-            setting(
+            )),
+            has(Provider::Claude).then(|| setting(
                 false,
                 "Claude model",
                 if self.scope.is_some() {
@@ -172,8 +174,8 @@ impl Settings {
                         cx,
                     )),
                 cx,
-            ),
-            setting(
+            )),
+            has(Provider::Codex).then(|| setting(
                 false,
                 "Codex model",
                 if self.scope.is_some() {
@@ -195,8 +197,8 @@ impl Settings {
                         cx,
                     )),
                 cx,
-            ),
-            setting(
+            )),
+            has(Provider::Cursor).then(|| setting(
                 false,
                 "Cursor model",
                 if self.scope.is_some() {
@@ -208,8 +210,8 @@ impl Settings {
                     .w(gpui::px(160.))
                     .child(TextField::new(&self.cursor_model_input).small()),
                 cx,
-            ),
-            setting(
+            )),
+            has(Provider::Antigravity).then(|| setting(
                 false,
                 "Antigravity model",
                 if self.scope.is_some() {
@@ -231,7 +233,7 @@ impl Settings {
                         cx,
                     )),
                 cx,
-            ),
+            )),
         ];
         let titles = [setting(
             true,
@@ -259,7 +261,7 @@ impl Settings {
             .child(section(
                 "New threads",
                 "What a new thread starts with. A thread's own pick always wins.",
-                defaults,
+                defaults.into_iter().flatten(),
                 cx,
             ))
             // A project picked: its own "Allow for this project" rules under the folder's account.

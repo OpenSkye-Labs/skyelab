@@ -67,10 +67,7 @@ fn rank_keeps_input_order_on_ties_and_drops_misses() {
 #[test]
 fn humanize_drops_the_namespace_and_splits_camel_case() {
     assert_eq!(humanize("skyelab::OpenSettings"), "Open Settings");
-    assert_eq!(
-        humanize("skyelab::ToggleBottomPanel"),
-        "Toggle Bottom Panel"
-    );
+    assert_eq!(humanize("skyelab::ToggleSidebar"), "Toggle Sidebar");
     assert_eq!(humanize("terminal::Paste"), "Paste");
 }
 
@@ -78,6 +75,9 @@ fn humanize_drops_the_namespace_and_splits_camel_case() {
 fn humanize_prefers_the_explicit_table() {
     assert_eq!(humanize("skyelab::ToggleEnvironments"), "Switch Machine");
     assert_eq!(humanize("skyelab::Stop"), "Stop Agent");
+    // The palette names the docks as their header buttons' tooltips do.
+    assert_eq!(humanize("skyelab::ToggleBottomPanel"), "Toggle Terminal");
+    assert_eq!(humanize("skyelab::ToggleRightPanel"), "Toggle Tools Panel");
 }
 
 #[test]

@@ -4,9 +4,9 @@
 
 use super::env_mode::SwitchEnvironment;
 use super::env_picker::{ConnectTyped, EnvPicker, ForgetEnvironment, MachineKind, machine_icon};
-use crate::remote::{Remote, ToggleSharing};
+use crate::remote::Remote;
 use crate::ui;
-use crate::ui::{Button, Switch, TextField};
+use crate::ui::{Button, TextField};
 use gpui::{Context, Entity, IntoElement, SharedString, Subscription, Window, div, prelude::*};
 use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 
@@ -69,17 +69,24 @@ impl Render for MachinesPage {
                                 .child(ui::Pill::new(r.status.label()).color(r.status.color(theme))),
                         )
                         .child(muted(
-                            "Lets your other devices drive this machine. Who may connect is in Sharing & access."
+                            "Lets your other devices drive this machine. Turn it on and choose who may connect in Sharing & access."
                                 .into(),
                         )),
                 )
+                // The switch lives on Sharing & access, next to who may connect: one place to turn it on.
                 .child(
-                    Switch::new("machines-share")
-                        .checked(r.enabled)
-                        .label(if r.enabled { "On" } else { "Off" })
-                        .accessibility_label("Share this machine on my tailnet")
+                    Button::new("machines-share")
+                        .small()
+                        .outline()
+                        .label("Sharing & access…")
                         .on_click(|_, window, cx| {
-                            crate::workspace::dispatch(Box::new(ToggleSharing), window, cx)
+                            crate::workspace::dispatch(
+                                Box::new(super::OpenSettingsSection {
+                                    section: crate::settings::Section::Sharing,
+                                }),
+                                window,
+                                cx,
+                            )
                         }),
                 )
         });
@@ -216,7 +223,7 @@ impl Render for MachinesPage {
                     .child(
                         v_flex()
                             .gap_1()
-                            .child(ui::page_title("Machines", theme))
+                            .child(ui::section_title("Machines", theme))
                             .child(div().text_color(theme.muted_foreground).child(
                                 "Drive your other machines from this window. The composer's machine chip switches \
                                  between them.",

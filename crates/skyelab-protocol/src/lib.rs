@@ -6,14 +6,21 @@
 
 use serde::{Deserialize, Serialize};
 
+mod shell;
+pub use shell::{ShellChange, ShellDelta, ShellSnapshot};
+
 /// Minor bumps only add optional fields, methods or error codes. A major bump breaks the wire format.
-pub const VERSION: Version = Version { major: 1, minor: 6 };
+pub const VERSION: Version = Version { major: 1, minor: 7 };
 
 /// The minor version that added port forwarding (`forward_port`, `stop_forward`, `open_tunnel`).
 pub const FORWARDS_SINCE_MINOR: u32 = 5;
 
 /// The minor version that added `shelve_thread` and the thread's settled and snoozed state.
 pub const SHELVES_SINCE_MINOR: u32 = 6;
+
+/// The minor version that added the shell stream (`subscribe_shell`, [`ServerMessage::Shell`]) and the thread row's
+/// sidebar fields.
+pub const SHELL_SINCE_MINOR: u32 = 7;
 
 /// The hello capability a tunnel connection declares (1.5): it may only call `open_tunnel`, gets no pushed events,
 /// and isn't listed as a connected device.
@@ -195,6 +202,10 @@ pub enum Call {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         snoozed_until: Option<i64>,
     },
+    /// Every listed project and thread now, answered with [`Reply::Shell`], then each change after it pushed on
+    /// this connection as [`ServerMessage::Shell`] (1.7). Subscribing again replaces the stream with a new snapshot:
+    /// that is how a client recovers from a gap or a reconnect.
+    SubscribeShell,
 }
 
 /// What a remote user may answer a permission request with (1.3).
@@ -221,6 +232,9 @@ pub enum ServerMessage {
     },
     /// A new event on a thread, pushed to every connection that said hello.
     Event(ThreadEvent),
+    /// A change to the listed projects and threads (1.7), pushed only after this connection's `subscribe_shell`
+    /// was answered, in seq order.
+    Shell(ShellChange),
 }
 
 impl ServerMessage {
@@ -245,6 +259,8 @@ pub enum Reply {
     Forwarded {
         token: String,
     },
+    /// The answer to `subscribe_shell` (1.7).
+    Shell(ShellSnapshot),
     /// For calls with nothing to return (`send_message`, `interrupt`, `answer_permission`, `answer_questions`,
     /// `stop_forward`, `open_tunnel`, `shelve_thread`).
     Ok,
@@ -296,14 +312,21 @@ pub enum ErrorCode {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Project {
     pub id: i64,
     pub name: String,
     pub path: String,
+    /// Unix ms (1.7). 0 from an older server.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub created_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+fn is_zero(n: &i64) -> bool {
+    *n == 0
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Thread {
     pub id: i64,
     pub project_id: i64,
@@ -331,6 +354,54 @@ pub struct Thread {
     /// Unix milliseconds.
     pub created_at: i64,
     pub updated_at: i64,
+    /// The rest of the serving machine's row (1.7), so a client's sidebar draws what that machine's own does.
+    /// Empty or absent from an older server. Paths are the serving machine's.
+    #[serde(default, flatten)]
+    pub row: ThreadRow,
+}
+
+/// A thread row's fields beyond the 1.0–1.6 ones (1.7). Each is left out of the JSON when empty.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThreadRow {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub cwd: String,
+    /// Which tool calls its agent may make without asking; the agent layer defines the values.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub permission_mode: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree_branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree_base: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pr_url: Option<String>,
+    /// `open`, `draft`, `merged` or `closed`, as last read there.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pr_state: Option<String>,
+    /// The thread whose agent delegated this one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_thread_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pinned_at: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archived_at: Option<i64>,
+    /// A turn finished there while nobody looked at it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unread: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forked_from: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side_of: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compare_group: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scheduled_task_id: Option<i64>,
+    /// Usage limited: it continues by itself then (Unix ms).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_resume_at: Option<i64>,
 }
 
 /// How much of a thread's last reply [`Thread::preview`] carries: enough for a sidebar row's two lines.

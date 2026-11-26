@@ -83,7 +83,7 @@ impl Section {
             Section::Accounts => "Accounts",
             Section::Scheduled => "Scheduled tasks",
             Section::Usage => "Usage",
-            Section::Projects => "Projects & folders",
+            Section::Projects => "Folder bindings",
             Section::SourceControl => "Source control",
             Section::Worktrees => "Worktrees",
             Section::Machines => "Machines",

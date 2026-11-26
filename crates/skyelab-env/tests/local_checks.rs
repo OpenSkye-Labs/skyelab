@@ -10,7 +10,7 @@ use skyelab_protocol::ErrorCode;
 #[test]
 fn local_keeps_the_backend_checks() {
     let env = common::env();
-    let local = LocalSource::new(env.store.clone(), env.backend());
+    let local = LocalSource::new(env.backend());
     match local.shelve_thread(env.thread_id, true, Some(1)) {
         Err(Error::Rpc(e)) => assert_eq!(e.code, ErrorCode::BadRequest),
         other => panic!("expected BadRequest, got {other:?}"),
@@ -24,7 +24,7 @@ fn local_keeps_the_backend_checks() {
 #[test]
 fn local_writes_reach_the_agents() {
     let env = common::env();
-    let local = LocalSource::new(env.store.clone(), env.backend());
+    let local = LocalSource::new(env.backend());
     let id = local.start_thread(env.project_id, "hello").expect("start");
     let events = local.thread_events_since(id, 0).expect("events");
     assert_eq!(events.len(), 1);

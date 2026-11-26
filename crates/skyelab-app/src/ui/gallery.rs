@@ -1,5 +1,5 @@
 //! The UI Gallery: every SkyeLab component, variant and state on one page in the current theme, the place to redesign
-//! from (docs/design/components.md). Debug builds, or Developer mode on: palette → "Open Ui Gallery" opens it in its
+//! from (docs/design/components.md). Debug builds, or Developer mode on: palette → "Open UI Gallery" opens it in its
 //! own window.
 
 #[path = "gallery_sections.rs"]

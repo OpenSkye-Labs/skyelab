@@ -130,7 +130,7 @@ pub enum EnvEvent {
     Untrusted,
 }
 
-/// How long after a pushed event the thread list is fetched again.
+/// How long after a pushed event a machine older than 1.7 (no shell stream) is listed again.
 const REFRESH_AFTER: std::time::Duration = std::time::Duration::from_secs(1);
 
 pub struct RemoteEnv {
@@ -155,8 +155,10 @@ pub struct RemoteEnv {
     _drain: Task<()>,
     _projects: Option<Task<()>>,
     _threads: Option<Task<()>>,
-    /// A thread listing due after pushed events (status and previews change as turns run).
+    /// A thread listing due after pushed events (status and previews change as turns run). 1.6 machines only.
     _refresh: Option<Task<()>>,
+    /// The shell stream (1.7): the snapshot, then every row change as it happens.
+    _shell: Option<Task<()>>,
     _node: Option<Task<()>>,
     _trust: Option<Task<()>>,
     /// Ports of this machine forwarded to this one.
@@ -202,6 +204,7 @@ impl RemoteEnv {
             _projects: None,
             _threads: None,
             _refresh: None,
+            _shell: None,
             _node: None,
             _trust: None,
             forwards: Vec::new(),
@@ -315,6 +318,7 @@ impl RemoteEnv {
         self._projects = None;
         self._threads = None;
         self._refresh = None;
+        self._shell = None;
         cx.emit(EnvEvent::Untrusted);
         cx.notify();
     }
@@ -362,7 +366,11 @@ impl RemoteEnv {
         if let Some(hello) = &self.hello {
             self.client.approve(hello);
         }
-        self.load_projects(cx);
+        // Every approved connection subscribes anew: its snapshot replays whatever changed while it was down.
+        match self.streams() {
+            true => self.subscribe_shell(cx),
+            false => self.load_projects(cx),
+        }
         cx.notify();
     }
 
@@ -371,77 +379,6 @@ impl RemoteEnv {
         self.hello.as_ref().is_some_and(|h| {
             h.protocol.major == skyelab_protocol::VERSION.major && h.protocol.minor >= minor
         })
-    }
-
-    /// The projects, then every project's threads.
-    fn load_projects(&mut self, cx: &mut Context<Self>) {
-        let pending = self.client.list_projects();
-        self._projects = Some(self.await_reply(pending, cx, |this, projects, cx| {
-            this.projects = projects;
-            if !this
-                .project
-                .is_some_and(|id| this.projects.iter().any(|p| p.id == id))
-            {
-                this.project = this.projects.first().map(|p| p.id);
-            }
-            this.load_threads(cx);
-        }));
-    }
-
-    /// The project New thread starts in.
-    pub fn select_project(&mut self, id: i64, cx: &mut Context<Self>) {
-        self.project = Some(id);
-        cx.notify();
-    }
-
-    /// Lists every project's threads again within a second, once however many events arrive meanwhile.
-    pub(crate) fn refresh_soon(&mut self, cx: &mut Context<Self>) {
-        if self._refresh.is_some() {
-            return;
-        }
-        let timer = cx.background_executor().timer(REFRESH_AFTER);
-        self._refresh = Some(cx.spawn(async move |this, cx| {
-            timer.await;
-            let _ = this.update(cx, |this, cx| {
-                this._refresh = None;
-                this.load_threads(cx);
-            });
-        }));
-    }
-
-    /// Every project's threads, newest first. Only from a trusted connection; `up` loads them once it is. A listing
-    /// that fails keeps the rows shown and says why.
-    // shortcut: one `list_threads` per project; a `list_all_threads` call is the upgrade if machines have many.
-    pub fn load_threads(&mut self, cx: &mut Context<Self>) {
-        if self.state != ConnState::Connected {
-            return;
-        }
-        let pending: Vec<_> = self
-            .projects
-            .iter()
-            .map(|p| self.client.list_threads(p.id))
-            .collect();
-        self._threads = Some(cx.spawn(async move |this, cx| {
-            let mut all = Vec::new();
-            let mut failed = None;
-            for p in pending {
-                match p.recv_async().await {
-                    Ok(threads) => all.extend(threads),
-                    Err(e) => failed = Some(e.to_string()),
-                }
-            }
-            let _ = this.update(cx, |this, cx| {
-                match failed {
-                    Some(e) => this.error = Some(e.into()),
-                    None => {
-                        all.sort_by_key(|t| std::cmp::Reverse(t.updated_at));
-                        this.error = None;
-                        this.threads = all;
-                    }
-                }
-                cx.notify();
-            });
-        }));
     }
 
     /// Awaits `pending` off the UI thread's critical path, then applies it (or shows its error).
@@ -466,6 +403,12 @@ impl RemoteEnv {
         })
     }
 }
+
+#[path = "environment_list.rs"]
+mod list;
+
+#[path = "environment_shell.rs"]
+mod shell;
 
 #[path = "environment_forwards.rs"]
 mod forwards;
