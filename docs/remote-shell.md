@@ -35,3 +35,25 @@ snapshot and events:
   another writer adds (a remote call, an agent, another window) shows, and a deleted one goes, without a reload. A
   row the window already holds is never replaced from the stream, since the window edits its rows before their
   store writes land and a streamed row read in between would be older.
+
+## Cached shell snapshots
+
+A linked or switched-to machine's rows show at launch, before its `wss://` handshake finishes, from the last ones
+saved (`skyelab_env::cache`, app glue in `environment_cache.rs`):
+
+- One file per MagicDNS name in `<cache dir>/<APP_DIR>/remote-shells/` (`~/Library/Caches/skyelab-dev/...` for a
+  debug build): `<sha256 of the lowercase name>.json`, so a name never becomes a path. The dir is 0700, the file
+  0600, written through a temp file and a rename. The payload is `{schema: 1, host, node_id, saved_at_ms, projects,
+  threads}`.
+- Read at `RemoteEnv::new`, off the UI thread, only when the name has a pinned node (`environment_nodes` in
+  `settings.toml`) and the file names both that host and that node. A missing, broken, other-schema or over-8 MiB
+  file is no cache, never an error. The rows show with the connecting state; every action stays refused until the
+  connection is `Connected`, as with any rows of a machine not connected. A linked machine shows them in This
+  Mac's list next to its "Connecting" row (also while reconnecting).
+- Live rows always win: the first snapshot, delta or 1.6 listing marks the rows live, and a cache read finishing
+  later is dropped. Live rows are saved 2 s after a change (once however many come), only while `Connected` on the
+  pinned node.
+- Deleted from the window and the disk on every refusal (`Refused`, `Certificate`, `NotYourDevice`,
+  `IdentityMismatch`, `NodeChanged`, `Unverified`, `Denied`), on Forget and on unlinking. A per-name counter, under
+  the lock every save and delete holds, drops a save or read that began before the delete. Tests set no
+  `ShellCacheDir` global unless they pass a temp dir, so they never touch the real cache.

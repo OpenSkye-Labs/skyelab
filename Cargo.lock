@@ -8656,11 +8656,16 @@ name = "skyelab-env"
 version = "0.1.7"
 dependencies = [
  "anyhow",
+ "dirs 7.0.0",
+ "ring",
+ "serde",
  "serde_json",
  "skyelab-client",
+ "skyelab-core",
  "skyelab-daemon",
  "skyelab-protocol",
  "skyelab-store",
+ "tempfile",
 ]
 
 [[package]]

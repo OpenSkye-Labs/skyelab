@@ -45,6 +45,7 @@ impl RemoteEnv {
                     shell.apply(change.delta);
                     (this.projects, this.threads) = (shell.projects, shell.threads);
                     this.keep_project();
+                    this.got_live(cx);
                     cx.notify();
                 });
                 if applied.is_err() {
@@ -72,6 +73,7 @@ impl RemoteEnv {
                 self.projects = std::mem::take(&mut feed.snapshot.projects);
                 self.threads = std::mem::take(&mut feed.snapshot.threads);
                 self.keep_project();
+                self.got_live(cx);
                 Some(feed)
             }
             Err(e) => {
