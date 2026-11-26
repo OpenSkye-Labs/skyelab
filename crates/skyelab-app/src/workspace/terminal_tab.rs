@@ -231,7 +231,8 @@ impl Panel for TerminalPanel {
         cx: &mut Context<Self>,
     ) -> PopupMenu {
         use skyelab_core::terminal_layout::Axis;
-        let items: [(&str, fn() -> TabEvent); 4] = [
+        type Event = fn() -> TabEvent;
+        let items: [(&str, Event); 4] = [
             ("Split right", || TabEvent::Split(Axis::Row)),
             ("Split down", || TabEvent::Split(Axis::Column)),
             ("New terminal", || TabEvent::New),
