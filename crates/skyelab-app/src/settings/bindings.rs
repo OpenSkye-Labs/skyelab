@@ -161,14 +161,17 @@ impl Settings {
                             .child(div().max_w_48().child(badge_of(&b.account))),
                     )
                     .child(
-                        Button::new(SharedString::from(format!("unbind-{id}")))
-                            .icon(SkyeIcon::Unlink)
-                            .tooltip("Remove binding")
-                            .small()
-                            .ghost()
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.remove_binding(&remove, window, cx)
-                            })),
+                        // Centred on the name and account line (20 px) rather than 4 px under it.
+                        div().mt(gpui::px(-4.)).child(
+                            Button::new(SharedString::from(format!("unbind-{id}")))
+                                .icon(SkyeIcon::Unlink)
+                                .tooltip("Remove binding")
+                                .small()
+                                .ghost()
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.remove_binding(&remove, window, cx)
+                                })),
+                        ),
                     )
                     .into_any_element()
             })
