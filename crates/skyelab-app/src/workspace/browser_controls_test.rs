@@ -334,9 +334,12 @@ fn a_local_address_with_nothing_listening_says_so_and_retry_loads_it_once_it_run
         .port();
     let url = format!("http://127.0.0.1:{port}/");
     let failures = browser.read_with(cx, |b, _| b.load_failures());
-    browser
-        .update(cx, |b, cx| b.navigate(&url, cx))
-        .expect("navigate");
+    // The connect runs off the UI thread: navigate returns before it has an answer.
+    let pending = browser.update(cx, |b, cx| {
+        b.navigate(&url, cx).expect("navigate");
+        b.load_error().is_none()
+    });
+    assert!(pending, "no answer yet inside navigate: the probe is a background task");
     cx.run_until_parked();
     assert_eq!(*page.url.borrow(), "https://example.com/", "the engine was never asked");
     let shown = browser.read_with(cx, |b, _| b.load_error().cloned()).expect("an error");

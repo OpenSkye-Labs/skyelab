@@ -16,11 +16,33 @@ pub struct Tooltip {
     covered: Covered,
 }
 
-/// Dialogs opened so far, and where the pointer was at the last one.
+/// Dialogs opened so far, where the pointer was at the last one, and the windows showing a modal of our own (the
+/// Settings modal is drawn by the workspace, not a gpui-component dialog).
 #[derive(Default)]
 struct Dialogs {
     opened: u64,
     at: gpui::Point<gpui::Pixels>,
+    modals: std::collections::HashSet<gpui::WindowId>,
+}
+
+/// A modal the app draws itself (Settings) opened (`true`) or closed in `window`: tooltips treat it as a dialog.
+pub fn modal_shown(open: bool, window: &Window, cx: &mut App) {
+    let id = window.window_handle().window_id();
+    if open {
+        dialog_opened(window, cx);
+        cx.default_global::<Dialogs>().modals.insert(id);
+    } else if cx.has_global::<Dialogs>() {
+        cx.global_mut::<Dialogs>().modals.remove(&id);
+    }
+}
+
+/// A dialog, or one of our own modals, is up in `window`.
+fn modal(window: &mut Window, cx: &mut App) -> bool {
+    use gpui_component::WindowExt as _;
+    window.has_active_dialog(cx)
+        || cx
+            .try_global::<Dialogs>()
+            .is_some_and(|d| d.modals.contains(&window.window_handle().window_id()))
 }
 
 impl gpui::Global for Dialogs {}
@@ -45,11 +67,10 @@ pub(super) fn dialog_opened(window: &Window, cx: &mut App) {
 
 /// What a tooltip built now must hide behind: the opener's spot right after a dialog opens.
 fn covered(window: &mut Window, cx: &mut App) -> Covered {
-    use gpui_component::WindowExt as _;
     let (opened, at) = cx
         .try_global::<Dialogs>()
         .map_or((0, gpui::Point::default()), |d| (d.opened, d.at));
-    let dialog = window.has_active_dialog(cx);
+    let dialog = modal(window, cx);
     // shortcut: "near the opener" is 32 px of the click; a dialog control right under the click loses its tooltip
     // until the pointer moves off, which beats the opener's tooltip drawing over the dialog.
     let near = (window.mouse_position() - at).magnitude() < 32.;
@@ -90,13 +111,11 @@ impl Tooltip {
 impl Tooltip {
     /// Under a dialog that opened over its trigger: drawn as nothing.
     fn hidden(&self, window: &mut Window, cx: &mut App) -> bool {
-        use gpui_component::WindowExt as _;
         match self.covered {
             Covered::No => false,
-            Covered::Yes => window.has_active_dialog(cx),
+            Covered::Yes => modal(window, cx),
             Covered::Before(n) => {
-                window.has_active_dialog(cx)
-                    && cx.try_global::<Dialogs>().is_some_and(|d| d.opened > n)
+                modal(window, cx) && cx.try_global::<Dialogs>().is_some_and(|d| d.opened > n)
             }
         }
     }
@@ -195,5 +214,13 @@ mod tests {
             !cx.update(|window, cx| before.hidden(window, cx)),
             "back once the dialog closes"
         );
+        // The Settings modal is the workspace's own, not a dialog: it covers the same way.
+        cx.update(|window, cx| super::modal_shown(true, window, cx));
+        assert!(
+            cx.update(|window, cx| before.hidden(window, cx)),
+            "hidden under our own modal too"
+        );
+        cx.update(|window, cx| super::modal_shown(false, window, cx));
+        assert!(!cx.update(|window, cx| before.hidden(window, cx)));
     }
 }

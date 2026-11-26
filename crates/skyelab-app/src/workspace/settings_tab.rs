@@ -60,6 +60,7 @@ impl Workspace {
                 s.set_scope(None, window, cx);
             });
             self.settings_open = true;
+            crate::ui::tooltip::modal_shown(true, window, cx);
         }
         settings.update(cx, |s, cx| s.show(section, window, cx));
         if section == crate::settings::Section::Usage {
@@ -81,6 +82,7 @@ impl Workspace {
             return;
         }
         self.settings_open = false;
+        crate::ui::tooltip::modal_shown(false, window, cx);
         let Some(settings) = self.settings.clone() else {
             return cx.notify();
         };

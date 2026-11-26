@@ -58,6 +58,11 @@ pub fn initial_bounds(
     )
 }
 
+/// Where a new window opens next to `from` (the active one): down and right by a title bar, as macOS cascades.
+pub fn cascade(from: Bounds<Pixels>) -> Bounds<Pixels> {
+    Bounds::new(from.origin + point(px(28.), px(28.)), from.size)
+}
+
 /// `frame` moved (and shrunk if it must) so all of it is on `display`.
 fn fit_inside(frame: Bounds<Pixels>, display: Bounds<Pixels>) -> Bounds<Pixels> {
     let w = frame.size.width.min(display.size.width);
@@ -95,6 +100,12 @@ mod tests {
 
     fn rect(x: f32, y: f32, w: f32, h: f32) -> Bounds<Pixels> {
         Bounds::new(point(px(x), px(y)), size(px(w), px(h)))
+    }
+
+    #[test]
+    fn a_new_window_cascades_from_the_active_one() {
+        let from = rect(100., 50., 1200., 800.);
+        assert_eq!(cascade(from), rect(128., 78., 1200., 800.));
     }
 
     #[test]

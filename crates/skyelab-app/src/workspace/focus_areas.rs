@@ -217,11 +217,23 @@ impl Workspace {
         if self.close_env_menu(window, cx) {
             return;
         }
+        if self.unzoom(window, cx) {
+            return;
+        }
         let areas = self.areas(window, cx);
         match areas.into_iter().find(|(a, ..)| *a == Area::Composer) {
             Some((_, focus, false)) => self.ring(Area::Composer, focus, window, cx),
             _ => cx.propagate(),
         }
+    }
+
+    /// Esc on an expanded (zoomed) dock group puts it back first, as T3's expanded panel does. Whether it did.
+    pub(super) fn unzoom(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if !self.dock.read(cx).is_zoomed() {
+            return false;
+        }
+        self.dock.update(cx, |d, cx| d.set_zoomed_out(window, cx));
+        true
     }
 
     /// A click ends keyboard navigation, so the ring goes.

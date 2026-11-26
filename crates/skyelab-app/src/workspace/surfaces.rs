@@ -16,7 +16,16 @@ use gpui_component::{
     h_flex, v_flex,
 };
 
-actions!(skyelab, [OpenThreadChanges, OpenThreadPr, OpenSideChat]);
+actions!(
+    skyelab,
+    [
+        OpenThreadChanges,
+        OpenThreadPr,
+        OpenSideChat,
+        /// The picker's Terminal: a shell in the drawer, and the picker put away when it was all the panel held.
+        OpenSurfaceTerminal
+    ]
+);
 
 const CONTEXT: &str = "Surfaces";
 
@@ -24,7 +33,7 @@ pub(super) fn bind_keys(cx: &mut App) {
     let c = Some(CONTEXT);
     cx.bind_keys([
         KeyBinding::new("b", OpenBrowser, c),
-        KeyBinding::new("t", NewTerminal, c),
+        KeyBinding::new("t", OpenSurfaceTerminal, c),
         KeyBinding::new("f", SearchFiles, c),
         KeyBinding::new("d", OpenThreadChanges, c),
         KeyBinding::new("p", OpenThreadPr, c),
@@ -52,8 +61,16 @@ fn avail(v: &ThreadView) -> Avail {
     }
 }
 
-/// A surface: its icon, name, letter, whether the thread can have it, and the action that opens it.
-type Row = (SkyeIcon, &'static str, &'static str, bool, Box<dyn Action>);
+/// A surface: its icon, name, letter, whether the thread can have it, why not (T3's unavailable hints), and the
+/// action that opens it.
+type Row = (
+    SkyeIcon,
+    &'static str,
+    &'static str,
+    bool,
+    &'static str,
+    Box<dyn Action>,
+);
 
 pub struct SurfacesPanel {
     focus: FocusHandle,
@@ -125,6 +142,7 @@ impl Render for SurfacesPanel {
                 "Browser",
                 "B",
                 true,
+                "",
                 Box::new(OpenBrowser),
             ),
             (
@@ -132,13 +150,15 @@ impl Render for SurfacesPanel {
                 "Terminal",
                 "T",
                 true,
-                Box::new(NewTerminal),
+                "",
+                Box::new(OpenSurfaceTerminal),
             ),
             (
                 SkyeIcon::Files,
                 "Files",
                 "F",
                 a.thread,
+                "Available from a thread.",
                 Box::new(SearchFiles),
             ),
             (
@@ -146,6 +166,7 @@ impl Render for SurfacesPanel {
                 "Diff",
                 "D",
                 a.thread,
+                "Available from a thread.",
                 Box::new(OpenThreadChanges),
             ),
             (
@@ -153,6 +174,7 @@ impl Render for SurfacesPanel {
                 "Pull request",
                 "P",
                 a.pr,
+                "No pull request on this thread yet.",
                 Box::new(OpenThreadPr),
             ),
             // No linked issues here yet: always greyed, as T3 greys what a thread doesn't have.
@@ -161,6 +183,7 @@ impl Render for SurfacesPanel {
                 "Linked items",
                 "L",
                 false,
+                "No linked items available.",
                 Box::new(gpui::NoAction),
             ),
             (
@@ -168,6 +191,7 @@ impl Render for SurfacesPanel {
                 "Device",
                 "M",
                 true,
+                "",
                 Box::new(OpenDevices),
             ),
             (
@@ -175,10 +199,11 @@ impl Render for SurfacesPanel {
                 "Side chat",
                 "S",
                 a.side_chat,
+                "Available in a thread, not inside a side chat.",
                 Box::new(OpenSideChat),
             ),
         ];
-        let rows = rows.into_iter().map(|(icon, label, key, on, action)| {
+        let rows = rows.into_iter().map(|(icon, label, key, on, why, action)| {
             h_flex()
                 .id(label)
                 .h(gpui::px(32.))
@@ -200,7 +225,7 @@ impl Render for SurfacesPanel {
                                 crate::workspace::dispatch(action.boxed_clone(), window, cx)
                             })
                     } else {
-                        row.opacity(0.5)
+                        row.opacity(0.5).tooltip(ui::Tooltip::text(why))
                     }
                 })
         });
@@ -232,6 +257,23 @@ impl Render for SurfacesPanel {
 }
 
 impl Workspace {
+    /// How many tabs the right dock holds (Open a surface counts as one).
+    pub(super) fn right_tab_count(&self, cx: &App) -> usize {
+        let mut n = 0;
+        if let Some(layout) = self
+            .dock
+            .read(cx)
+            .layout(gpui_component::dock::DockPlacement::Right)
+        {
+            layout.root().walk(&mut |node| {
+                if let gpui_component::dock::PaneRef::Tabs { panels, .. } = node.kind() {
+                    n += panels.len();
+                }
+            });
+        }
+        n
+    }
+
     pub(super) fn surface_actions(
         &self,
         el: gpui::Stateful<gpui::Div>,
@@ -240,6 +282,13 @@ impl Workspace {
         el.on_action(cx.listener(|this, _: &OpenThreadChanges, window, cx| {
             if let Some(view) = this.current_thread() {
                 this.open_changes(&view, window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &OpenSurfaceTerminal, window, cx| {
+            this.new_terminal(&NewTerminal, window, cx);
+            // Terminals live in the drawer: a panel left showing only this picker goes away.
+            if this.right_tab_count(cx) <= 1 {
+                this.hide_right(&super::layout::HideRightPanel, window, cx);
             }
         }))
         .on_action(cx.listener(|this, _: &OpenThreadPr, window, cx| {

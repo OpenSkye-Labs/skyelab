@@ -153,3 +153,43 @@ fn a_submenu_item_found_by_a_query_lists_under_its_submenu_not_its_kind() {
         ]
     );
 }
+
+#[test]
+fn an_empty_query_offers_t3s_everyday_actions_in_order_and_hides_the_rest_until_searched() {
+    let entries = vec![
+        e("Dump Debug State", Kind::Action("skyelab::DumpDebugState")),
+        e("Open Settings", Kind::Action("skyelab::OpenSettings")),
+        e("Add Project", Kind::Action("skyelab::AddProject")),
+        e("Jump to Thread 1", Kind::Action("skyelab::JumpToThread1")),
+        e("New Thread", Kind::Action("skyelab::NewThread")),
+        e("New thread in…", Kind::Action("skyelab::Submenu")),
+        thread("Open thread: a", 1),
+    ];
+    let got = shown(
+        &arrange("", &entries, entries.len(), entries.len()),
+        &entries,
+    );
+    assert_eq!(got[0].0, "Actions");
+    assert_eq!(
+        got[0].1,
+        [
+            "New Thread",
+            "New thread in…",
+            "Add Project",
+            "Open Settings"
+        ]
+    );
+    assert_eq!(
+        got[1].0, "Recent threads",
+        "threads follow the short action list"
+    );
+    let found = shown(
+        &arrange("dump", &entries, entries.len(), entries.len()),
+        &entries,
+    );
+    assert_eq!(
+        found[0].1,
+        ["Dump Debug State"],
+        "a query still finds every action"
+    );
+}

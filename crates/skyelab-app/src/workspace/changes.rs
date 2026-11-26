@@ -77,6 +77,8 @@ pub struct ChangesView {
     pub(super) reveal_after_load: Option<PathBuf>,
     pub(super) publish_error: Option<SharedString>,
     pub(super) publish_note: Option<SharedString>,
+    /// The PR title and body show only once asked for (T3 keeps git actions out of the diff's way).
+    pub(super) pr_form: bool,
     /// A commit, push or PR is running; another click is ignored.
     pub(super) busy: bool,
     pub(super) _publish: Option<Task<()>>,
@@ -159,6 +161,7 @@ impl ChangesView {
             reveal_after_load: None,
             publish_error: None,
             publish_note: None,
+            pr_form: false,
             busy: false,
             _publish: None,
             generating: None,
@@ -361,7 +364,10 @@ impl Render for ChangesView {
             self.tree.len(),
             cx.processor(|this, range, _, cx| this.render_files(range, cx)),
         )
-        .w(px(220.))
+        // A share of the pane, so a narrow panel keeps its diff readable.
+        .w(gpui::relative(0.3))
+        .min_w(px(140.))
+        .max_w(px(220.))
         .flex_none()
         .h_full()
         .border_r_1()

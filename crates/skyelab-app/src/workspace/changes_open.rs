@@ -26,19 +26,8 @@ impl Workspace {
             .filter_map(|c| c.upgrade())
             .find(|c| c.read(cx).dir == dir && c.read(cx).base == base);
         if let Some(changes) = open {
-            // One tab per folder; it publishes for (and saves the PR link on) the thread that opened it last.
-            // Same folder, same bound account, and publishing re-checks the account anyway.
-            let thread = view.downgrade();
-            let title = view.read(cx).title();
-            changes.update(cx, |c, cx| {
-                c.title = title;
-                // A comment being written for another thread doesn't move to this one.
-                if c.thread.as_ref() != Some(&thread) {
-                    (c.draft, c.drag) = (None, None);
-                }
-                c.thread = Some(thread);
-                c.refresh(cx)
-            });
+            follow(&changes, view, cx);
+            changes.update(cx, |c, cx| c.refresh(cx));
             self.show_right_panel(changes.entity_id().into(), window, cx);
             return changes;
         }
@@ -48,6 +37,28 @@ impl Workspace {
         self.changes_views.push(changes.downgrade());
         cx.notify();
         changes
+    }
+
+    /// The center shows `view`: its folder's Changes tab follows it (title, publishing), as T3's diff panel follows
+    /// the active thread, rather than naming the thread shown before.
+    pub(super) fn follow_shown_thread(
+        &mut self,
+        view: &Entity<ThreadView>,
+        cx: &mut Context<Self>,
+    ) {
+        let (dir, base) = {
+            let v = view.read(cx);
+            (
+                v.cwd.clone(),
+                v.thread.as_ref().and_then(|t| t.worktree_base.clone()),
+            )
+        };
+        for changes in self.changes_views.iter().filter_map(|c| c.upgrade()) {
+            let c = changes.read(cx);
+            if c.pr.is_none() && c.dir == dir && c.base == base {
+                follow(&changes, view, cx);
+            }
+        }
     }
 
     /// A file the thread's timeline names: its folder's Changes tab, scrolled to the file once the diff lists it.
@@ -103,4 +114,20 @@ impl Workspace {
             }
         }
     }
+}
+
+/// One tab per folder; it publishes for (and saves the PR link on) the thread it follows. Same folder, same bound
+/// account, and publishing re-checks the account anyway.
+fn follow(changes: &Entity<ChangesView>, view: &Entity<ThreadView>, cx: &mut gpui::App) {
+    let thread = view.downgrade();
+    let title = view.read(cx).title();
+    changes.update(cx, |c, cx| {
+        // A comment being written for another thread doesn't move to this one.
+        if c.thread.as_ref() != Some(&thread) {
+            (c.draft, c.drag) = (None, None);
+        }
+        c.title = title;
+        c.thread = Some(thread);
+        cx.notify();
+    });
 }

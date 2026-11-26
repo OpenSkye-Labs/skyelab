@@ -71,6 +71,15 @@ pub(super) fn rows(cx: &App) -> Vec<KeyRow> {
     rows
 }
 
+/// A binding's context as the page says it: "BrowserFind" → "in Browser Find"; a compound predicate stays as written.
+pub(super) fn context_words(context: &str) -> String {
+    if context.chars().all(char::is_alphanumeric) {
+        format!("in {}", crate::palette::humanize(context))
+    } else {
+        format!("when {context}")
+    }
+}
+
 /// Whether every word of `query` is in the row.
 fn matches(row: &KeyRow, query: &str) -> bool {
     query
@@ -161,8 +170,14 @@ impl Settings {
                                             .child("Custom"),
                                     )
                                 })
+                                // Where the key works, as words: a raw context name read like another key.
                                 .when(b.context.as_ref() != "Workspace", |el| {
-                                    el.child(ui::mono(b.context.clone(), theme).text_size(ui::META))
+                                    el.child(
+                                        div()
+                                            .text_size(ui::META)
+                                            .text_color(muted)
+                                            .child(context_words(&b.context)),
+                                    )
                                 })
                                 .children(b.keys.iter().map(|k| Kbd::new(k.clone())))
                         }))

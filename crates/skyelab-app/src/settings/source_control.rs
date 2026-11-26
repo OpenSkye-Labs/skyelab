@@ -156,7 +156,12 @@ impl Settings {
                         ),
                     };
                     Button::new(SharedString::from(format!("gh-login-{}", a.id)))
-                        .label(if a.gh_config_dir.is_some() { "Log in" } else { "Set up" })
+                        .label(match (&a.gh_config_dir, self.gh_logins.get(&a.id)) {
+                            (None, _) => "Set up",
+                            // Signed in already: the button signs in again (another GitHub user).
+                            (Some(_), Some(Some(_))) => "Log in again",
+                            (Some(_), _) => "Log in",
+                        })
                         .tooltip(tip)
                         .small()
                         .outline()

@@ -64,7 +64,7 @@ project folder). Scripts are kept in SkyeLab's own database, never in the repo, 
 The Changes tab lists the changed files as a folder tree on the left: click a folder to fold it, a file to jump to it
 in the diff. A folder that only holds one folder is shown as one row (`crates/app/src`). The buttons in its header
 switch between a **unified** diff and a **split** one (old on the left, new on the right), turn **line wrapping** on
-or off, and **hide whitespace changes** (`git diff -w`: a file whose only change is whitespace shows as such). SkyeLab
+or off (on until you turn it off), and **hide whitespace changes** (`git diff -w`: a file whose only change is whitespace shows as such). SkyeLab
 remembers all three in `settings.toml` under `[diff]`.
 
 Click in the diff and press <kbd>⌘F</kbd> (<kbd>Ctrl+F</kbd>) to find in it: the bar counts every match in the file
