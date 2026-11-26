@@ -1,6 +1,6 @@
-//! A remote device's answers to what an agent here waits on: a permission request, an ExitPlanMode plan (an
-//! approval also takes the thread out of Plan, as a click on its card does) and an AskUserQuestion. Each is replied
-//! to once the agent took it, or with why it didn't.
+//! A remote device's answers to what an agent here waits on: a permission request, an ExitPlanMode plan or a plan
+//! written for review (an approval also takes the thread out of Plan, as a click on its card does) and an
+//! AskUserQuestion. Each is replied to once the agent took it, or with why it didn't.
 
 use super::Workspace;
 use super::remote::{decision_of, not_open, refused};
@@ -15,6 +15,7 @@ impl Workspace {
         request_id: &str,
         decision: PermissionAnswer,
         reply: Reply<()>,
+        window: &mut gpui::Window,
         cx: &mut Context<Self>,
     ) {
         let Some(view) = self.open_view(thread_id, cx) else {
@@ -23,9 +24,14 @@ impl Workspace {
         };
         let late = reply.clone();
         let done = move |r: Result<(), String>| _ = late.send(r.map_err(refused));
+        let approve = decision != PermissionAnswer::Deny;
         let asked = view.update(cx, |v, cx| {
-            if v.is_plan(request_id) {
-                v.answer_plan_then(request_id, decision != PermissionAnswer::Deny, done, cx)
+            // A plan written for review: no request waits on it, so it settles as a click on its card does.
+            if v.review_plan(request_id).is_some() {
+                v.answer_review_plan(request_id, approve, window, cx)
+                    .map(|()| done(Ok(())))
+            } else if v.is_plan(request_id) {
+                v.answer_plan_then(request_id, approve, done, cx)
             } else {
                 v.answer_then(request_id, decision_of(decision), done, cx)
             }

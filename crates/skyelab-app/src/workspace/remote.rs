@@ -233,7 +233,7 @@ impl Workspace {
                 decision,
                 reply,
                 ..
-            } => self.remote_answer(thread_id, &request_id, decision, reply, cx),
+            } => self.remote_answer(thread_id, &request_id, decision, reply, window, cx),
             RemoteCall::Questions {
                 thread_id,
                 request_id,

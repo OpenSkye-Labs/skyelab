@@ -26,8 +26,11 @@ fn plan_card(t: &ThreadView) -> Option<skyelab_agent::timeline::ApprovalItem> {
     })
 }
 
-#[gpui::test]
-fn a_plan_written_for_review_shows_as_a_plan_card_and_approve_goes_on(cx: &mut TestAppContext) {
+/// An Antigravity thread in Plan whose agent wrote a plan for review and ended its turn: its home dir (kept alive),
+/// the workspace and the thread.
+fn plan_waiting(
+    cx: &mut TestAppContext,
+) -> (tempfile::TempDir, PathBuf, Entity<Workspace>, Entity<ThreadView>, &mut gpui::VisualTestContext) {
     cx.executor().allow_parking();
     cx.update(|cx| {
         gpui_component::init(cx);
@@ -117,6 +120,12 @@ fn a_plan_written_for_review_shows_as_a_plan_card_and_approve_goes_on(cx: &mut T
             plan_card(t).is_some() && t.items.iter().any(|i| matches!(i, Item::Done { .. }))
         })
     });
+    (home, gemini_home, ws, thread, cx)
+}
+
+#[gpui::test]
+fn a_plan_written_for_review_shows_as_a_plan_card_and_approve_goes_on(cx: &mut TestAppContext) {
+    let (_home, gemini_home, _ws, thread, cx) = plan_waiting(cx);
     let card = thread.read_with(cx, |t, _| plan_card(t)).expect("card");
     assert_eq!(card.raw["plan"], "# Plan\n\n1. Add subtract(a, b) to calc.py\n2. Test it");
     let artifact = card.raw["artifact"].as_str().expect("its file").to_owned();
@@ -144,5 +153,28 @@ fn a_plan_written_for_review_shows_as_a_plan_card_and_approve_goes_on(cx: &mut T
         assert_eq!(t.mode, Mode::Default, "left Plan");
         assert_eq!(plan_card(t).and_then(|c| c.decision), Some(Decision::AllowOnce));
         assert!(t.items.iter().any(|i| matches!(i, Item::Prompt(p) if p == APPROVED)));
+    });
+}
+
+/// Approve from another device takes the same path as a click here: out of Plan, the card settles, the go-ahead goes.
+#[gpui::test]
+fn a_remote_approve_of_a_plan_written_for_review_goes_on(cx: &mut TestAppContext) {
+    let (_home, _, ws, thread, cx) = plan_waiting(cx);
+    let card = thread.read_with(cx, |t, _| plan_card(t)).expect("card");
+    let id = thread.read_with(cx, |t, _| t.thread.as_ref().map(|t| t.id)).expect("stored");
+    let (reply, answered) = flume::bounded(1);
+    ws.update_in(cx, |ws, window, cx| {
+        ws.remote_answer(id, &card.id, skyelab_protocol::PermissionAnswer::AllowOnce, reply, window, cx)
+    });
+    wait_until(cx, "the go-ahead answered", |cx| {
+        thread.read_with(cx, |t, _| {
+            assert_eq!(t.error, None, "thread errored");
+            t.items.iter().any(|i| matches!(i, Item::Text(x) if x == "Implementing the plan."))
+        })
+    });
+    assert!(answered.try_recv().expect("replied").is_ok(), "the client is told it was taken");
+    thread.read_with(cx, |t, _| {
+        assert_eq!(t.mode, Mode::Default, "left Plan");
+        assert_eq!(plan_card(t).and_then(|c| c.decision), Some(Decision::AllowOnce));
     });
 }

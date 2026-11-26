@@ -373,7 +373,11 @@ impl ItemsView for ThreadView {
         cx: &mut Context<Self>,
     ) {
         if self.review_plan(id).is_some() {
-            return self.answer_review_plan(id, approve, window, cx);
+            return match self.answer_review_plan(id, approve, window, cx) {
+                Err(why) => self.show_error(anyhow::anyhow!(why), cx),
+                Ok(()) if !approve => self.focus_prompt(window, cx), // the composer is theirs again
+                Ok(()) => {}
+            };
         }
         ThreadView::answer_plan(self, id, approve, cx)
     }
