@@ -220,15 +220,12 @@ impl Render for MachinesPage {
                     .pb_12()
                     .gap_8()
                     .text_size(ui::BODY)
-                    .child(
-                        v_flex()
-                            .gap_1()
-                            .child(ui::section_title("Machines", theme))
-                            .child(div().text_color(theme.muted_foreground).child(
-                                "Drive your other machines from this window. The composer's machine chip switches \
-                                 between them.",
-                            )),
-                    )
+                    .child(crate::settings::widgets::heading(
+                        "Machines",
+                        "Drive your other machines from this window. The composer's machine chip switches between \
+                         them.",
+                        cx,
+                    ))
                     .children(sharing.map(|row| {
                         v_flex()
                             .gap_2p5()
