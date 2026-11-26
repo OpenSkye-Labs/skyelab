@@ -454,18 +454,24 @@ impl Render for Palette {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("Palette");
         let list = self.list();
+        let page_title = self.page.as_ref().map(|p| p.title.clone());
         let groups: Vec<CommandGroup> = self
             .groups
             .iter()
             .map(|g| {
-                CommandGroup::new()
-                    .label(g.label.clone())
-                    .items(g.rows.iter().map(|&i| {
-                        let (entry, query) = (list[i].clone(), self.query.clone());
-                        CommandItem::new()
-                            .label(entry.label.clone())
-                            .child(move |_, _| row(&entry, &query))
-                    }))
+                let group = CommandGroup::new();
+                // A page's own rows go unheaded: the back row above already names the page.
+                let group = if page_title.as_ref() == Some(&g.label) {
+                    group
+                } else {
+                    group.label(g.label.clone())
+                };
+                group.items(g.rows.iter().map(|&i| {
+                    let (entry, query) = (list[i].clone(), self.query.clone());
+                    CommandItem::new()
+                        .label(entry.label.clone())
+                        .child(move |_, _| row(&entry, &query))
+                }))
             })
             .collect();
         let this = cx.entity().downgrade();

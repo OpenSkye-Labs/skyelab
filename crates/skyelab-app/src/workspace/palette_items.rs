@@ -218,9 +218,14 @@ impl Workspace {
             .iter()
             .map(|p| {
                 let action = Box::new(super::NewThreadIn { id: p.id });
+                // The account the thread will run on; the folder's binding is still checked when it starts.
+                let account = self
+                    .config
+                    .resolve(&p.path)
+                    .map_or("No account", |a| a.label.as_str());
                 dispatch(format!("New thread in: {}", p.name), Kind::Project, action)
                     .title(p.name.clone())
-                    .subtitle(short(&p.path))
+                    .subtitle(format!("{} · {account}", short(&p.path)))
             })
             .collect()
     }
