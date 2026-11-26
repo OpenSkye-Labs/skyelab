@@ -1,4 +1,4 @@
-//! Startup I/O helpers for `main.rs`: window options, binary overrides, store, accounts, single-instance lock, and
+//! Startup I/O helpers for `lib.rs`: window options, binary overrides, store, accounts, single-instance lock, and
 //! orchestration setup.
 
 use crate::{ui, workspace};
