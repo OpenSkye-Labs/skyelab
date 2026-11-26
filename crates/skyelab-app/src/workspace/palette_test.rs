@@ -325,3 +325,19 @@ fn the_hidden_drawers_strip_is_a_button_that_opens_it(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(bottom(&ws, cx), "a click on the strip opens the drawer");
 }
+
+#[gpui::test]
+fn the_palettes_search_field_is_t3s_large_one_and_takes_the_keys(cx: &mut TestAppContext) {
+    setup(cx);
+    let (ws, cx) = open(test_backend(), cx);
+    cx.simulate_keystrokes(OPEN_PALETTE_KEY);
+    cx.run_until_parked();
+    let field = cx.debug_bounds("palette-search").expect("our search field is drawn");
+    assert_eq!(field.size.height, gpui::px(48.), "a 48 px row, not the 32 px medium input");
+    // Typing reaches it, and the query still ranks the list: Enter runs the match.
+    cx.simulate_input("settings");
+    cx.run_until_parked();
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(ws.read_with(cx, |ws, _| ws.settings_open), "the typed query ran Open Settings");
+}

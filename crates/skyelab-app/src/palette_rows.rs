@@ -175,6 +175,34 @@ pub(super) fn back_row(
         })
 }
 
+/// The palette's search field at T3's large size: a 16 px icon and body-size text in a 48 px row over the list.
+pub(super) fn search_field(
+    field: &gpui::Entity<gpui_component::input::InputState>,
+    cx: &App,
+) -> gpui::Div {
+    let theme = cx.theme();
+    h_flex()
+        .debug_selector(|| "palette-search".into())
+        .h(gpui::px(48.))
+        .px_4()
+        .gap_2p5()
+        .border_b_1()
+        .border_color(theme.foreground.opacity(0.07))
+        .child(
+            Icon::new(SkyeIcon::Search)
+                .size_4()
+                .text_color(theme.muted_foreground),
+        )
+        .child(
+            div().flex_1().min_w_0().child(
+                gpui_component::Sizable::large(
+                    gpui_component::input::Input::new(field).appearance(false),
+                )
+                .p_0(),
+            ),
+        )
+}
+
 #[cfg(test)]
 mod icon_test {
     use super::*;

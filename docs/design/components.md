@@ -82,6 +82,8 @@ reaches for these.
 - **`Input` / `Textarea`**: text editing. GPUI has no text input of its own.
 - **`Dialog`** and **`HoverCard`**: layers inside `Root`. (gpui-component's `Notification` is banned; see `Toast`.)
 - **The dock and its tab bars**, and **`TextView`** (markdown).
+- **`Command`** (the palette's list): its own query field is private and a fixed medium size, so the palette turns
+  it off (`searchable(false)`) and draws a large field of ours in the header that drives `CommandState::set_query`.
 - **The browser crate** (`skyelab-browser`) keeps gpui-component's buttons, since it can't depend on the app's `ui`.
 
 ## Restyling
