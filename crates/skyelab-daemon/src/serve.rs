@@ -21,8 +21,15 @@ use crate::{Shared, Ws, forward};
 mod dispatch;
 use dispatch::{dispatch, without_paths};
 
-/// A reply, and for `subscribe_shell` the changes to forward once it is written.
-type Out = (ServerMessage, Option<flume::Receiver<ShellChange>>);
+/// A reply, and for `subscribe_shell` its arrival number and the changes to forward once it is written.
+type Out = (ServerMessage, Option<(u64, flume::Receiver<ShellChange>)>);
+
+/// Where replies go, and how many `subscribe_shell` calls this connection sent: each is numbered as it arrives, so
+/// the newest one's stream wins however the replies cross (request ids needn't increase).
+struct Outbox {
+    tx: mpsc::Sender<Out>,
+    subscribes: u64,
+}
 
 enum Step {
     Send(ServerMessage),
@@ -41,12 +48,13 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
     let config = &shared.config;
     let (mut sink, mut stream) = ws.split();
     let in_flight = Arc::new(Semaphore::new(config.max_in_flight));
-    let (replies_tx, mut replies) = mpsc::channel(config.max_in_flight);
+    let (tx, mut replies) = mpsc::channel(config.max_in_flight);
+    let mut outbox = Outbox { tx, subscribes: 0 };
     let mut running = JoinSet::new();
     let mut events: Option<broadcast::Receiver<ThreadEvent>> = None;
-    // Set with the snapshot reply, so no change goes out before the snapshot it follows. Kept with its request id:
-    // subscribes are answered as they finish, and an older one's late reply must not replace a newer stream.
-    let mut shell: Option<(skyelab_protocol::RequestId, flume::Receiver<ShellChange>)> = None;
+    // Set with the snapshot reply, so no change goes out before the snapshot it follows. Kept with its arrival
+    // number: subscribes are answered as they finish, and an older one's late reply must not replace a newer stream.
+    let mut shell: Option<(u64, flume::Receiver<ShellChange>)> = None;
     let mut idle_at = Instant::now() + config.idle_timeout;
 
     loop {
@@ -66,7 +74,7 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
                 idle_at = Instant::now() + config.idle_timeout;
                 match incoming {
                     Some(Ok(Message::Text(text))) => {
-                        on_text(&text, shared, who, &mut events, &in_flight, &replies_tx, &mut running)
+                        on_text(&text, shared, who, &mut events, &in_flight, &mut outbox, &mut running)
                     }
                     Some(Ok(Message::Binary(_))) => Step::Send(ServerMessage::Error {
                         id: None,
@@ -82,10 +90,10 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
                 }
             }
             Some((reply, changes)) = replies.recv() => {
-                if let (Some(changes), ServerMessage::Response { id, .. }) = (changes, &reply)
-                    && shell.as_ref().is_none_or(|(newest, _)| id > newest)
+                if let Some((arrival, changes)) = changes
+                    && shell.as_ref().is_none_or(|(newest, _)| arrival > *newest)
                 {
-                    shell = Some((*id, changes));
+                    shell = Some((arrival, changes));
                 }
                 Step::Send(reply)
             }
@@ -174,7 +182,7 @@ fn on_text(
     who: &Who,
     events: &mut Option<broadcast::Receiver<ThreadEvent>>,
     in_flight: &Arc<Semaphore>,
-    replies: &mpsc::Sender<Out>,
+    replies: &mut Outbox,
     running: &mut JoinSet<()>,
 ) -> Step {
     let mut timed = skyelab_core::debug::RpcCall::start("daemon", text);
@@ -318,7 +326,7 @@ fn on_call(
     shared: &Shared,
     who: &Who,
     in_flight: &Arc<Semaphore>,
-    replies: &mpsc::Sender<Out>,
+    replies: &mut Outbox,
     running: &mut JoinSet<()>,
 ) -> Step {
     let error = move |code, message: &str| ServerMessage::Error {
@@ -337,7 +345,8 @@ fn on_call(
                         "too many requests in flight",
                     ));
                 };
-                let (peers, replies, peer) = (shared.peers.clone(), replies.clone(), who.peer_id);
+                let (peers, replies, peer) =
+                    (shared.peers.clone(), replies.tx.clone(), who.peer_id);
                 let timed = timed.take();
                 running.spawn(async move {
                     // Probe first, so the user hears at once that nothing listens there.
@@ -372,8 +381,12 @@ fn on_call(
                         "too many requests in flight",
                     ));
                 };
+                let arrival = subscribe.then(|| {
+                    replies.subscribes += 1;
+                    replies.subscribes
+                });
                 let backend = shared.backend.clone();
-                let replies = replies.clone();
+                let replies = replies.tx.clone();
                 let gate = who.gate.clone();
                 let timed = timed.take();
                 running.spawn(async move {
@@ -414,6 +427,7 @@ fn on_call(
                     };
                     log_message(timed, &reply);
                     // Waits only while `serve` is busy writing; it drains this channel every turn.
+                    let changes = arrival.zip(changes);
                     let _ = replies.send((reply, changes)).await;
                     drop(permit);
                 });
@@ -471,7 +485,7 @@ async fn next_event(events: &mut Option<broadcast::Receiver<ThreadEvent>>) -> Op
 /// The next shell change; `None` once the stream ended (this connection fell behind). Pends forever before
 /// `subscribe_shell` was answered.
 async fn next_change(
-    shell: &mut Option<(skyelab_protocol::RequestId, flume::Receiver<ShellChange>)>,
+    shell: &mut Option<(u64, flume::Receiver<ShellChange>)>,
 ) -> Option<ShellChange> {
     match shell {
         Some((_, rx)) => rx.recv_async().await.ok(),

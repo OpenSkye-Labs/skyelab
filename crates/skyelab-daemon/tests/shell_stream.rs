@@ -306,6 +306,18 @@ impl Backend for Crossed {
 /// Two subscribes answered out of order: the older one's late reply doesn't replace the newer stream.
 #[test]
 fn a_late_older_subscribe_keeps_the_newer_stream() {
+    crossed_subscribes(2, 3);
+}
+
+/// The same with request ids that go down: the protocol doesn't make them increase, so arrival order decides.
+#[test]
+fn a_late_older_subscribe_with_a_higher_id_keeps_the_newer_stream() {
+    crossed_subscribes(100, 10);
+}
+
+/// Subscribe `older` (held in the backend), then `newer` (answered first); then `older` answers late with an ended
+/// stream. A change must still arrive, on `newer`'s stream.
+fn crossed_subscribes(older: u64, newer: u64) {
     let store = Store::open_in_memory().expect("store");
     let p = store
         .create_project("app", Path::new("/src/app"))
@@ -321,19 +333,20 @@ fn a_late_older_subscribe_keeps_the_newer_stream() {
     });
     let daemon = start(FakeTailnet::new(Peer::Own), backend, test_config());
     let mut ws = connect_hello(daemon.local_addrs()[0]);
-    send(&mut ws, 2, Call::SubscribeShell);
+    send(&mut ws, older, Call::SubscribeShell);
     held_rx.recv().expect("the first subscribe is held");
-    send(&mut ws, 3, Call::SubscribeShell);
+    send(&mut ws, newer, Call::SubscribeShell);
     let got = recv(&mut ws);
     assert!(
-        matches!(got, Some(ServerMessage::Response { id: 3, .. })),
+        matches!(got, Some(ServerMessage::Response { id, .. }) if id == newer),
         "{got:?}"
     );
     release_tx.send(()).expect("release");
-    assert!(matches!(
-        recv(&mut ws),
-        Some(ServerMessage::Response { id: 2, .. })
-    ));
+    let got = recv(&mut ws);
+    assert!(
+        matches!(got, Some(ServerMessage::Response { id, .. }) if id == older),
+        "{got:?}"
+    );
     store
         .lock()
         .expect("lock")
