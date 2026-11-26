@@ -184,6 +184,7 @@ impl ThreadView {
                 .and_then(|n| n.parse().ok())
                 .unwrap_or(0),
             url,
+            title: None,
             checks,
             head,
             dir: self.cwd.clone(),
