@@ -36,6 +36,8 @@ mod follow_up;
 mod launch;
 #[path = "thread_mode.rs"]
 mod mode;
+#[path = "plan_review.rs"]
+pub(super) mod plan_review;
 #[path = "thread_release.rs"]
 pub(super) mod release;
 #[path = "thread_restart.rs"]

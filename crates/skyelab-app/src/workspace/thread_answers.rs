@@ -364,8 +364,20 @@ impl ItemsView for ThreadView {
     fn submit_answers(&mut self, id: &str, _: &mut Window, cx: &mut Context<Self>) {
         ThreadView::submit_answers(self, id, cx)
     }
-    fn answer_plan(&mut self, id: &str, approve: bool, _: &mut Window, cx: &mut Context<Self>) {
+    fn answer_plan(
+        &mut self,
+        id: &str,
+        approve: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.review_plan(id).is_some() {
+            return self.answer_review_plan(id, approve, window, cx);
+        }
         ThreadView::answer_plan(self, id, approve, cx)
+    }
+    fn reveal_plan(&mut self, path: &str, cx: &mut Context<Self>) -> bool {
+        ThreadView::reveal_plan(self, path, cx)
     }
 }
 

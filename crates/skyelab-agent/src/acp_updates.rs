@@ -58,15 +58,26 @@ impl TurnBuffers {
 pub(crate) struct ToolCallState {
     emitted_use: bool,
     emitted_result: bool,
+    /// A plan written for review (agy's artifact with `RequestFeedback`): shown once the write completes.
+    plan: Option<Value>,
 }
 
 #[derive(Default)]
 pub(crate) struct ToolCallTracker {
     order: VecDeque<String>,
     calls: BTreeMap<String, ToolCallState>,
+    /// Starts each plan card's ask id, new per process (see `Asks`).
+    nonce: String,
 }
 
 impl ToolCallTracker {
+    pub(crate) fn with_nonce(nonce: &str) -> Self {
+        Self {
+            nonce: nonce.to_owned(),
+            ..Self::default()
+        }
+    }
+
     pub(crate) fn clear(&mut self) {
         self.order.clear();
         self.calls.clear();
@@ -188,6 +199,9 @@ fn handle_tool_call(
         });
     }
 
+    if let Some(plan) = plan_review(&update["rawInput"]) {
+        tools.entry_mut(&id).plan = Some(plan);
+    }
     if terminal {
         let emit_result = {
             let state = tools.entry_mut(&id);
@@ -202,14 +216,48 @@ fn handle_tool_call(
             let content = tool_output(update);
             events.push(Event::User {
                 content: vec![Block::ToolResult {
-                    tool_use_id: id,
+                    tool_use_id: id.clone(),
                     content,
                     is_error: status == "failed",
                 }],
             });
+            // The plan is written: shown as a plan card, as Claude's ExitPlanMode is (never read back from disk).
+            if let Some(input) = tools
+                .entry_mut(&id)
+                .plan
+                .take()
+                .filter(|_| status == "completed")
+            {
+                events.push(Event::Permission {
+                    id: format!("{}acp-plan-{id}", tools.nonce),
+                    tool: crate::PLAN_TOOL.to_owned(),
+                    input,
+                });
+            }
         }
     }
     events
+}
+
+/// A file write that asks the user to review it (agy's `write_file` with `ArtifactMetadata.RequestFeedback`): the
+/// plan card's input, `{"plan": <its markdown>, "artifact": <the path it was written to>}`. agy may send each arg as
+/// JSON text (`"\"# Plan\""`), so a string that parses as JSON is read through.
+pub(crate) fn plan_review(input: &Value) -> Option<Value> {
+    let arg = |k: &str| match &input[k] {
+        Value::String(s) => {
+            Some(serde_json::from_str::<Value>(s).unwrap_or(Value::String(s.clone())))
+        }
+        Value::Null => None,
+        v => Some(v.clone()),
+    };
+    let meta = arg("ArtifactMetadata")?;
+    if meta["RequestFeedback"] != true && meta["requestFeedback"] != true {
+        return None;
+    }
+    let plan = arg("Content")?;
+    let plan = truncate_utf8(plan.as_str()?, MAX_TOOL_TEXT_BYTES);
+    let path = arg("Path").and_then(|p| p.as_str().map(|p| truncate_utf8(p, 4096)));
+    Some(json!({ "plan": plan, "artifact": path }))
 }
 
 fn handle_plan(update: &Value, buf: &mut TurnBuffers) -> Vec<Event> {
@@ -398,6 +446,22 @@ fn append_bounded<'a>(dst: &mut String, chunk: &'a str, max_bytes: usize) -> &'a
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_feedback_artifact_is_a_plan_whether_its_args_are_json_text_or_not() {
+        let text = json!({"ArtifactMetadata": "{\"RequestFeedback\":true}", "Content": "\"# Plan\"",
+            "Path": "\"/b/plan.md\""});
+        assert_eq!(
+            plan_review(&text),
+            Some(json!({"plan": "# Plan", "artifact": "/b/plan.md"}))
+        );
+        let plain = json!({"ArtifactMetadata": {"RequestFeedback": true}, "Content": "# Plan", "Path": "/b/plan.md"});
+        assert_eq!(plan_review(&plain), plan_review(&text));
+        let no_feedback =
+            json!({"ArtifactMetadata": {"RequestFeedback": false}, "Content": "x", "Path": "/a"});
+        assert_eq!(plan_review(&no_feedback), None);
+        assert_eq!(plan_review(&json!({"Content": "x"})), None, "a plain write");
+    }
 
     #[test]
     fn tracker_caps_tracked_tools_at_max() {

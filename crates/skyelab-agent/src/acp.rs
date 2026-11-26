@@ -87,7 +87,7 @@ impl Acp {
             thought_config_id: None,
             available_modes: Vec::new(),
             pending_mode: (mode != Mode::Default).then_some(mode),
-            tools: ToolCallTracker::default(),
+            tools: ToolCallTracker::with_nonce(&nonce),
             buffers: TurnBuffers::default(),
             asks: Asks::new(nonce),
         };

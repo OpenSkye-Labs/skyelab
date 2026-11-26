@@ -76,6 +76,10 @@ pub(super) trait ItemsView: Sized + 'static {
     }
     /// Shows a file a reply links to in the Preview tab, at `line`.
     fn preview_path(&mut self, _path: &str, _line: Option<u32>, _cx: &mut Context<Self>) {}
+    /// Scrolls to the card of the plan the agent wrote to `path` for review (false: none).
+    fn reveal_plan(&mut self, _path: &str, _cx: &mut Context<Self>) -> bool {
+        false
+    }
     /// The checkpoint turn and changed files of the turn whose divider is row `done`.
     fn turn_files(&self, _done: usize) -> Option<(u32, &[super::turn_files::FileStat])> {
         None
@@ -94,18 +98,16 @@ pub(super) trait ItemsView: Sized + 'static {
     fn can_answer_questions(&self, _cx: &App) -> bool {
         false
     }
-    /// Pending questions and permission asks are answered in a panel docked on the composer (T3's), so the timeline
-    /// shows them as one line. Remote threads keep the cards in the timeline.
+    /// Pending asks are answered in a panel docked on the composer (T3's): the timeline shows one line. Remote
+    /// threads keep the cards.
     fn docks_asks(&self, _id: &str) -> bool {
         false
     }
-    /// Whether tool `id`, with no result yet, may still get one: an agent runs the turn it belongs to. Otherwise
-    /// (the agent died or was stopped mid-call) it shows as interrupted, not running.
+    /// Whether tool `id`, with no result yet, may still get one (its turn's agent runs); else it shows interrupted.
     fn tool_live(&self, _id: &str) -> bool {
         true
     }
-    /// Whether an agent process runs for this thread: a subagent can outlive its turn (Claude's background tasks),
-    /// but not its agent.
+    /// Whether an agent process runs: a subagent can outlive its turn (Claude's background tasks), not its agent.
     fn agent_alive(&self) -> bool {
         true
     }
@@ -132,8 +134,7 @@ pub(super) trait ItemsView: Sized + 'static {
     ) -> Option<gpui::Entity<gpui_component::input::InputState>> {
         None
     }
-    /// Whether files can go with a question's answer: only where the agent runs on this machine, since the agent
-    /// gets the files' paths.
+    /// Whether files can go with a question's answer: only where the agent runs here (it gets their paths).
     fn can_attach_answer_files(&self, _cx: &App) -> bool {
         false
     }
