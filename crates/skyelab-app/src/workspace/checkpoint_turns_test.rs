@@ -95,7 +95,7 @@ fn each_turn_leaves_a_checkpoint_and_changes_can_rewind_it(cx: &mut TestAppConte
         "Restores a.txt, b.txt. Deletes new.txt. Overwrites ignored .env."
     );
 
-    // Through the tab: refused while the agent runs, then rewinds turn 2 once stopped.
+    // Through the tab: the turn has ended, so the rewind asks at once (an idle agent between turns writes nothing).
     cx.dispatch_action(OpenChanges);
     let changes = ws
         .read_with(cx, |ws, _| {
@@ -108,15 +108,7 @@ fn each_turn_leaves_a_checkpoint_and_changes_can_rewind_it(cx: &mut TestAppConte
             c.changes.as_ref().is_some_and(|c| c.files.len() == 1)
         })
     });
-    if thread.read_with(cx, |t, _| t.session.is_some()) {
-        changes.update(cx, |c, cx| c.ask_rewind(2, cx));
-        cx.run_until_parked();
-        changes.read_with(cx, |c, _| {
-            assert!(c.rewind.is_none());
-            assert!(c.publish_error.is_some(), "refused while the agent runs");
-        });
-        stop(cx);
-    }
+    assert!(thread.read_with(cx, |t, _| !t.turn_running()));
     changes.update(cx, |c, cx| c.ask_rewind(2, cx));
     wait_until(cx, "the rewind confirm", |cx| {
         changes.read_with(cx, |c, _| c.rewind.is_some())
@@ -157,4 +149,42 @@ fn each_turn_leaves_a_checkpoint_and_changes_can_rewind_it(cx: &mut TestAppConte
         "turn\n",
         "back to how turn 1 left it"
     );
+}
+
+/// A rewind asked for mid-turn waits with the turn's Stop right there; Stop ends the turn and the confirm follows.
+#[gpui::test]
+fn a_rewind_mid_turn_offers_stop_then_asks(cx: &mut TestAppContext) {
+    let f = fixture();
+    std::fs::write(f.project.join(".fake-agent-edits"), "").expect("marker");
+    let (ws, thread, cx) = open_thread(&f, cx);
+    send(cx);
+    wait_until(cx, "turn 1 ends", |cx| {
+        thread.read_with(cx, |t, _| t.session.is_some() && !t.turn_running())
+    });
+    thread
+        .update_in(cx, |t, window, cx| t.submit_remote("hang", window, cx))
+        .expect("sent");
+    wait_until(cx, "turn 2 runs", |cx| thread.read_with(cx, |t, _| t.turn_running()));
+
+    cx.dispatch_action(OpenChanges);
+    let changes = ws
+        .read_with(cx, |ws, _| ws.changes_views.last().and_then(|c| c.upgrade()))
+        .expect("changes tab");
+    changes.update(cx, |c, cx| c.set_scope(Scope::Turn(1), cx));
+    wait_until(cx, "turn 1 loaded", |cx| {
+        changes.read_with(cx, |c, _| c.changes.as_ref().is_some_and(|c| !c.checkpoints.is_empty()))
+    });
+    changes.update(cx, |c, cx| c.ask_rewind(1, cx));
+    cx.run_until_parked();
+    changes.read_with(cx, |c, _| {
+        assert!(c.rewind.is_none(), "nothing rewinds under a running turn");
+        assert_eq!(c.rewind_wait.as_ref().map(|w| w.turn), Some(1));
+    });
+    assert!(cx.debug_bounds("rewind-wait").is_some(), "the wait, with its Stop, shows");
+
+    changes.update_in(cx, |c, window, cx| c.stop_for_rewind(window, cx));
+    wait_until(cx, "the turn stops and the confirm shows", |cx| {
+        changes.read_with(cx, |c, _| c.rewind.is_some() && c.rewind_wait.is_none())
+    });
+    assert!(thread.read_with(cx, |t, _| !t.turn_running()));
 }
