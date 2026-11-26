@@ -1,7 +1,7 @@
 //! Thread events: append (image bytes dropped, see `images.rs`) and read back.
 
 use anyhow::Result;
-use rusqlite::{TransactionBehavior, params};
+use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
 
 use crate::{Event, Store, expect_one, images, now_ms};
 
@@ -74,5 +74,23 @@ impl Store {
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// The model the account's newest run with no model pick named in its init line: what its default resolves to.
+    // shortcut: scans the account's agent events (off the UI thread); index init models if stores grow huge.
+    pub fn last_default_model(&self, account_id: &str) -> Result<Option<String>> {
+        let model = self
+            .conn
+            .query_row(
+                "SELECT json_extract(e.payload_json, '$.Init.model') AS m FROM events e
+                 JOIN threads t ON t.id = e.thread_id
+                 WHERE t.account_id = ?1 AND t.model IS NULL AND e.kind = 'agent'
+                   AND instr(e.payload_json, '\"Init\"') > 0 AND json_valid(e.payload_json) AND m <> ''
+                 ORDER BY e.created_at DESC, e.seq DESC LIMIT 1",
+                [account_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(model)
     }
 }

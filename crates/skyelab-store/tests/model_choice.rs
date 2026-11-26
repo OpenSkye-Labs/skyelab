@@ -85,3 +85,48 @@ fn a_new_database_is_at_the_latest_version() {
         .set_project_model(p.id, &pick("opus", "max"))
         .expect("set");
 }
+
+#[test]
+fn the_default_model_is_the_newest_unpicked_runs() {
+    let mut store = Store::open_in_memory().expect("open");
+    let p = store
+        .create_project("demo", Path::new("/work/demo"))
+        .expect("project");
+    let thread = |store: &Store, account| {
+        store
+            .create_thread(&NewThread {
+                project_id: p.id,
+                title: "t",
+                cwd: Path::new("/work/demo"),
+                account_id: account,
+                status: "idle",
+            })
+            .expect("thread")
+            .id
+    };
+    let init = |m: &str| format!(r#"{{"Init":{{"session_id":"s","model":"{m}"}}}}"#);
+    assert_eq!(store.last_default_model("acme").expect("read"), None);
+    let plain = thread(&store, "acme");
+    store
+        .append_event(plain, "agent", &init("claude-opus-5-5"))
+        .expect("append");
+    store
+        .append_event(plain, "prompt", r#"{"text":"\"Init\""}"#)
+        .expect("append");
+    // A thread with a pick names that pick, not the default; another account's runs don't count.
+    let picked = thread(&store, "acme");
+    store
+        .set_thread_model(picked, &pick("sonnet", "high"))
+        .expect("set");
+    store
+        .append_event(picked, "agent", &init("claude-sonnet-5-5"))
+        .expect("append");
+    let other = thread(&store, "other");
+    store
+        .append_event(other, "agent", &init("claude-haiku-5-5"))
+        .expect("append");
+    assert_eq!(
+        store.last_default_model("acme").expect("read").as_deref(),
+        Some("claude-opus-5-5")
+    );
+}
