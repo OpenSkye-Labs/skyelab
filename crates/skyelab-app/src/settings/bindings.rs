@@ -149,9 +149,10 @@ impl Settings {
                     )
                     .child(
                         // A fixed column, so every row's arrow and account line up.
+                        // It gives way on a narrow dialog before the folder's path does.
                         h_flex()
-                            .flex_shrink_0()
                             .w(gpui::px(200.))
+                            .min_w(gpui::px(120.))
                             .gap_2()
                             .child(
                                 Icon::new(SkyeIcon::ArrowRight)
