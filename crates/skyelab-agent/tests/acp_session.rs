@@ -324,3 +324,19 @@ fn acp_permissions_questions_interrupt_modes_and_resume() {
     let gone_events = collect_until_result(&gone);
     assert!(gone_events.iter().any(|e| matches!(e, Event::SessionGone)));
 }
+
+#[test]
+fn a_turn_reports_its_own_duration_and_no_tokens_agy_did_not_send() {
+    let rig = Rig::new(true);
+    let mut session = rig.launch("slow_turn", Mode::Default, None, None);
+    let events = collect_until_result(&session);
+    let Some(Event::Result {
+        duration_ms, usage, ..
+    }) = events.last()
+    else {
+        panic!("the turn ends with a result");
+    };
+    assert!(*duration_ms >= 300, "the turn's own clock: {duration_ms}");
+    assert_eq!(*usage, None, "agy reports no tokens, so none are shown");
+    session.kill().expect("kill");
+}

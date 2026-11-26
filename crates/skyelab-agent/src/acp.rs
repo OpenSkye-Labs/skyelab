@@ -46,6 +46,8 @@ pub(crate) struct Acp {
     /// Prompt payloads queued while the session opens or another turn runs.
     queue: VecDeque<Value>,
     busy: bool,
+    /// When the running turn's prompt went out.
+    turn_started: Option<std::time::Instant>,
     interrupt_wanted: bool,
     /// Why opening the session failed; every subsequent prompt fails fast with this message.
     closed: Option<String>,
@@ -81,6 +83,7 @@ impl Acp {
             session_id: None,
             queue: VecDeque::new(),
             busy: false,
+            turn_started: None,
             interrupt_wanted: false,
             closed: None,
             pick,
@@ -362,36 +365,25 @@ impl Acp {
         let was_interrupted = std::mem::take(&mut self.interrupt_wanted);
         self.busy = false;
 
-        let result = if let Some(err) = rpc_error_message(v) {
-            Event::Result {
-                is_error: true,
-                duration_ms: 0,
-                total_cost_usd: 0.0,
-                result: Some(err),
-                prompts: 1,
-                usage: None,
-                turn_cost_usd: None,
-            }
+        // ACP results carry no duration: the turn's own clock, from its prompt's send.
+        let duration_ms = self.turn_started.take().map_or(0, |t| {
+            u64::try_from(t.elapsed().as_millis()).unwrap_or(u64::MAX)
+        });
+        let (is_error, text) = if let Some(err) = rpc_error_message(v) {
+            (true, Some(err))
         } else if v["result"]["stopReason"] == "cancelled" || was_interrupted {
-            Event::Result {
-                is_error: true,
-                duration_ms: 0,
-                total_cost_usd: 0.0,
-                result: Some("interrupted".into()),
-                prompts: 1,
-                usage: None,
-                turn_cost_usd: None,
-            }
+            (true, Some("interrupted".into()))
         } else {
-            Event::Result {
-                is_error: false,
-                duration_ms: 0,
-                total_cost_usd: 0.0,
-                result: last_text,
-                prompts: 1,
-                usage: None,
-                turn_cost_usd: None,
-            }
+            (false, last_text)
+        };
+        let result = Event::Result {
+            is_error,
+            duration_ms,
+            total_cost_usd: 0.0,
+            result: text,
+            prompts: 1,
+            usage: usage_of(&v["result"]["usage"]),
+            turn_cost_usd: None,
         };
         events.push(result);
         let replies = self.pump();
@@ -429,6 +421,7 @@ impl Acp {
             return Vec::new();
         };
         self.busy = true;
+        self.turn_started = Some(std::time::Instant::now());
         let (id, line) = self.request(
             "session/prompt",
             json!({
