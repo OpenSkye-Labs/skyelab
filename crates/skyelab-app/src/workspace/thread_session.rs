@@ -6,7 +6,7 @@ use super::{Interrupt, Record, SharedStore, Stop, ThreadView, ThreadViewEvent, l
 use anyhow::{Context as _, Result};
 use futures::future::Either;
 use gpui::{AppContext as _, Context, Window};
-use skyelab_agent::{Event, Session};
+use skyelab_agent::{Block, Event, Session};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -24,6 +24,8 @@ impl ThreadView {
         session: Session,
         store: SharedStore,
         id: i64,
+        initial_input: String,
+        ai_provider: &'static str,
         cx: &mut Context<Self>,
     ) {
         let events = session.events().clone();
@@ -58,7 +60,11 @@ impl ThreadView {
             old.detach();
         }
         let unsaved = self.unsaved.clone();
+        let ai_inputs = Arc::new(Mutex::new(vec![initial_input]));
+        self.ai_inputs = ai_inputs.clone();
         self._pump = Some(cx.spawn(async move |this, cx| {
+            let mut output_text = String::new();
+            let mut model = None;
             let mut exited = false;
             // stdout can outlive the agent (a tool it started holds it), so its exit is watched too, on a timer that
             // events don't restart.
@@ -121,11 +127,50 @@ impl ThreadView {
                     }
                     continue;
                 }
+                if let Event::Init { model: reported, .. } = &event {
+                    model = Some(reported.clone());
+                }
+                if let Event::Assistant { content } = &event {
+                    for block in content {
+                        if let Block::Text { text } = block {
+                            output_text.push_str(text);
+                        }
+                    }
+                }
                 // The turn ends: text it cut off is stored ahead of its result.
                 if matches!(event, Event::Result { .. })
                     && this.update(cx, |this, cx| this.keep_partial(cx)).is_err()
                 {
                     return;
+                }
+                if let Event::Result {
+                    is_error,
+                    duration_ms,
+                    total_cost_usd,
+                    prompts,
+                    ..
+                } = &event
+                {
+                    let answered_inputs = if *prompts > 0 {
+                        ai_inputs
+                            .lock()
+                            .map(|mut inputs| std::mem::take(&mut *inputs))
+                            .unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    };
+                    crate::posthog::capture_ai_generation(
+                        &format!("thread-{id}"),
+                        "agent_turn",
+                        ai_provider,
+                        model.as_deref(),
+                        &answered_inputs,
+                        (!output_text.is_empty()).then_some(output_text.as_str()),
+                        *duration_ms,
+                        *is_error,
+                        Some(*total_cost_usd),
+                    );
+                    output_text.clear();
                 }
                 let gone = skyelab_agent::session_gone(&event);
                 // An interrupt ends a Codex turn as an error too; the user asked for that one.

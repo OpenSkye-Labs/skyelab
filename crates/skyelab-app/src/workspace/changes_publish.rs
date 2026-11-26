@@ -182,6 +182,7 @@ impl ChangesView {
             })
             .unwrap_or((true, None));
         let paths = self.picked_paths();
+        let selected_file_count = paths.len();
         self.run(
             false,
             window,
@@ -208,6 +209,13 @@ impl ChangesView {
                 ))
             },
             move |this, note, window, cx| {
+                crate::posthog::capture(
+                    "changes_committed",
+                    [
+                        ("selected_file_count", serde_json::json!(selected_file_count)),
+                        ("push_after_commit", serde_json::json!(push)),
+                    ],
+                );
                 this.publish_note = Some(note.into());
                 this.selected.clear();
                 this.commit_message
@@ -246,6 +254,7 @@ impl ChangesView {
                 Ok(hooks_note(format!("Pushed to {to}"), hooks))
             },
             |this, note, _, cx| {
+                crate::posthog::capture("changes_pushed", []);
                 this.publish_note = Some(note.into());
                 this.reload_thread_details(cx);
             },
@@ -297,6 +306,7 @@ impl ChangesView {
                 })
             },
             |this, url, _, cx| {
+                crate::posthog::capture("pull_request_opened", []);
                 this.publish_note = Some(format!("Opened {url}").into());
                 if let Some(view) = this.thread.as_ref().and_then(|t| t.upgrade()) {
                     view.update(cx, |t, cx| t.set_pr_url(Some(url), cx));

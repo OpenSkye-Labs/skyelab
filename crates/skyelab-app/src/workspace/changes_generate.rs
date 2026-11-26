@@ -14,6 +14,7 @@ use gpui::{AnyElement, App, Context, Window, prelude::*};
 use gpui_component::Icon;
 use skyelab_core::AccountsConfig;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Gen {
@@ -64,16 +65,19 @@ pub(super) fn generate(
         ),
     };
     let bin = bins.of(account.provider);
+    let provider = crate::posthog::ai_provider(account.provider);
     let (title, last) = thread_context(store, id)?;
-    match what {
+    let (span_name, prompt, generated, latency_ms) = match what {
         Gen::Commit => {
             let diff = skyelab_git::commit_diff(dir, paths)?;
             if diff.trim().is_empty() {
                 bail!("nothing to describe: no changes in this folder");
             }
             let prompt = skyelab_agent::commit_prompt(&title, &last, &diff);
-            skyelab_agent::generate_commit_message(bin, config, &account, dir, &prompt)
-                .map(Text::Commit)
+            let started = Instant::now();
+            let generated = skyelab_agent::generate_commit_message(bin, config, &account, dir, &prompt)
+                .map(Text::Commit);
+            ("commit_message", prompt, generated, started.elapsed().as_millis() as u64)
         }
         Gen::Pr => {
             let pr = skyelab_git::pr_context(dir)?;
@@ -88,10 +92,29 @@ pub(super) fn generate(
                 &pr.diff,
                 pr.template.as_deref(),
             );
-            let (t, body) = skyelab_agent::generate_pr(bin, config, &account, dir, &prompt)?;
-            Ok(Text::Pr(t, body))
+            let started = Instant::now();
+            let generated = skyelab_agent::generate_pr(bin, config, &account, dir, &prompt)
+                .map(|(title, body)| Text::Pr(title, body));
+            ("pull_request_description", prompt, generated, started.elapsed().as_millis() as u64)
         }
-    }
+    };
+    let output = match &generated {
+        Ok(Text::Commit(text)) => Some(text.clone()),
+        Ok(Text::Pr(title, body)) => Some(format!("{title}\n\n{body}")),
+        Err(_) => None,
+    };
+    crate::posthog::capture_ai_generation(
+        &format!("thread-{id}"),
+        span_name,
+        provider,
+        None,
+        std::slice::from_ref(&prompt),
+        output.as_deref(),
+        latency_ms,
+        generated.is_err(),
+        None,
+    );
+    generated
 }
 
 impl ChangesView {

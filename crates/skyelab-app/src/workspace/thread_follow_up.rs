@@ -38,6 +38,7 @@ impl ThreadView {
             thread.parent_thread_id,
         );
         let turns = self.turns.clone();
+        let ai_inputs = self.ai_inputs.clone();
         let (cwd, key) = (
             thread.cwd.clone(),
             crate::workspace::thread_checkpoints::key(thread),
@@ -118,6 +119,9 @@ impl ThreadView {
                             _ => Ok(()),
                         });
                         return Err(e);
+                    }
+                    if let Ok(mut inputs) = ai_inputs.lock() {
+                        inputs.push(text.clone());
                     }
                     // Behind any held replies, and held itself if the store refuses it.
                     Ok((
