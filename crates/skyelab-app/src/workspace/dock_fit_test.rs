@@ -2,7 +2,6 @@
 
 use super::layout::ToggleRightPanel;
 use super::threads_test::{fixture, open_workspace, setup};
-use super::*;
 use gpui::{TestAppContext, px, size};
 use gpui_component::dock::DockPlacement;
 
