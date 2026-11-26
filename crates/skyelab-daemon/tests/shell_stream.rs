@@ -254,3 +254,90 @@ fn a_snapshot_too_big_for_one_message_is_cut_to_the_newest() {
         matches!(change(&mut ws).1, ShellDelta::ThreadUpdated(t) if t.title == "still streams")
     );
 }
+
+/// The first subscribe waits for `release`, then answers with a stream that has already ended; later ones are the
+/// store's. Lets a test answer two subscribes out of order.
+struct Crossed {
+    inner: Arc<dyn Backend>,
+    release: flume::Receiver<()>,
+    held: flume::Sender<()>,
+    first: std::sync::atomic::AtomicBool,
+}
+
+impl Backend for Crossed {
+    fn list_projects(&self) -> Result<Vec<skyelab_protocol::Project>, skyelab_protocol::RpcError> {
+        self.inner.list_projects()
+    }
+    fn list_threads(
+        &self,
+        p: i64,
+    ) -> Result<Vec<skyelab_protocol::Thread>, skyelab_protocol::RpcError> {
+        self.inner.list_threads(p)
+    }
+    fn thread_events_since(
+        &self,
+        t: i64,
+        seq: i64,
+    ) -> Result<Vec<skyelab_protocol::ThreadEvent>, skyelab_protocol::RpcError> {
+        self.inner.thread_events_since(t, seq)
+    }
+    fn start_thread(&self, p: i64, prompt: &str) -> Result<i64, skyelab_protocol::RpcError> {
+        self.inner.start_thread(p, prompt)
+    }
+    fn send_message(&self, t: i64, text: &str) -> Result<(), skyelab_protocol::RpcError> {
+        self.inner.send_message(t, text)
+    }
+    fn interrupt(&self, t: i64) -> Result<(), skyelab_protocol::RpcError> {
+        self.inner.interrupt(t)
+    }
+    fn subscribe_shell(&self) -> Result<skyelab_daemon::ShellFeed, skyelab_protocol::RpcError> {
+        if !self.first.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            let _ = self.held.send(());
+            let _ = self.release.recv();
+            return Ok(skyelab_daemon::ShellFeed {
+                snapshot: Default::default(),
+                changes: flume::unbounded().1,
+            });
+        }
+        self.inner.subscribe_shell()
+    }
+}
+
+/// Two subscribes answered out of order: the older one's late reply doesn't replace the newer stream.
+#[test]
+fn a_late_older_subscribe_keeps_the_newer_stream() {
+    let store = Store::open_in_memory().expect("store");
+    let p = store
+        .create_project("app", Path::new("/src/app"))
+        .expect("project");
+    let store = Arc::new(Mutex::new(store));
+    let (release_tx, release) = flume::unbounded();
+    let (held, held_rx) = flume::unbounded();
+    let backend = Arc::new(Crossed {
+        inner: Arc::new(StoreBackend::shared(store.clone(), NotWired, None)),
+        release,
+        held,
+        first: Default::default(),
+    });
+    let daemon = start(FakeTailnet::new(Peer::Own), backend, test_config());
+    let mut ws = connect_hello(daemon.local_addrs()[0]);
+    send(&mut ws, 2, Call::SubscribeShell);
+    held_rx.recv().expect("the first subscribe is held");
+    send(&mut ws, 3, Call::SubscribeShell);
+    let got = recv(&mut ws);
+    assert!(
+        matches!(got, Some(ServerMessage::Response { id: 3, .. })),
+        "{got:?}"
+    );
+    release_tx.send(()).expect("release");
+    assert!(matches!(
+        recv(&mut ws),
+        Some(ServerMessage::Response { id: 2, .. })
+    ));
+    store
+        .lock()
+        .expect("lock")
+        .rename_project(p.id, "renamed")
+        .expect("rename");
+    assert!(matches!(change(&mut ws).1, ShellDelta::ProjectUpdated(p) if p.name == "renamed"));
+}

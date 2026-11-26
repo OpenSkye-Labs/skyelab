@@ -44,8 +44,9 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
     let (replies_tx, mut replies) = mpsc::channel(config.max_in_flight);
     let mut running = JoinSet::new();
     let mut events: Option<broadcast::Receiver<ThreadEvent>> = None;
-    // Set with the snapshot reply, so no change goes out before the snapshot it follows.
-    let mut shell: Option<flume::Receiver<ShellChange>> = None;
+    // Set with the snapshot reply, so no change goes out before the snapshot it follows. Kept with its request id:
+    // subscribes are answered as they finish, and an older one's late reply must not replace a newer stream.
+    let mut shell: Option<(skyelab_protocol::RequestId, flume::Receiver<ShellChange>)> = None;
     let mut idle_at = Instant::now() + config.idle_timeout;
 
     loop {
@@ -81,8 +82,10 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
                 }
             }
             Some((reply, changes)) = replies.recv() => {
-                if changes.is_some() {
-                    shell = changes;
+                if let (Some(changes), ServerMessage::Response { id, .. }) = (changes, &reply)
+                    && shell.as_ref().is_none_or(|(newest, _)| id > newest)
+                {
+                    shell = Some((*id, changes));
                 }
                 Step::Send(reply)
             }
@@ -467,9 +470,11 @@ async fn next_event(events: &mut Option<broadcast::Receiver<ThreadEvent>>) -> Op
 
 /// The next shell change; `None` once the stream ended (this connection fell behind). Pends forever before
 /// `subscribe_shell` was answered.
-async fn next_change(shell: &mut Option<flume::Receiver<ShellChange>>) -> Option<ShellChange> {
+async fn next_change(
+    shell: &mut Option<(skyelab_protocol::RequestId, flume::Receiver<ShellChange>)>,
+) -> Option<ShellChange> {
     match shell {
-        Some(rx) => rx.recv_async().await.ok(),
+        Some((_, rx)) => rx.recv_async().await.ok(),
         None => std::future::pending().await,
     }
 }

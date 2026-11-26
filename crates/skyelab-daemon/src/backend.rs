@@ -339,9 +339,12 @@ fn read_rows(
     rows: &[RowChange],
     accounts: &AccountsConfig,
 ) -> Option<Vec<ShellDelta>> {
+    // A preview that can't be read fails the batch too: an update without it would blank the row's last reply.
     let thread = |t: skyelab_store::Thread| {
-        let preview = store.last_reply(t.id, PREVIEW_CHARS).ok().flatten();
-        ShellDelta::ThreadUpdated(Box::new(wire_thread(t, preview, accounts)))
+        let preview = store.last_reply(t.id, PREVIEW_CHARS)?;
+        anyhow::Ok(ShellDelta::ThreadUpdated(Box::new(wire_thread(
+            t, preview, accounts,
+        ))))
     };
     let mut out = Vec::new();
     for row in rows {
@@ -352,12 +355,15 @@ fn read_rows(
                 };
                 let threads = store.list_threads(id)?;
                 let mut deltas = vec![ShellDelta::ProjectUpdated(wire_project(p))];
-                deltas.extend(threads.into_iter().map(thread));
+                for t in threads {
+                    deltas.push(thread(t)?);
+                }
                 Ok(deltas)
             }),
-            RowChange::Thread(id) => store
-                .shell_thread(id)
-                .map(|t| vec![t.map_or(ShellDelta::ThreadRemoved { id }, thread)]),
+            RowChange::Thread(id) => store.shell_thread(id).and_then(|t| match t {
+                Some(t) => Ok(vec![thread(t)?]),
+                None => Ok(vec![ShellDelta::ThreadRemoved { id }]),
+            }),
         };
         match read {
             Ok(deltas) => out.extend(deltas),
