@@ -15,6 +15,10 @@ CI: `taiki-e/install-action`, pinned by SHA), then `cargo test --workspace --doc
   and the app's ~900 tests in one process, so the whole suite waited on the slowest binary's slowest tests.
   On one loaded M-series Mac (load average 80–280 from other sessions) the full suite went from 38 min to 2.5–3.5
   min. Most tests wait on real processes, so the run uses ~2 cores on average.
+- Local runs default to `test-threads = 4` (`[profile.default]`) so heavy GPUI/git test binaries don't saturate the
+  fast cores or starve macOS FSEvents; `[profile.ci]` overrides this to `test-threads = "num-cpus"` so GitHub Actions
+  runners keep full parallelism. FSEvents-heavy tests (`binary_id(skyelab-git::watch)` and `test(/folder_watch/)`)
+  run in the `fs-watch` test group (`max-threads = 2`) so they never swarm macOS FSEvents under load.
 - Wall time is about the sum of test times over the thread count, plus whichever long test starts last. The long
   tests outside the app's binary have `priority` in `.config/nextest.toml`, so they start first; give a new one
   there when it shows up last in the run (`--profile ci`'s JUnit has each test's start and time).
