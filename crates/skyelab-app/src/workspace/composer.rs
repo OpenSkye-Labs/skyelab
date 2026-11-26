@@ -393,7 +393,7 @@ impl ThreadView {
                         format!("Send ({key})")
                     }
                 })
-                .disabled(self.read_only || self.starting)
+                .disabled(self.read_only || self.starting || empty)
                 .on_click(
                     cx.listener(|this, _, window, cx| this.send_prompt(&SendPrompt, window, cx)),
                 )
