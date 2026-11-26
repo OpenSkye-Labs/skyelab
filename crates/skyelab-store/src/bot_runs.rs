@@ -26,6 +26,8 @@ CREATE TABLE bot_runs (
 );
 CREATE INDEX bot_runs_by_task ON bot_runs(task_id, at);
 CREATE INDEX bot_runs_by_thread ON bot_runs(thread_id) WHERE thread_id IS NOT NULL;
+-- Threads started from GitHub text. Never pruned: the mark outlives the bot and its history.
+CREATE TABLE untrusted_threads (thread_id INTEGER PRIMARY KEY);
 CREATE TABLE bot_seen (
     task_id INTEGER NOT NULL,
     key TEXT NOT NULL,
@@ -41,7 +43,8 @@ const KEEP_SEEN_MS: i64 = 30 * 24 * 3_600_000;
 /// Triggers whose item text is untrusted.
 const GITHUB: &str = "('pr_opened', 'issue_opened', 'checks_failed')";
 
-/// One run of a task. `trigger` is `schedule`, `run_now` or a GitHub trigger's name; `status` is `queued`,
+/// One run of a task. `trigger` is `schedule`, `run_now`, `poll` (a GitHub check that paused it) or a GitHub
+/// trigger's name; `status` is `queued`,
 /// `started`, `skipped`, `paused`, `failed` or `rate_limited`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BotRun {
@@ -120,12 +123,21 @@ impl Store {
         expect_one(n, "bot run", id)
     }
 
+    /// Links run `id` to its thread; a GitHub-started run marks the thread untrusted for good.
     pub fn set_bot_run_thread(&self, id: i64, thread: i64) -> Result<()> {
         let n = self.conn.execute(
             "UPDATE bot_runs SET thread_id = ?2 WHERE id = ?1",
             params![id, thread],
         )?;
-        expect_one(n, "bot run", id)
+        expect_one(n, "bot run", id)?;
+        self.conn.execute(
+            &format!(
+                "INSERT OR IGNORE INTO untrusted_threads (thread_id)
+                 SELECT thread_id FROM bot_runs WHERE id = ?1 AND trigger IN {GITHUB}"
+            ),
+            [id],
+        )?;
+        Ok(())
     }
 
     /// Task `task`'s runs, newest first, at most `limit`.
@@ -145,11 +157,14 @@ impl Store {
         Ok(self.conn.query_row(&sql, [task], run_from_row).optional()?)
     }
 
-    /// The thread was started by a GitHub trigger: its history holds untrusted text, so it never gets SkyeLab's
-    /// tools, a resumed turn included.
+    /// The thread, or one it was forked or handed off from, was started by a GitHub trigger: its history holds
+    /// untrusted text, so it never gets SkyeLab's tools, a resumed turn included.
     pub fn thread_untrusted(&self, thread: i64) -> Result<bool> {
         Ok(self.conn.query_row(
-            &format!("SELECT EXISTS (SELECT 1 FROM bot_runs WHERE thread_id = ?1 AND trigger IN {GITHUB})"),
+            "WITH RECURSIVE chain(id) AS (
+                SELECT ?1
+                UNION SELECT t.forked_from FROM threads t JOIN chain c ON t.id = c.id WHERE t.forked_from IS NOT NULL)
+             SELECT EXISTS (SELECT 1 FROM untrusted_threads WHERE thread_id IN (SELECT id FROM chain))",
             [thread],
             |r| r.get(0),
         )?)

@@ -175,10 +175,14 @@ impl Draft {
             kind => kind.spec(&self.value).parse::<Schedule>()?.to_string(),
         };
         check_mode(self.mode.as_str(), self.bypass_confirmed)?;
-        check_trigger_mode(self.mode.as_str(), !self.triggers.is_empty())?;
         let account = config
             .resolve(&project.path)
             .ok_or_else(|| format!("{} isn't bound to an account. Bind it first.", project.name))?;
+        check_trigger_mode(
+            self.mode.as_str(),
+            !self.triggers.is_empty(),
+            account.provider,
+        )?;
         let model = self.model.trim();
         let title = match self.title.trim() {
             "" => prompt

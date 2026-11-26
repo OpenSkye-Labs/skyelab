@@ -173,7 +173,12 @@ impl ScheduledPage {
                             .gap_2()
                             .text_size(ui::META)
                             .text_color(muted)
-                            .child(format!("{} · {when}", row.project))
+                            .child(row.project.clone())
+                            .child(ui::AccountBadge::new(
+                                t.account_id.clone(),
+                                row.account.clone(),
+                            ))
+                            .child(when)
                             .children(chips)
                             .children(status)
                             .children(link),
@@ -262,7 +267,7 @@ impl Render for ScheduledPage {
             .enumerate()
             .map(|(i, r)| self.render_row(i == 0, r, now, cx))
             .collect();
-        // The open New task form is the empty state's answer: the card would only repeat "No scheduled tasks" under it.
+        // The open New bot form is the empty state's answer: the card would only repeat "No bots yet" under it.
         let list = if rows.is_empty() && self.editor.is_some() {
             div().into_any_element()
         } else if rows.is_empty() {

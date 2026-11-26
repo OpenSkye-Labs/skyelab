@@ -37,6 +37,8 @@ pub(crate) struct Row {
     pub task: ScheduledTask,
     pub project: SharedString,
     pub thread: Option<(i64, SharedString)>,
+    /// The saved account's label (its id when accounts.toml no longer has it).
+    pub account: SharedString,
     /// Its run history while the card is expanded, newest first.
     pub runs: Option<Vec<BotRun>>,
 }
@@ -106,6 +108,11 @@ impl ScheduledPage {
     /// Reads the tasks, their projects and newest threads from the store.
     pub(crate) fn reload(&mut self, cx: &mut Context<Self>) {
         self.seen = cx.try_global::<Scheduler>().map_or(0, |s| s.changes);
+        let config = self
+            .accounts_path
+            .as_deref()
+            .and_then(|p| AccountsConfig::load(p).ok())
+            .unwrap_or_default();
         let read = lock(&self.store).and_then(|s| {
             let (tasks, projects, runs) = (
                 s.scheduled_tasks()?,
@@ -126,7 +133,14 @@ impl ScheduledPage {
                     Some(&n) => Some(s.bot_runs(task.id, n)?),
                     None => None,
                 };
+                let account = config
+                    .accounts
+                    .iter()
+                    .find(|a| a.id == task.account_id)
+                    .map_or_else(|| task.account_id.clone(), |a| a.label.clone())
+                    .into();
                 rows.push(Row {
+                    account,
                     task,
                     project,
                     thread,

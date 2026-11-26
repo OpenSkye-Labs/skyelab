@@ -1,4 +1,4 @@
-//! Bots' GitHub triggers: every five minutes, per account and project, one `gh pr list` / `gh issue list` (through
+//! Bots' GitHub triggers: every `POLL_EVERY_MS`, per account and project, one `gh pr list` / `gh issue list` (through
 //! that account's own gh) serves every bot there. The folder's binding is checked before each poll: a bot whose
 //! folder no longer resolves to its saved account is paused and nothing is listed. A hit is queued, with its item
 //! framed as untrusted text, for the scheduler's tick to start like any other run. The rules live in
@@ -27,7 +27,7 @@ type Key = (String, i64);
 pub(crate) struct Polls {
     last: HashMap<Key, i64>,
     inflight: HashSet<Key>,
-    /// Why a project's last poll listed nothing (no GitHub remote, gh not signed in), for the Bots page.
+    /// Why a project's last poll failed, wholly or for one list (no GitHub remote, gh not signed in), for the Bots page.
     pub(crate) errors: HashMap<i64, String>,
 }
 
@@ -54,7 +54,12 @@ fn list_for(bot: &ScheduledTask, trigger: Trigger) -> Filter {
 }
 
 /// Starts the polls that are due. Called from every tick.
-pub(super) fn poll(store: &SharedStore, tasks: &[ScheduledTask], now: i64, cx: &mut App) {
+pub(super) fn poll(store: &SharedStore, now: i64, cx: &mut App) {
+    // Read now, not the tick's list: a run refused earlier in this tick may have paused one already.
+    let tasks = match lock(store).and_then(|s| s.scheduled_tasks()) {
+        Ok(t) => t,
+        Err(e) => return eprintln!("bots: {e:#}"),
+    };
     let bots: Vec<_> = tasks
         .iter()
         .filter(|t| t.enabled && !t.triggers.is_empty())
@@ -75,11 +80,13 @@ pub(super) fn poll(store: &SharedStore, tasks: &[ScheduledTask], now: i64, cx: &
     let mut groups: HashMap<Key, (PathBuf, Vec<Filter>)> = HashMap::new();
     for bot in bots {
         let Some(project) = projects.iter().find(|p| p.id == bot.project_id) else {
-            pause(store, bot, now, "its project was removed from SkyeLab", cx);
+            let why = "its project was removed from SkyeLab";
+            super::runs::add_run(store, bot.id, now, "poll", "paused", Some(why));
+            pause(store, bot, now, why, cx);
             continue;
         };
-        let checked = check_trigger_mode(&bot.permission_mode, true)
-            .and_then(|()| run_account(&config, &project.path, &bot.account_id).map(drop));
+        let checked = run_account(&config, &project.path, &bot.account_id)
+            .and_then(|a| check_trigger_mode(&bot.permission_mode, true, a.provider));
         if let Err(why) = checked {
             super::runs::add_run(store, bot.id, now, "poll", "paused", Some(&why));
             pause(store, bot, now, &why, cx);
@@ -224,9 +231,12 @@ fn fire(
     };
     let mut new = Vec::new();
     let mut eligible = Vec::new();
+    let mut all_listed = true;
     for trigger in parse_triggers(&bot.triggers) {
         let Some(items) = listed.get(&list_for(bot, trigger)) else {
-            continue; // that list failed: nothing is recorded, so its items fire on a later poll
+            // That list failed: a primed bot catches up on a later poll; an unprimed one stays unprimed.
+            all_listed = false;
+            continue;
         };
         for item in hits(trigger, items, &HashSet::new(), &branches) {
             let key = bots::key(trigger, item);
@@ -236,36 +246,35 @@ fn fire(
             eligible.push(key);
         }
     }
+    let mut limited_now = false;
     if bot.gh_primed {
         for (trigger, item) in new {
-            queue(store, bot, repo, trigger, item, now)?;
+            limited_now |= queue(store, bot, repo, trigger, item, now)?;
         }
     }
     let s = lock(store)?;
     s.mark_bot_seen(bot.id, &eligible, now)?;
-    if !bot.gh_primed {
+    if !bot.gh_primed && all_listed {
         s.set_gh_primed(bot.id)?;
     }
-    let limited: Vec<i64> = s
-        .bot_runs(bot.id, 200)?
+    let runs = s.bot_runs(bot.id, 200)?;
+    drop(s);
+    // Only limits since its last pause count: turned back on, a bot starts over.
+    let limited: Vec<i64> = runs
         .iter()
+        .take_while(|r| r.status != "paused")
         .filter(|r| r.status == "rate_limited")
         .map(|r| r.at)
         .collect();
-    drop(s);
-    if limited_hours_in_a_row(&limited, now) {
-        pause(
-            store,
-            bot,
-            now,
-            "it hit its hourly limit three hours in a row",
-            cx,
-        );
+    if limited_now && limited_hours_in_a_row(&limited, now) {
+        let why = "it hit its hourly limit three hours in a row";
+        super::runs::add_run(store, bot.id, now, "poll", "paused", Some(why));
+        pause(store, bot, now, why, cx);
     }
     Ok(())
 }
 
-/// Queues one hit, or records it as rate limited (over the hourly cap, or the queue is full).
+/// Queues one hit, or records it as rate limited (over the hourly cap, or the queue is full): returns which.
 fn queue(
     store: &SharedStore,
     bot: &ScheduledTask,
@@ -273,7 +282,7 @@ fn queue(
     trigger: Trigger,
     item: &Item,
     now: i64,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     let s = lock(store)?;
     let runs = s.bot_runs(bot.id, 200)?;
     let github = |t: &str| Trigger::parse(t).is_some();
@@ -295,7 +304,7 @@ fn queue(
         status: if limited { "rate_limited" } else { "queued" },
         error: None,
     })?;
-    Ok(())
+    Ok(limited)
 }
 
 /// Whether `dir` can take GitHub triggers: bound, a github.com `origin`, and its account's gh signed in. Blocking.

@@ -148,7 +148,6 @@ pub struct Settings {
     pub machines: Option<Entity<crate::workspace::machines_page::MachinesPage>>,
     /// The Usage section's content; the workspace sets it and reads the store for it.
     pub usage: Option<Entity<crate::workspace::usage_page::UsagePage>>,
-    /// The Scheduled tasks section's content, set by the workspace like `usage`.
     /// Settings → Chat's permission rules for the picked project, set by the workspace like `usage`.
     pub rules: Option<Entity<crate::workspace::ProjectRulesPage>>,
     pub(super) focus: FocusHandle,

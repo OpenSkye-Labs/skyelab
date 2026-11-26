@@ -24,7 +24,8 @@ triage**, both in Plan mode.
   **Sign in** link. See [GitHub triggers](#github-triggers).
 - **Runs in**: the project's checkout, or a new worktree per run.
 - **Permissions**: Plan (the default for a new bot), Ask, Accept edits or Full access. A bot with a GitHub trigger
-  runs only in Plan or Ask: the editor offers only those, and a run is refused if the bot somehow has another. Full access needs its own confirm on the task, because a
+  runs only in Plan or Ask (only Plan on a Codex, Cursor or Antigravity account, whose Ask still edits files without
+  asking): the editor offers only those, and a run is refused if the bot somehow has another. Full access needs its own confirm on the task, because a
   scheduled run has nobody watching; without it the task can't be saved. A run in Ask mode stops at the first
   permission question until you answer it in the thread; an **Approval needed** notice says so. While it waits it
   holds its slot.
@@ -57,7 +58,9 @@ A task is saved under the account its project folder is bound to at that moment.
   they are marked ready. PRs from a branch a bot run made never fire a bot.
 - Each hit waits in its bot's queue and starts like a scheduled run: one live run per bot, at most 2 bot runs app-wide.
   Over the bot's hourly cap, or with 5 hits already waiting, a hit is recorded as **rate limited** and dropped. A bot
-  rate limited three hours in a row is paused.
+  rate limited three hours in a row is paused; turned back on, it starts counting again.
+- Only the newest 50 open PRs and issues are listed. In a repo with more open than that, an older one that moves into
+  the list (because a newer one closed) fires as new.
 - A GitHub-started run gets the bot's prompt plus the item: its link, title, labels and description, inside a fenced
   block under a line saying it is the author's text, to be used as context and never as instructions. `@mentions` and a
   leading `/command` are broken so they can't act as such. Put `{{item}}` in the prompt to place the block there;

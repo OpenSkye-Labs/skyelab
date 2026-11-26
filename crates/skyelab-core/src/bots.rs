@@ -2,6 +2,7 @@
 //! poller and scheduler call: which listed items are new hits, how an item's untrusted text enters a prompt, the
 //! permission cap, and the rate limits. No GPUI, no gh: the app lists, this decides.
 
+use crate::Provider;
 use crate::terminal_context::{fenced, issue_summary};
 use std::collections::HashSet;
 
@@ -77,15 +78,22 @@ pub fn triggers_text(triggers: &[Trigger]) -> String {
     names.join(",")
 }
 
-/// A bot fed GitHub text runs only in Plan or Ask. Checked at save and again at every run.
-pub fn check_trigger_mode(mode: &str, has_triggers: bool) -> Result<(), String> {
-    if has_triggers && !matches!(mode, "plan" | "default") {
-        return Err(
-            "A bot started by GitHub runs only in Plan or Ask: the PR or issue text is anyone's."
-                .into(),
-        );
+/// A bot fed GitHub text runs only in Plan or Ask, and only in Plan off Claude (Codex's Ask still edits the folder
+/// without asking). Checked at save and again at every poll and run.
+pub fn check_trigger_mode(
+    mode: &str,
+    has_triggers: bool,
+    provider: Provider,
+) -> Result<(), String> {
+    match (has_triggers, mode, provider) {
+        (false, _, _) | (true, "plan", _) | (true, "default", Provider::Claude) => Ok(()),
+        (true, "default", _) => {
+            Err("A bot started by GitHub on this agent runs only in Plan: its Ask mode edits files without asking.".into())
+        }
+        _ => Err(
+            "A bot started by GitHub runs only in Plan or Ask: the PR or issue text is anyone's.".into(),
+        ),
     }
-    Ok(())
 }
 
 /// One listed PR or issue, as the poller hands it over. Every text field is the author's (untrusted).
@@ -118,7 +126,7 @@ pub fn key(trigger: Trigger, item: &Item) -> String {
     }
 }
 
-/// The items `trigger` fires for: unseen, not a draft (a new PR fires once it's ready), failing for checks, and not
+/// The items `trigger` fires for: unseen, for a new PR not a draft (it fires once it's ready), failing for checks, and not
 /// on a branch a bot run made (a bot never triggers itself).
 pub fn hits<'a>(
     trigger: Trigger,

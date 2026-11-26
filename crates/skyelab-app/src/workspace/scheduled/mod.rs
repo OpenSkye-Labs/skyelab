@@ -276,7 +276,7 @@ pub(super) fn tick(cx: &mut App) {
     if changed {
         cx.default_global::<Scheduler>().changes += 1;
     }
-    gh_triggers::poll(&store, &tasks, now, cx);
+    gh_triggers::poll(&store, now, cx);
     count_paused(&store, cx);
 }
 

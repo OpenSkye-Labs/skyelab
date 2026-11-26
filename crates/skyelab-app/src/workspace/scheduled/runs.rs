@@ -121,7 +121,7 @@ pub(super) fn start_run(
         untrusted,
     };
     let started = match prompt {
-        // A queued hit with no prompt left (a store from a newer build) never runs bare.
+        // A queued hit whose prompt is gone never runs bare.
         None => Err(Refused::Fail("its GitHub item is gone".into())),
         Some(prompt) => window
             .update(cx, |_, window, cx| {

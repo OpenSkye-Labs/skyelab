@@ -209,7 +209,7 @@ fn migration_backfills_older_results() {
     // Back to version 15: the table goes, as if this database never had it.
     let conn = Connection::open(&path).expect("open");
     conn.execute_batch(
-        "ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark; DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id; DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of; DROP TRIGGER turn_usage_insert; DROP TABLE turn_usage; PRAGMA user_version = 15;",
+        "ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark; DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE untrusted_threads; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id; DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of; DROP TRIGGER turn_usage_insert; DROP TABLE turn_usage; PRAGMA user_version = 15;",
     )
     .expect("downgrade");
     drop(conn);
@@ -306,7 +306,7 @@ fn migration_17_turns_stored_running_totals_into_turn_costs() {
     // Back to version 16: its trigger stored each result's total as it came.
     let conn = Connection::open(&path).expect("open");
     conn.execute_batch(
-        "ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark; DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id; DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of; UPDATE turn_usage SET cost_usd = COALESCE((SELECT json_extract(e.payload_json, '$.Result.total_cost_usd')
+        "ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark; DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE untrusted_threads; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id; DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of; UPDATE turn_usage SET cost_usd = COALESCE((SELECT json_extract(e.payload_json, '$.Result.total_cost_usd')
              FROM events e WHERE e.thread_id = turn_usage.thread_id AND e.seq = turn_usage.seq), cost_usd);
          PRAGMA user_version = 16;",
     )
@@ -417,7 +417,7 @@ fn migration_18_drops_imported_turns_counted_before() {
     let conn = Connection::open(&path).expect("open");
     conn.execute_batch(
         "INSERT INTO turn_usage SELECT thread_id, seq, 'a', 1, 0, 0, 0, created_at FROM events WHERE seq IN (2, 4);
-         ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark; DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id;
+         ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark; DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE untrusted_threads; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id;
          DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of; PRAGMA user_version = 17;",
     )
     .expect("downgrade");

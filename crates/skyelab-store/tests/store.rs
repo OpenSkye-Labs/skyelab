@@ -50,6 +50,7 @@ fn migrates_empty_db() {
             "scheduled_tasks",
             "threads",
             "turn_usage",
+            "untrusted_threads",
             "usage_readings"
         ]
     );

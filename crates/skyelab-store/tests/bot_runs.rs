@@ -199,7 +199,7 @@ fn a_schema_27_store_keeps_its_tasks_as_plain_scheduled_ones() {
     Connection::open(&path)
         .expect("raw")
         .execute_batch(
-            "DROP TABLE bot_runs; DROP TABLE bot_seen;
+            "DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE untrusted_threads;
              ALTER TABLE scheduled_tasks DROP COLUMN triggers; ALTER TABLE scheduled_tasks DROP COLUMN author_filter;
              ALTER TABLE scheduled_tasks DROP COLUMN max_runs_per_hour; ALTER TABLE scheduled_tasks DROP COLUMN gh_primed;
              PRAGMA user_version = 27;",

@@ -28,9 +28,6 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Result<Entity<ThreadView>, Refused> {
         check_mode(&task.permission_mode, task.bypass_confirmed).map_err(Refused::Pause)?;
-        // Checked again at every run: a bot GitHub can start runs only in Plan or Ask, whatever the row says.
-        check_trigger_mode(&task.permission_mode, !task.triggers.is_empty())
-            .map_err(Refused::Pause)?;
         // The store's list, not this window's: a project added or removed in another window counts at once.
         let projects = lock(&self.backend.store)
             .and_then(|s| s.list_projects())
@@ -45,10 +42,16 @@ impl Workspace {
             .as_deref()
             .and_then(|p| AccountsConfig::load(p).ok())
             .unwrap_or_default();
-        let account = run_account(&config, &project.path, &task.account_id)
-            .map_err(Refused::Pause)?
-            .id
-            .clone();
+        let account =
+            run_account(&config, &project.path, &task.account_id).map_err(Refused::Pause)?;
+        // Checked again at every run: a bot GitHub can start runs only in Plan or Ask, whatever the row says.
+        check_trigger_mode(
+            &task.permission_mode,
+            !task.triggers.is_empty(),
+            account.provider,
+        )
+        .map_err(Refused::Pause)?;
+        let account = account.id.clone();
         let backend = self.backend.clone();
         let view = cx.new(|cx| {
             let mut v = ThreadView::new(&project, config, backend, window, cx);

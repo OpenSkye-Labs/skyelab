@@ -1,4 +1,5 @@
 use super::*;
+use crate::Provider;
 
 fn pr(number: u64) -> Item {
     Item {
@@ -71,14 +72,21 @@ fn failing_checks_fire_once_per_head_commit() {
 
 #[test]
 fn permission_cap_refuses_accept_edits_and_full_access_with_triggers() {
-    assert!(check_trigger_mode("plan", true).is_ok());
-    assert!(check_trigger_mode("default", true).is_ok());
-    assert!(check_trigger_mode("accept_edits", true).is_err());
-    assert!(check_trigger_mode("bypass", true).is_err());
+    assert!(check_trigger_mode("plan", true, Provider::Claude).is_ok());
+    assert!(check_trigger_mode("default", true, Provider::Claude).is_ok());
+    assert!(check_trigger_mode("accept_edits", true, Provider::Claude).is_err());
+    assert!(check_trigger_mode("bypass", true, Provider::Claude).is_err());
     assert!(
-        check_trigger_mode("bypass", false).is_ok(),
+        check_trigger_mode("bypass", false, Provider::Codex).is_ok(),
         "schedule-only keeps today's rules"
     );
+}
+
+#[test]
+fn off_claude_a_github_bot_only_plans() {
+    assert!(check_trigger_mode("plan", true, Provider::Codex).is_ok());
+    assert!(check_trigger_mode("default", true, Provider::Codex).is_err());
+    assert!(check_trigger_mode("default", false, Provider::Codex).is_ok());
 }
 
 #[test]

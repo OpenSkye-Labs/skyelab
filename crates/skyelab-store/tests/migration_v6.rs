@@ -26,7 +26,7 @@ fn old_threads_read_default_and_the_mode_persists() {
     let conn = Connection::open(&path).expect("raw");
     // Undo v21 (scheduled tasks), v19 (side chats), v16 (turn usage), v15 (PR state), v14 (imported session), v13 (titles, forks, drafts), v10 (usage readings), v9 (model pick), v8 (project scripts), then v7 (search table, pin/archive/unread/delete columns), then v6.
     conn.execute_batch(
-        "ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark; DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id;
+        "ALTER TABLE threads DROP COLUMN limit_resume_at; ALTER TABLE threads DROP COLUMN scroll_mark; DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group; ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until; DROP TABLE bot_runs; DROP TABLE bot_seen; DROP TABLE untrusted_threads; DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id;
          DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of; DROP TRIGGER turn_usage_insert; DROP TABLE turn_usage;
          ALTER TABLE threads DROP COLUMN pr_state; ALTER TABLE threads DROP COLUMN imported_session;
          DROP TRIGGER drafts_thread_delete; DROP TABLE drafts; DROP TABLE draft_files;
