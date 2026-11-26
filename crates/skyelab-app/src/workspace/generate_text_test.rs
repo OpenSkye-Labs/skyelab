@@ -90,7 +90,11 @@ fn the_pr_sparkle_fills_the_template(cx: &mut TestAppContext) {
     git(&f.project, &["commit", "-q", "-am", "feat: a feature"]);
 
     let (_thread, changes, cx) = thread_and_changes(&f, cx);
-    run(&changes, Gen::Pr, cx);
+    // Open PR from the commit menu with no title yet: the form opens and its title and body are generated.
+    changes.update_in(cx, |c, window, cx| {
+        c.run_git(super::thread::GitAction::OpenPr, window, cx)
+    });
+    assert!(changes.read_with(cx, |c, _| c.pr_form), "the title field shows");
     wait_generated(&changes, cx);
     assert_eq!(error(&changes, cx), None);
     let (title, body) = changes.read_with(cx, |c, cx| {

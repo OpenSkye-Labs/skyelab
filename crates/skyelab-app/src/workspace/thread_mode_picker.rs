@@ -133,7 +133,11 @@ impl ThreadView {
                 Button::new("cancel-bypass")
                     .ghost()
                     .small()
-                    .label("Keep asking")
+                    .label(if self.mode == skyelab_agent::Mode::Plan {
+                        "Keep planning"
+                    } else {
+                        "Keep asking"
+                    })
                     .on_click(cx.listener(|this, _, _, cx| this.confirm_mode(false, cx))),
             );
         Some(banner(

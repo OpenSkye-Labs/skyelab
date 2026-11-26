@@ -94,8 +94,8 @@ repo; your branches, index and stashes are never touched. Once a turn has ended,
 scopes: **Working tree** (the diff it always showed), **Since thread start**, and **Turn 1**, **Turn 2** and so on.
 
 On a turn, **Rewind to before turn N** puts the files back as they were when that turn started. It lists every file
-it would restore and delete before it does anything, and changes nothing if the files moved since. Stop the agent
-first. Notes:
+it would restore and delete before it does anything, and changes nothing if the files moved since. It works whenever
+no turn is running; while one runs, it waits there with a **Stop** button and asks once the turn has ended. Notes:
 
 - It rewinds files only, not the conversation, and leaves your staging (the index) as it is.
 - A thread's checkpoints go when the thread is deleted for good (after the undo window); archiving keeps them.

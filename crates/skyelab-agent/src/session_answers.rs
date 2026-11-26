@@ -34,6 +34,16 @@ impl Session {
         Ok(())
     }
 
+    /// Settles plan card `id` that no request waits on (a plan Antigravity wrote for review and ended its turn on):
+    /// reports the decision and sends the agent nothing; the follow-up message is the caller's to send.
+    pub fn settle_plan_review(&mut self, id: &str, decision: Decision) -> Result<()> {
+        if self.acp.is_none() || !id.contains("acp-plan-") || decision == Decision::Withdrawn {
+            bail!("that isn't a plan waiting for review");
+        }
+        self.report(id, decision, None);
+        Ok(())
+    }
+
     fn answer_noting(&mut self, id: &str, decision: Decision, rule: Option<String>) -> Result<()> {
         if decision == Decision::Withdrawn {
             bail!("an answer allows or denies");

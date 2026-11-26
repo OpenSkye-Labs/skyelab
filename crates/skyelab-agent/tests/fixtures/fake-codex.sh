@@ -7,7 +7,9 @@
 # `fake/request` notification, and thread/start/resume also report the env and args as `fake/env`.
 # A folder with a .fake-codex-refuse-open file gets its thread/start refused after a 1 s pause.
 # A folder with a .fake-session-gone file has no rollouts: thread/resume is refused as real codex refuses it.
-# A prompt containing "hang" starts a turn that only an interrupt ends; "approve" first asks for an approval;
+# A prompt containing "hang" starts a turn that only an interrupt ends ("hang longcmd" also starts `sleep 40` as a
+# running command item, pid in .fake-cmd-pid, which the interrupt leaves running as real codex can; a .fake-helper
+# file makes thread/start first start a `sleep 60` helper, pid in .fake-helper-pid, like an MCP server); "approve" first asks for an approval;
 # "approve2" asks for `cargo test --lib` and then `cargo test --doc` (in the folder), reading an answer after each;
 # one starting "usage" first reports rate limits (5h at 47%, weekly at 83%); one starting "hook" first starts a
 # sessionStart hook ("Reporting status to Orca") and holds it until the folder has a .fake-hook-done file.
@@ -79,6 +81,7 @@ while IFS= read -r line; do
         continue
       fi
       [ -n "$thread" ] || thread=thr_fake
+      if [ -f .fake-helper ]; then sleep 60 >/dev/null 2>&1 & echo $! > .fake-helper-pid; fi
       if [ -f "$CODEX_HOME/fake-mcp-status" ]; then
         while read -r name status error; do
           printf '{"method":"mcpServer/startupStatus/updated","params":{"name":"%s","status":"%s","error":%s}}\n' \
@@ -93,7 +96,13 @@ while IFS= read -r line; do
       case "$line" in
         *hang*)
           printf '{"id":%s,"result":{"turn":{"id":"turn_hang","status":"inProgress","items":[]}}}\n' "$id"
-          printf '{"method":"turn/started","params":{"threadId":"thr_fake","turn":{"id":"turn_hang","status":"inProgress","items":[]}}}\n' ;;
+          printf '{"method":"turn/started","params":{"threadId":"thr_fake","turn":{"id":"turn_hang","status":"inProgress","items":[]}}}\n'
+          case "$line" in *longcmd*)
+            sleep 1.2 # a later second than anything started with the thread
+            printf '{"method":"item/started","params":{"threadId":"thr_fake","turnId":"turn_hang","item":{"type":"commandExecution","id":"item_cmd","command":"sleep 40","cwd":"%s","status":"inProgress"}}}\n' "$(pwd -P)"
+            sleep 40 >/dev/null 2>&1 &
+            echo $! > .fake-cmd-pid ;;
+          esac ;;
         *)
           printf '{"id":%s,"result":{"turn":{"id":"turn_fake","status":"inProgress","items":[]}}}\n' "$id"
           case "$line" in

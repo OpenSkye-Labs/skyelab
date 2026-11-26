@@ -219,8 +219,18 @@ fn a_rebound_or_unbound_folder_makes_no_side_chat() {
         "nothing made"
     );
 
-    // Still bound: made, with the parent's conversation as its first session's context.
+    // Still bound: made, with the parent's conversation as its first session's context and its model and effort.
+    let pick = skyelab_store::ModelChoice {
+        model: Some("haiku".into()),
+        effort: Some("low".into()),
+    };
+    s.set_thread_model(parent.id, &pick).expect("pick");
     let side = create(&mut s, &f.config, &parent, "Side").expect("made");
+    assert_eq!(
+        s.thread_model(side.id).expect("model"),
+        pick,
+        "the parent's model, not the account default"
+    );
     let context = s.fork_context(side.id).expect("ctx").expect("set");
     assert!(
         context.contains("side chat next to the thread \"fix it\""),

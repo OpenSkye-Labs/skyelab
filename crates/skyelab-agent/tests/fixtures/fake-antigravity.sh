@@ -107,6 +107,19 @@ while IFS= read -r line; do
           # Exit with 64 asks still open so EOF withdrawal is exercised too.
           exit 0
           ;;
+        *review_plan*)
+          # agy's Plan mode: writes plan.md into its brain dir (outside the folder) asking for feedback, links it
+          # as file:///…, and ends the turn.
+          plan="$gemini_dir/antigravity-acp/brain/$sess/plan.md"
+          printf '{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"tool_call","toolCallId":"call_plan","title":"Write plan.md","kind":"edit","status":"in_progress","rawInput":{"ArtifactMetadata":"{\\"RequestFeedback\\":true,\\"Summary\\":\\"Plan for subtract\\",\\"UserFacing\\":true}","Content":"# Plan\\n\\n1. Add subtract(a, b) to calc.py\\n2. Test it","Overwrite":"true","Path":"%s"}}}}\n' "$sess" "$plan"
+          printf '{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"tool_call_update","toolCallId":"call_plan","status":"completed","rawOutput":{"text":"written"}}}}\n' "$sess"
+          printf '{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"I wrote [plan.md](file://%s). Review and approve it."}}}}\n' "$sess" "$plan"
+          printf '{"jsonrpc":"2.0","id":%s,"result":{"stopReason":"end_turn"}}\n' "$id"
+          ;;
+        *"plan is approved"*)
+          printf '{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Implementing the plan."}}}}\n' "$sess"
+          printf '{"jsonrpc":"2.0","id":%s,"result":{"stopReason":"end_turn"}}\n' "$id"
+          ;;
         *huge_plan*)
           entries=$(awk 'BEGIN{printf "["; for(i=1;i<=300;i++){if(i>1)printf ","; printf "{\"content\":\"Step %d\",\"status\":\"pending\"}", i}; printf "]"}')
           printf '{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"%s","update":{"sessionUpdate":"plan","entries":%s}}}\n' "$sess" "$entries"

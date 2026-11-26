@@ -79,6 +79,17 @@ pub(super) fn markdown<V: ItemsView>(
             {
                 let line = link_line(url);
                 let _ = view.update(cx, |v, cx| v.preview_path(&path, line, cx));
+            } else if let Some(path) = file_url(url)
+                && root.is_some()
+            {
+                // agy links its files as `file:///…`: in the folder they preview; outside it only the plan it wrote
+                // for review opens (as its card, never read from disk).
+                let inside = root.as_deref().is_some_and(|r| lexically_inside(&path, r));
+                let _ = view.update(cx, |v, cx| {
+                    if !v.reveal_plan(&path, cx) && inside {
+                        v.preview_path(&path, None, cx)
+                    }
+                });
             }
         })
 }
@@ -117,6 +128,16 @@ pub(super) fn file_link(url: &str) -> Option<String> {
         }
     }
     Some(path.to_owned())
+}
+
+/// The absolute path a `file:///abs/path` link names (`None` for any other link, or a relative or `..` path).
+pub(super) fn file_url(url: &str) -> Option<String> {
+    let path = url.trim().strip_prefix("file://")?;
+    let ok = path.starts_with('/')
+        && !std::path::Path::new(path)
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir));
+    ok.then(|| path.to_owned())
 }
 
 /// A streaming reply's row. A long reply streams as several rows (`timeline::split_live`); its parts sit together,

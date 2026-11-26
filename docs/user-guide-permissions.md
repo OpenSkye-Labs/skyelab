@@ -91,5 +91,8 @@ the button ignores clicks, so a click aimed at Next doesn't submit the next ques
 agent gets their paths with your answer and reads them with its own tools. A file alone answers a question. Attaching
 is offered only on the machine that runs the thread. In Plan mode, when the agent is ready it shows a
 **Proposed plan** card: **Approve** lets it start (the thread switches to Ask, so edits still ask first) and **Keep
-planning** tells it to keep refining. From another machine's view the plan's buttons work but don't switch the
-thread's mode, and the question card can only be read.
+planning** tells it to keep refining. Antigravity writes its plan to a `plan.md` of its own and ends its turn: the
+same card shows that plan (taken from what it wrote, never read from its folder), its `plan.md` link scrolls to the
+card, and **Approve** switches to Ask and sends "The plan is approved. Implement it now." From another machine's view
+the plan's buttons work but don't switch the thread's mode (an Antigravity plan is approved on the machine that runs
+it), and the question card can only be read.
