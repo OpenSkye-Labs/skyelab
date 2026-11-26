@@ -36,6 +36,7 @@ impl ThreadView {
         } else {
             self.answer_session(cx)?
         };
+        self.error = None; // a refusal left about this ask (no rule can cover it) is settled with it
         let id = id.to_owned();
         self.in_background(cx, move || {
             let r = lock(&session).and_then(|mut s| s.answer(&id, decision));
@@ -269,7 +270,7 @@ impl ItemsView for ThreadView {
     }
     fn thread_prefix(&self, a: &crate::workspace::thread_model::ApprovalItem) -> Option<String> {
         use skyelab_core::project_rules as rules;
-        // Codex's shell only: Claude's own thread allow already takes its suggested rule.
+        // Codex's shell only: Claude's thread allow is the exact command.
         let local = self.session.is_some() && !self.is_side_chat() && self.mode != Mode::Plan;
         (local && a.tool == "shell" && rules::propose(&a.tool, &a.raw, &self.cwd).is_some())
             .then(|| a.raw["command"].as_str().and_then(rules::suggested_prefix))

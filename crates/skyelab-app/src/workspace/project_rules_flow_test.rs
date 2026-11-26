@@ -154,3 +154,18 @@ fn the_rule_that_covers_the_call_allows_it(cx: &mut TestAppContext) {
     wait_until(cx, "the row to name the rule", |cx| approvals(&one, cx)[0].2.is_some());
     assert_eq!(approvals(&one, cx)[0].2.as_deref(), Some("Bash · starts with make"));
 }
+
+/// A refusal about an ask (no rule can cover it) goes once the ask is answered: it doesn't stay above the composer.
+#[gpui::test]
+fn answering_an_ask_clears_the_error_left_about_it(cx: &mut TestAppContext) {
+    let (one, cx) = one_view(cx, Provider::Claude, fake(), None);
+    send(&one, "permit the deploy", cx);
+    wait_until(cx, "the ask", |cx| !approvals(&one, cx).is_empty());
+    let id = approvals(&one, cx)[0].0.clone();
+    one.view.update(cx, |v, cx| {
+        v.show_error(anyhow::anyhow!("No project rule can cover this call"), cx);
+        v.answer(&id, Decision::AllowOnce, cx);
+    });
+    wait_until(cx, "the allow to reach the agent", |cx| answers(&one, cx).len() == 1);
+    assert_eq!(one.view.read_with(cx, |v, _| v.error.clone()), None);
+}
