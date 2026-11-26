@@ -234,6 +234,7 @@ mod tests {
             format!("http://localhost:{port}/"),
             format!("http://127.0.0.1:{port}/x"),
         ] {
+            // Every OS, Windows too: its ~2 s of SYN retries fit in the 3 s cap.
             let e = refused_local(&url::Url::parse(&url).expect("url")).expect("refused");
             assert_eq!(e.title, format!("Nothing is running at {}", e.host));
             assert_eq!(e.url, url, "Retry loads it again");
