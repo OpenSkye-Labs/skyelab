@@ -113,7 +113,7 @@ fn cap(key: &str, label: &'static str) -> Kbd {
 }
 
 /// T3's footer: ↑ ↓ Navigate, (Tab Complete), Enter Select, (Backspace Back), Esc Close (Back on a page).
-pub(super) fn footer(paged: bool, completes: bool, cx: &App) -> gpui::Div {
+pub(crate) fn footer(paged: bool, completes: bool, cx: &App) -> gpui::Div {
     let theme = cx.theme();
     let hint = |caps: Vec<Kbd>, text: &'static str| {
         h_flex()

@@ -9,7 +9,8 @@ use gpui::{
 };
 #[path = "palette_rows.rs"]
 mod rows;
-use rows::{back_row, footer, row, search_field};
+pub(crate) use rows::footer;
+use rows::{back_row, row, search_field};
 
 use gpui::Subscription;
 use gpui_component::input::{InputEvent, InputState};
