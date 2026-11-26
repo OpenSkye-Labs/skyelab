@@ -43,8 +43,17 @@ Linux and Windows closing the last window asks the same way. Side chats and term
 closes.
 
 In the background SkyeLab quits by itself once no thread has been working, starting or waiting for you for 30
-seconds (a scheduled task due within the next 15 seconds keeps it up too). It doesn't survive a crash, an update or
-logging out: those stop the agents as quitting does, and the threads show as interrupted.
+seconds (a scheduled task due within the next 15 seconds keeps it up too). If you armed **Update when threads finish**,
+that idle exit installs the staged update and relaunches SkyeLab on the new version instead.
+
+## Resuming interrupted turns
+
+If SkyeLab crashes, is killed, or restarts while a local thread was mid-turn, the next launch automatically resumes
+that thread's session once with a short continuation message ("SkyeLab restarted and resumed this turn…"), using the
+thread's saved session and bound account. Threads explicitly stopped by Stop or a closed tab, threads waiting on a
+permission, question or plan approval, and turns that were already auto-resumed once without finishing are left as
+interrupted. **Settings → General → Resume interrupted turns after restart** turns this off (on by default; **Restore
+defaults** turns it back on).
 
 ## One SkyeLab at a time
 

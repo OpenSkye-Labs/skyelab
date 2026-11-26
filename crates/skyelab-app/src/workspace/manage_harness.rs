@@ -7,13 +7,13 @@ use gpui::{TestAppContext, VisualTestContext};
 use gpui_component::{Root, WindowExt as _};
 use skyelab_store::NewThread as NewRow;
 
-pub(super) struct Rig {
-    pub f: Fixture,
+pub(crate) struct Rig {
+    pub(super) f: Fixture,
     pub ws: Entity<Workspace>,
     pub project: i64,
 }
 
-pub(super) fn rig(cx: &mut TestAppContext) -> (Rig, &mut VisualTestContext) {
+pub(crate) fn rig(cx: &mut TestAppContext) -> (Rig, &mut VisualTestContext) {
     setup(cx);
     let f = fixture(true);
     let config = AccountsConfig::load(&f.accounts_path).expect("load");

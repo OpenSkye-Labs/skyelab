@@ -141,7 +141,7 @@ mod login_banner_test;
 #[cfg(test)]
 mod long_thread_test;
 #[cfg(test)]
-mod manage_harness;
+pub(crate) mod manage_harness;
 #[cfg(test)]
 mod manage_projects_test;
 #[cfg(test)]
@@ -329,6 +329,8 @@ mod background_hub_test;
 #[cfg(all(test, unix))]
 mod background_idle_quit_test;
 #[cfg(all(test, unix))]
-mod background_keep_test;
+pub(crate) mod background_keep_test;
 #[cfg(all(test, unix))]
 mod background_last_window_test;
+#[cfg(all(test, unix))]
+mod resume_after_restart_test;

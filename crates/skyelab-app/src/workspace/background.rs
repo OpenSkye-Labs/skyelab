@@ -12,7 +12,7 @@ use std::time::Duration;
 /// How long nothing may work or wait before a background copy quits: a follow-up turn or a delegated child starts
 /// well within it.
 pub(crate) const IDLE_GRACE: Duration = Duration::from_secs(30);
-const IDLE_POLL: Duration = Duration::from_secs(5);
+pub(crate) const IDLE_POLL: Duration = Duration::from_secs(5);
 
 /// Background mode: on from "Keep running in background" until a visible window opens.
 #[derive(Default)]
@@ -55,7 +55,11 @@ pub(crate) fn turn_on(cx: &mut App) {
                 now - *idle_since.get_or_insert(now) >= IDLE_GRACE
             });
             if quit {
-                cx.update(super::quit_guard::quit_now);
+                cx.update(|cx| {
+                    if !crate::updates::apply_if_deferred(cx) {
+                        super::quit_guard::quit_now(cx);
+                    }
+                });
                 return;
             }
         }

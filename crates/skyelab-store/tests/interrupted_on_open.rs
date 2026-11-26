@@ -42,13 +42,20 @@ fn reopening_marks_starting_and_running_threads_interrupted() {
         )
     };
 
-    let store = Store::open(&path).expect("reopen");
-    let status = |id| store.thread(id).expect("read").expect("row").status;
-    assert_eq!(status(starting), "interrupted");
-    assert_eq!(status(running), "interrupted");
-    assert_eq!(status(parent), "interrupted");
-    assert_eq!(status(idle), "idle", "idle rows are left alone");
-    assert_eq!(status(stopped), "stopped");
+    let mut store = Store::open(&path).expect("reopen");
+    let status = |s: &Store, id| s.thread(id).expect("read").expect("row").status;
+    assert_eq!(status(&store, starting), "interrupted");
+    assert_eq!(status(&store, running), "interrupted");
+    assert_eq!(status(&store, parent), "interrupted");
+    assert_eq!(status(&store, idle), "idle", "idle rows are left alone");
+    assert_eq!(status(&store, stopped), "stopped");
+    let recovered: Vec<i64> = store.take_recovered().into_iter().map(|t| t.id).collect();
+    assert!(recovered.contains(&starting));
+    assert!(recovered.contains(&running));
+    assert!(recovered.contains(&parent));
+    assert!(!recovered.contains(&idle));
+    assert!(!recovered.contains(&stopped));
+    assert!(store.take_recovered().is_empty(), "handed over once");
     let busy = store
         .child_threads(parent)
         .expect("children")

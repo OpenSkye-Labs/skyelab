@@ -244,7 +244,7 @@ pub(crate) fn question(items: &[(SharedString, Blocker)]) -> (SharedString, Shar
 }
 
 /// The row label a blocker shows next to its name.
-fn label(b: Blocker) -> &'static str {
+pub(crate) fn label(b: Blocker) -> &'static str {
     match b {
         Blocker::Working => "Working",
         Blocker::Waiting(ask) => ask.label(),
@@ -451,7 +451,7 @@ fn open(items: Vec<(SharedString, Blocker)>, window: &mut Window, cx: &mut App) 
 }
 
 /// Quits: every view's quit hook saves what it holds (layout, drafts, stopped rows) on the way out.
-pub(super) fn quit_now(cx: &mut App) {
+pub(crate) fn quit_now(cx: &mut App) {
     #[cfg(test)]
     {
         cx.default_global::<TestQuits>().0 += 1;

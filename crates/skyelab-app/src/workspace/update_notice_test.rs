@@ -43,6 +43,11 @@ fn each_state_has_a_short_label_and_only_a_failure_has_an_inline_action() {
     assert_eq!(label(&all_in, false), "Checking…");
     assert_eq!(label(&updating(Step::Ready), false), "Ready to restart");
     assert_eq!(label(&updating(Step::Ready), true), "Ready to install");
+    let deferred = look(&updating(Step::Deferred), false).expect("shown");
+    assert_eq!(deferred.label, "Updating when idle");
+    assert_eq!(deferred.short, "When idle");
+    assert_eq!(deferred.tip, "Updating to 9.9.9 when idle");
+    assert!(!deferred.failed && deferred.inline.is_none());
     let failed = look(&updating(Step::Failed("no network".into())), false).expect("shown");
     assert_eq!(failed.label, "Update failed");
     assert!(failed.failed);

@@ -86,11 +86,12 @@ mod remote_queue;
 mod remote_thread;
 mod render;
 mod reopen;
+pub(crate) mod resume_after_restart;
 pub(crate) mod scheduled;
 mod scratch;
 mod scripts;
 mod status_bar;
-mod thread;
+pub(crate) mod thread;
 use accounts_file::account_label;
 pub use accounts_file::{AccountsFile, accounts_now};
 mod ask_approval;
@@ -528,6 +529,7 @@ impl Workspace {
         this.sync_toggles(cx);
         this.load_projects(None, cx);
         this.register_window(window, cx);
+        this.resume_recovered_on_start(window, cx);
         this
     }
 }
