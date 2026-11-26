@@ -241,7 +241,7 @@ impl BrowserView {
         }
         // Nothing listening on a local port: say so on every OS, rather than a blank page (macOS) or the engine's own
         // error page (Linux, Windows).
-        // The connect blocks (up to 250 ms an address), so it runs in the background and the load follows it.
+        // The connect blocks (up to 3 s an address on Windows), so it runs in the background and the load follows it.
         if self.probe_local
             && let Some(addrs) = crate::load_error::local_addrs(url)
         {
@@ -295,6 +295,7 @@ impl BrowserView {
 
     /// Hides and drops the native webview, for when the pane closes.
     pub fn close(&mut self, cx: &mut Context<Self>) {
+        self._probe = Task::ready(()); // a pending local-port check never loads into a closed pane
         self.set_visible(false, cx);
         self.webview = None;
         self.engine = None;
@@ -308,6 +309,7 @@ impl BrowserView {
     }
 
     fn back(&mut self, cx: &mut Context<Self>) {
+        self._probe = Task::ready(()); // the user moved on: a pending local-port check must not load over it
         if self.dismiss_load_error(cx) {
             return;
         }
@@ -318,6 +320,7 @@ impl BrowserView {
     }
 
     fn forward(&mut self, cx: &mut Context<Self>) {
+        self._probe = Task::ready(()); // the user moved on: a pending local-port check must not load over it
         if self.load_error.is_some() {
             return; // the history is the page underneath's: forward from it isn't forward from here
         }
@@ -330,6 +333,7 @@ impl BrowserView {
     /// Reloads the page, which also ends every script running in it.
     /// On the error page: loads the failed address again ([`Self::retry`]).
     pub fn reload(&mut self, cx: &mut Context<Self>) {
+        self._probe = Task::ready(()); // the user moved on: a pending local-port check must not load over it
         if self.load_error.is_some() {
             return self.retry(cx);
         }

@@ -116,9 +116,10 @@ pub fn local_addrs(url: &url::Url) -> Option<Vec<std::net::SocketAddr>> {
 }
 
 /// The error page for `url` when every one of `addrs` refuses a connection (nothing listening); `None` when something
-/// answers or the check can't tell (a timeout). Blocks up to 250 ms per address: call it off the UI thread.
+/// answers or the check can't tell (a timeout). Blocks up to 3 s per address: call it off the UI thread.
 pub fn refused_at(addrs: &[std::net::SocketAddr], url: &url::Url) -> Option<LoadError> {
-    let limit = std::time::Duration::from_millis(250);
+    // Windows retries the SYN to a closed loopback port for ~2 s before refusing; macOS and Linux refuse at once.
+    let limit = std::time::Duration::from_secs(3);
     let all_refused = addrs.iter().all(|addr| {
         std::net::TcpStream::connect_timeout(addr, limit)
             .is_err_and(|e| e.kind() == std::io::ErrorKind::ConnectionRefused)
