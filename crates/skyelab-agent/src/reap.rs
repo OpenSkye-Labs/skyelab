@@ -90,7 +90,11 @@ pub(crate) fn end_commands_after(
         t.duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs())
     };
-    let window = (secs(since), secs(std::time::SystemTime::now()));
+    // Linux start times come from a boot time rounded to the second, so a command can read up to 1 s early.
+    let window = (
+        secs(since).saturating_sub(1),
+        secs(std::time::SystemTime::now()),
+    );
     let spawned = std::thread::Builder::new()
         .name("skyelab-end-commands".into())
         .spawn(move || {
