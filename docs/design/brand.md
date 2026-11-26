@@ -4,7 +4,7 @@
 
 Fairweather is Bean, the SkyeLab cloud, peeking into a morning sky. The lower-left corner cuts through the ivory body. Three rounded lobes are visible above the two round eyes and tilted smile. Keep the face fully inside the tile and leave open sky above it.
 
-The [Corner Peek launcher](../../crates/skyelab-app/icons/icon.svg) uses a storm-blue contour, a wider white rim, and warm porcelain shading. The distant cloud shelves sit high on the right. In the [small launcher](../../crates/skyelab-app/icons/icon-small.svg), the eyes sit farther apart, the smile is heavier, and a single shelf suggests the sky at 16 px.
+The [Corner Peek launcher](../../crates/skyelab-app/icons/icon.svg) follows the [approved Fairweather study](brand/explorations/round7/fairweather-corner-peek.png). It uses a storm-blue contour, a wider white rim, and warm porcelain shading. The distant cloud shelves sit high on the right. In the [small launcher](../../crates/skyelab-app/icons/icon-small.svg), the eyes sit farther apart, the smile is heavier, and a single shelf suggests the sky at 16 px.
 
 ## Glyphs and wordmark
 
@@ -83,4 +83,4 @@ Account colors stay the same in every theme.
 4. [Round 4](brand/explorations/round4/comparison.png) reframed Bean and established the Corner crop.
 5. [Round 5](brand/explorations/round5/comparison.png) explored expressions and gestures. Grip was selected for its small hand on the tile edge.
 6. [Round 6](brand/explorations/round6/comparison.webp) compared three material treatments and three rebrands. Porcelain preserved the Grip gesture and added soft depth without losing the face at launcher sizes.
-7. The [Fairweather crop study](../../design/brand-concepts/fairweather-peek/sheet.png) compares Porcelain, Bottom Peek, and the selected Corner Peek across launcher sizes.
+7. [Round 7](brand/explorations/round7/fairweather-corner-peek.png) compares Porcelain, Bottom Peek, and the selected Corner Peek across launcher sizes.
