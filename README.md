@@ -55,7 +55,9 @@ that impossible: **every folder is bound to exactly one account (Claude, Codex, 
   messages); <kbd>⌘P</kbd> finds a file. Every shortcut can be rebound.
 - **Side tools**: an embedded terminal with splits, a browser pane agents can drive, and a device hub for iOS
   Simulators and Android emulators.
-- **Many threads at once**: one list across projects, scheduled tasks, side chats, sending one prompt to several
+- **Bots**: saved prompts that run on a schedule or when a repo gets a new PR, a new issue or failing checks, in Plan
+  or Ask, with GitHub text kept as quoted context, never as instructions.
+- **Many threads at once**: one list across projects, side chats, sending one prompt to several
   models, and agents that start and drive other threads (on the same account only).
 - **Your machines**: share a machine over your Tailscale tailnet and run threads on it from another one. A mobile
   client is in progress.

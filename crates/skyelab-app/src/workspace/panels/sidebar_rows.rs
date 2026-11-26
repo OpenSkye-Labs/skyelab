@@ -344,9 +344,9 @@ fn group_badge(
         })
 }
 
-/// A thread a scheduled task started.
+/// A thread a bot (scheduled task) started.
 fn scheduled_badge() -> ui::Pill {
-    ui::Pill::new("Scheduled")
+    ui::Pill::new("Bot")
 }
 
 fn plain_row(

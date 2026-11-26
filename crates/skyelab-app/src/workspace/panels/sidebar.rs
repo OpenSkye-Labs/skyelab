@@ -86,7 +86,7 @@ pub struct RowMarks {
     pub pinned: bool,
     /// Settle and snooze from the row's buttons and menu.
     pub shelf: Option<RowShelf>,
-    /// A scheduled task started it (from the stored row): the "Scheduled" badge.
+    /// A scheduled task started it (from the stored row): the "Bot" badge.
     pub scheduled: bool,
     pub unread: bool,
     /// What the agent waits on the user for.
