@@ -9,6 +9,8 @@ description = "An agentic development environment where every folder is bound to
 [[bin]]
 name = "skyelab"
 path = "src/main.rs"
+# All unit tests live in the library target; skipping the empty bin test harness avoids linking a second GPUI test binary.
+test = false
 
 [dependencies]
 gpui.workspace = true
