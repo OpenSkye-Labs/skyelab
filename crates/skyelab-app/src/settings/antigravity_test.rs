@@ -118,3 +118,35 @@ fn add_an_antigravity_account_and_prepare_isolated_login(cx: &mut TestAppContext
     );
     assert!(gemini_home.is_dir());
 }
+
+/// Regression: the four provider cards sat in one row, so in the Settings dialog (about 600 px of content)
+/// Antigravity was drawn past the form's edge, clipped, and could not be picked.
+#[gpui::test]
+fn every_provider_card_fits_inside_the_add_form(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        gpui_component::init(cx);
+        init(cx);
+    });
+    let (_view, cx) = cx.add_window_view(|window, cx| {
+        Settings::new(None, AccountsConfig::default(), None, window, cx)
+    });
+    cx.simulate_resize(gpui::size(gpui::px(640.), gpui::px(900.)));
+    cx.run_until_parked();
+    let form = cx
+        .debug_bounds("account-form")
+        .expect("the add form is drawn");
+    for pick in [
+        "provider-pick-Claude",
+        "provider-pick-Codex",
+        "provider-pick-Cursor",
+        "provider-pick-Antigravity",
+    ] {
+        let card = cx.debug_bounds(pick).expect("each provider card is drawn");
+        assert!(
+            card.right() <= form.right(),
+            "{pick} ends at {:?}, past the form's edge at {:?}",
+            card.right(),
+            form.right()
+        );
+    }
+}

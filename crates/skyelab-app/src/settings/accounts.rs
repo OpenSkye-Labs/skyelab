@@ -314,6 +314,7 @@ impl Settings {
         let theme = cx.theme();
         v_flex()
             .id("account-form")
+            .debug_selector(|| "account-form".into())
             .gap_4()
             .p_4()
             .rounded(ui::RADIUS_LG)
