@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Regenerates every app icon (desktop and mobile) from crates/skyelab-app/icons/icon.svg. Needs resvg, python3, and macOS for icon.icns.
+# Regenerates every app icon (desktop and mobile) from the SVG masters in crates/skyelab-app/icons. Needs resvg, python3, and macOS for icon.icns.
 set -euo pipefail
 dir="$(cd "$(dirname "$0")/../crates/skyelab-app/icons" && pwd)"
 command -v resvg >/dev/null || { echo "resvg not found: cargo install resvg" >&2; exit 1; }
 command -v iconutil >/dev/null || { echo "iconutil not found: icon.icns is built on macOS" >&2; exit 1; }
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
-render() { resvg -w "$2" -h "$2" "$dir/icon.svg" "$1"; }
+render() {
+  local source="$dir/icon.svg"
+  if (( $2 <= 32 )); then source="$dir/icon-small.svg"; fi
+  resvg -w "$2" -h "$2" "$source" "$1"
+}
 
 # Linux and the .deb/AppImage take PNGs; linuxdeploy rejects icons over 512 px, so 1024 lives only in the .icns.
 render "$dir/32x32.png" 32

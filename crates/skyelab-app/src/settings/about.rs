@@ -38,7 +38,7 @@ impl Settings {
         );
         let brand = widgets::row(false, cx)
             .gap_3()
-            .child(ui::grip_mark(gpui::px(28.), cx.theme().foreground))
+            .child(ui::peek_mark(gpui::px(28.), cx.theme().foreground))
             .child(widgets::label(
                 "Every folder on its own account",
                 "SkyeLab binds each folder to one Claude, Codex, or Antigravity login and never starts an agent under another.",
