@@ -348,3 +348,29 @@ fn a_stable_fetch_never_returns_a_pre_release() {
         "v99.0.0-nightly.20261128"
     );
 }
+
+#[gpui::test]
+fn a_check_on_the_old_channel_never_lands(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("settings.toml");
+    let fetch = updates::fetcher(Some("v0.0.1,v99.0.0-nightly.20261128".into()), None, true);
+    cx.update(|cx| updates::init(Some(path.clone()), fetch, cx));
+    cx.run_until_parked();
+    // Nightly then Stable before the Nightly check answers: its nightly offer must not show.
+    cx.update(|cx| {
+        updates::set_channel(Channel::Nightly, cx).detach();
+        assert_eq!(
+            cx.global::<updates::Updates>().status,
+            UpdateStatus::Checking
+        );
+        updates::set_channel(Channel::Stable, cx).detach();
+    });
+    cx.run_until_parked();
+    assert_eq!(status(cx), UpdateStatus::UpToDate);
+    let saved = AppSettings::load(&path).expect("load").updates;
+    assert_eq!(
+        saved.channel,
+        Some(Channel::Stable),
+        "the last click is saved"
+    );
+}

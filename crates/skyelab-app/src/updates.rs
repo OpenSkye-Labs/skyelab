@@ -14,7 +14,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+mod channel;
 mod sources;
+pub use channel::set_channel;
 pub use sources::{downloader, fetcher};
 
 actions!(skyelab, [CheckForUpdates]);
@@ -232,7 +234,12 @@ pub fn check(manual: bool, cx: &mut App) {
     if busy(&u.status) {
         return;
     }
-    let (path, fetch, current) = (u.path.clone(), u.fetch.clone(), u.current.clone());
+    let (path, fetch, current, channel) = (
+        u.path.clone(),
+        u.fetch.clone(),
+        u.current.clone(),
+        u.channel,
+    );
     let job = cx.background_spawn(async move {
         let settings = match &path {
             Some(p) => AppSettings::load(p).unwrap_or_default().updates,
@@ -243,7 +250,6 @@ pub fn check(manual: bool, cx: &mut App) {
         if !manual && !(settings.check && update::due(settings.last_check, now)) {
             return None;
         }
-        let channel = settings.channel(&current);
         let got = fetch(channel);
         // A failed check (offline) is tried again at the next tick, not a day later.
         if let (Some(p), true) = (&path, got.is_ok()) {
@@ -507,28 +513,5 @@ pub fn set_enabled(on: bool, cx: &mut App) -> Task<anyhow::Result<()>> {
             Some(p) => AppSettings::update(&p, |s| s.updates.check = on).map(|_| ()),
             None => Ok(()),
         }
-    })
-}
-
-/// Settings → General's update channel: saves it and checks again on it, so an offer from the other channel goes.
-pub fn set_channel(channel: Channel, cx: &mut App) -> Task<anyhow::Result<()>> {
-    let Some(u) = cx.try_global::<Updates>() else {
-        return Task::ready(Ok(()));
-    };
-    let path = u.path.clone();
-    cx.global_mut::<Updates>().channel = channel;
-    if available(cx).is_some() {
-        set_status(UpdateStatus::Idle, cx);
-    }
-    let save = cx.background_spawn(async move {
-        match path {
-            Some(p) => AppSettings::update(&p, |s| s.updates.channel = Some(channel)).map(|_| ()),
-            None => Ok(()),
-        }
-    });
-    cx.spawn(async move |cx| {
-        save.await?;
-        cx.update(|cx| check(true, cx));
-        Ok(())
     })
 }

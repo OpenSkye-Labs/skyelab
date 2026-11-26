@@ -60,10 +60,11 @@ jobs:
           fi
           day=$(date -u +%Y%m%d)
           base="$next-nightly.$day"
-          # Tags already on the remote for this day: v<base> and v<base>.<N>.
-          taken=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v$base" --jq '.[].ref' \
-            | grep -cE "^refs/tags/v${base//./\\.}(\.[0-9]+)?$" || true)
-          if [ "$taken" -eq 0 ]; then version="$base"; else version="$base.$((taken + 1))"; fi
+          # Tags already on the remote for this day: v<base> and v<base>.<N>; the next one follows the highest.
+          refs=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v$base" --jq '.[].ref')
+          n=$({ grep -oE "^refs/tags/v${base//./\\.}(\.[0-9]+)?$" <<<"$refs" || true; } \
+            | sed -E "s/^refs\/tags\/v${base//./\\.}\.?//; s/^$/1/" | sort -n | tail -1)
+          if [ -z "$n" ]; then version="$base"; else version="$base.$((n + 1))"; fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Nightly $version from $cargo at $GITHUB_SHA"
 

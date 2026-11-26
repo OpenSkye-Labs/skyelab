@@ -51,6 +51,8 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
+          # A Windows checkout has CRLF lines; cargo reads LF as well, and the patterns below expect it.
+          perl -pi -e 's/\r$//' Cargo.toml Cargo.lock
           old=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
           perl -pi -e 'if (!$done && s/^version = ".*"/version = "$ENV{VERSION}"/) { $done = 1 }' Cargo.toml
           # Workspace crates are the lock entries with no `source` line.
