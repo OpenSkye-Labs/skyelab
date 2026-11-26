@@ -9,6 +9,7 @@ use crate::ui::Switch;
 use crate::ui::TextField;
 use crate::workspace::thread_extras::prefs;
 use gpui_component::{h_flex, v_flex};
+use skyelab_core::update::Channel;
 use skyelab_core::{AppSettings, DiffSettings, ThreadSettings};
 
 /// The "Open in editor" command saved in settings.toml (empty: the default lookup).
@@ -57,6 +58,9 @@ impl Settings {
         let enabled = cx
             .try_global::<crate::updates::Updates>()
             .is_none_or(|u| u.enabled);
+        let channel = cx
+            .try_global::<crate::updates::Updates>()
+            .map_or(Channel::Stable, |u| u.channel);
         v_flex()
             .gap_8()
             .child(section(
@@ -157,6 +161,23 @@ impl Settings {
                         .on_click(cx.listener(|this, on: &bool, _, cx| {
                             let save = crate::updates::set_enabled(*on, cx);
                             this.report(save, "the update check", cx);
+                            cx.notify();
+                        })),
+                    cx,
+                ),
+                setting(
+                    true,
+                    "Update channel",
+                    "Stable offers releases only. Nightly also offers the nightly builds of the next version, \
+                     and a newer stable release when one is out.",
+                    ui::SegmentedControl::new("update-channel")
+                        .with_size(ui::Size::Sm)
+                        .items(["Stable", "Nightly"])
+                        .selected(Some(usize::from(channel == Channel::Nightly)))
+                        .on_click(cx.listener(|this, ix: &usize, _, cx| {
+                            let channel = if *ix == 1 { Channel::Nightly } else { Channel::Stable };
+                            let save = crate::updates::set_channel(channel, cx);
+                            this.report(save, "the update channel", cx);
                             cx.notify();
                         })),
                     cx,

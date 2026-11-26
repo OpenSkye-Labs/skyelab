@@ -3,7 +3,7 @@
 `.github/workflows/ci.yml` runs the gate from CLAUDE.md on Ubuntu, macOS and Windows: `cargo fmt --check` (Ubuntu),
 then `clippy --workspace --all-targets -D warnings` and the tests as separate jobs per OS. Linux's tests run as three
 jobs (`--partition slice:N/3`), each building from the shared cache. `mobile.yml` builds the iOS simulator app and
-the Android release APK; `release.yml` packages tagged releases.
+the Android release APK; `release.yml` packages tagged releases and `nightly.yml` nightly pre-releases (below).
 
 ## Tests run on cargo-nextest
 
@@ -39,6 +39,28 @@ Only macOS is tested locally. Check the others like this before merging somethin
   `cargo nextest run --workspace`. Give the VM 8 GB and build with `-j 3` (linking the app's test binary
   in parallel runs out of memory).
 - **Android:** run the Gradle build with an empty `GRADLE_USER_HOME` (see below).
+
+## Releases and nightlies
+
+`package.yml` is the packaging matrix (macOS .dmg, Windows NSIS, Linux .deb + AppImage, signing when the secrets
+are set), a reusable workflow that uploads each OS's files as artifacts of the run that called it. Two workflows call
+it and attach the files plus `SHA256SUMS` (the in-app updater refuses anything it doesn't list):
+
+- **Stable:** `release.yml`, on a pushed `v<version>` tag. Bump `version` in the root `Cargo.toml`, commit, tag, push
+  the tag. It checks the tag matches the version, packages, and makes a **draft** release; check it, then publish.
+- **Nightly:** `nightly.yml`, only when run by hand (Actions → Nightly → Run workflow, on `main`; no schedule). It
+  refuses a ref other than main and a commit without a successful CI run, then builds that commit as the next
+  version's nightly: `vX.Y.Z-nightly.YYYYMMDD`, `.2`, `.3`… for a second run that day. Next is the `Cargo.toml`
+  version without its `-dev` when it has one, else its patch + 1 (main normally carries the last stable, so after
+  0.1.7 the nightlies are `0.1.8-nightly.*`). The version is stamped into `Cargo.toml` and `Cargo.lock` inside the
+  job and never committed. It publishes a **pre-release** at once (not a draft, never "latest", so GitHub's latest
+  release and the Stable channel still see only stable releases), then keeps the newest 14 nightlies and deletes the
+  older ones with their tags (`gh release delete --cleanup-tag`, only tags matching `v*-nightly.*`).
+- Semver sorts `0.1.8-nightly.*` below `0.1.8`, so the stable release supersedes the nightlies: the updater's
+  Nightly channel moves to it. `release.yml` ignores `v*-nightly*` tags.
+- `SKYELAB_UPDATE_FAKE=<tag>[,<tag>…]` fakes the release list in a debug build (each channel takes its newest):
+  `SKYELAB_UPDATE_FAKE=v0.1.7,v0.1.8-nightly.20261128` shows the nightly offer on Nightly and nothing on Stable.
+- `test/acceptance/packaging.sh workflow` lints the three workflows (actionlint) and checks these rules.
 
 ## Traps, by platform
 

@@ -159,10 +159,10 @@ Packaging uses [cargo-packager](https://github.com/crabnebula-dev/cargo-packager
 `[package.metadata.packager]` in `crates/skyelab-app/Cargo.toml`. Install it with `cargo install cargo-packager --locked`.
 
 - **Cut a release:** bump `version` in the root `Cargo.toml`, commit, then tag `v<version>` and push the tag (the workflow fails if the two differ).
-  The release job also attaches `SHA256SUMS` (`sha256sum` over every asset); the in-app updater refuses a download it doesn't list, so keep that step and never edit assets on a published release.
-  Live-check the updater with `SKYELAB_UPDATE_FAKE=<tag>` (`none`: a repo with no release yet), `SKYELAB_UPDATE_FAKE_DIR` (a folder of assets plus their `SHA256SUMS`, served slowly as the release's downloads) and `SKYELAB_UPDATE_FAKE_APP` (a stand-in `.app` or AppImage to replace), debug builds only.
-  `.github/workflows/release.yml` builds a `.dmg` (macOS, arm64), an NSIS `-setup.exe` (Windows) and a `.deb` +
-  `.AppImage` (Linux), and attaches them to a **draft** GitHub release. Check the draft, then publish it.
+  **Nightly:** run `nightly.yml` by hand on main; it publishes `v<next>-nightly.<date>` as a pre-release ([docs/ci.md](docs/ci.md)).
+  Both attach `SHA256SUMS`; the updater refuses a download it doesn't list, so keep that step and never edit a published release's assets.
+  Live-check the updater with `SKYELAB_UPDATE_FAKE=<tag>[,<tag>…]` (`none`: a repo with no release yet), `SKYELAB_UPDATE_FAKE_DIR` (assets plus their `SHA256SUMS`, served slowly) and `SKYELAB_UPDATE_FAKE_APP` (a stand-in `.app` or AppImage to replace), debug builds only.
+  `release.yml` packages (`package.yml`: `.dmg` arm64, NSIS `-setup.exe`, `.deb` + `.AppImage`) into a **draft** release. Check it, then publish it.
 - **Locally (macOS):** `cargo packager --release -p skyelab-app -f app,dmg` writes `target/release/SkyeLab.app` and the `.dmg`.
   Prefix `CI=true` when the terminal has no Automation permission for Finder; that skips only the dmg window layout.
   `test/acceptance/packaging.sh all` checks the icons, release profile, Info.plist, code signature and workflow.

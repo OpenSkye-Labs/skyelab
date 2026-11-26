@@ -90,3 +90,20 @@ fn the_open_pill_drops_the_icon_then_the_full_label_then_the_action() {
         f(false, false, false)
     );
 }
+
+#[test]
+fn a_nightly_offer_says_nightly() {
+    let nightly = UpdateStatus::Available {
+        tag: "v0.1.8-nightly.20261128".into(),
+        url: String::new(),
+    };
+    let shown = look(&nightly, false).expect("shown");
+    assert_eq!(
+        (shown.label.as_str(), shown.short.as_str()),
+        ("Nightly available", "Nightly")
+    );
+    assert_eq!(
+        shown.tip,
+        "SkyeLab Nightly 0.1.8-nightly.20261128 is available"
+    );
+}

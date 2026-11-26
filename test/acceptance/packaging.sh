@@ -63,13 +63,18 @@ start() {
 }
 
 workflow() {
-  local w=.github/workflows/release.yml
-  actionlint "$w" || fail "actionlint"
-  grep -q 'tags: \["v\*"\]' "$w" || fail "no v* tag trigger"
+  local w=.github/workflows/package.yml r=.github/workflows/release.yml n=.github/workflows/nightly.yml
+  actionlint "$w" "$r" "$n" || fail "actionlint"
+  grep -q 'tags: \["v\*", "!v\*-nightly\*"\]' "$r" || fail "no v* tag trigger (nightly tags excluded)"
   for os in macos windows ubuntu; do grep -q "os: $os-" "$w" || fail "no $os runner"; done
-  grep -q 'draft: true' "$w" || fail "release not draft"
+  grep -q 'draft: true' "$r" || fail "release not draft"
+  for f in "$r" "$n"; do
+    grep -q 'uses: ./.github/workflows/package.yml' "$f" || fail "$f doesn't package through package.yml"
+    grep -q "sha256sum -- \* > ../SHA256SUMS" "$f" || fail "$f: no SHA256SUMS for the in-app updater"
+  done
+  grep -q 'prerelease: true' "$n" && grep -q 'make_latest: "false"' "$n" || fail "nightly not a pre-release"
+  grep -q 'workflow_dispatch:' "$n" && ! grep -q 'schedule:' "$n" || fail "nightly runs only by hand"
   grep -q 's/^signing-identity = ' "$w" || fail "the Developer ID step must replace the ad-hoc identity, not add one"
-  grep -q "sha256sum -- \* > ../SHA256SUMS" "$w" || fail "no SHA256SUMS for the in-app updater"
   # Only the detect step and signing/package steps may hold secrets: none at job level.
   ! sed -n '/^    runs-on:/,/^    steps:/p' "$w" | grep -q 'secrets\.' || fail "secrets in job-level env"
   local gate; gate=$(sed -n '/id: signing/,/- name: Enable macOS/p' "$w" | grep -v 'secrets\.')

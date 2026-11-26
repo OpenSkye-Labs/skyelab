@@ -1,5 +1,5 @@
 use crate::release::{
-    Got, MAX_BODY, Release, exchange, parse_npm_latest, parse_release, redirect_ok,
+    Got, MAX_BODY, Release, exchange, parse_npm_latest, parse_release, parse_releases, redirect_ok,
 };
 use skyelab_core::update::Asset;
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -176,4 +176,23 @@ fn redirects_stay_on_github() {
         "user content"
     );
     assert!(!redirect_ok("https://user@objects.githubusercontent.com/a"));
+}
+
+#[test]
+fn releases_list_drops_drafts_and_unreadable_entries() {
+    let page = "https://github.com/OpenSkye-Labs/skyelab/releases/tag";
+    let body = format!(
+        r#"[
+        {{"tag_name":"v0.1.8-nightly.20261128","html_url":"{page}/v0.1.8-nightly.20261128","prerelease":true,
+          "assets":[{{"name":"SHA256SUMS","browser_download_url":"https://github.com/OpenSkye-Labs/skyelab/releases/download/v0.1.8-nightly.20261128/SHA256SUMS"}}]}},
+        {{"tag_name":"v0.1.9","html_url":"{page}/v0.1.9","draft":true}},
+        {{"html_url":"{page}/none"}},
+        {{"tag_name":"v0.1.7","html_url":"{page}/v0.1.7","draft":false}}
+    ]"#
+    );
+    let got = parse_releases(body.as_bytes()).expect("parses");
+    let tags: Vec<&str> = got.iter().map(|r| r.tag.as_str()).collect();
+    assert_eq!(tags, ["v0.1.8-nightly.20261128", "v0.1.7"]);
+    assert_eq!(got[0].assets.len(), 1);
+    assert!(parse_releases(br#"{"tag_name":"v1"}"#).is_err());
 }

@@ -29,6 +29,14 @@ pub fn latest_release(url: &str) -> io::Result<Release> {
     parse_release(&get(url, "application/vnd.github+json")?)
 }
 
+/// The releases list is larger (30 releases with their assets and notes); anything past this is refused.
+pub const MAX_LIST: usize = 8 << 20;
+
+/// GETs GitHub's releases list (`url`, `https://` only) and parses it, newest first, drafts dropped. Blocks.
+pub fn releases(url: &str) -> io::Result<Vec<Release>> {
+    parse_releases(&get_capped(url, "application/vnd.github+json", MAX_LIST)?)
+}
+
 /// GETs an npm registry `.../<package>/latest` record (`url`, `https://` only) and returns its `version`. Blocks.
 pub fn npm_latest(url: &str) -> io::Result<String> {
     parse_npm_latest(&get(url, "application/json")?)
@@ -52,11 +60,16 @@ pub(crate) fn parse_npm_latest(body: &[u8]) -> io::Result<String> {
 
 /// One bounded GET of `url` over TLS, returning a 200's body.
 fn get(url: &str, accept: &str) -> io::Result<Vec<u8>> {
+    get_capped(url, accept, MAX_BODY)
+}
+
+/// [`get`] with its own size cap.
+fn get_capped(url: &str, accept: &str, cap: usize) -> io::Result<Vec<u8>> {
     let mut body = Vec::new();
     let got = request(
         url,
         accept,
-        MAX_BODY as u64,
+        cap as u64,
         &mut body,
         &mut |_, _| {},
         Some(TIMEOUT),
@@ -269,9 +282,26 @@ pub(crate) async fn exchange<S: AsyncRead + AsyncWrite + Unpin>(
     Ok(Got::Body)
 }
 
+/// A releases list (a JSON array of release objects): the parsable, non-draft ones, in the order given.
+pub(crate) fn parse_releases(body: &[u8]) -> io::Result<Vec<Release>> {
+    let v: serde_json::Value = serde_json::from_slice(body).map_err(io::Error::other)?;
+    let list = v
+        .as_array()
+        .ok_or_else(|| invalid("the releases list is not a list"))?;
+    Ok(list
+        .iter()
+        .take(100)
+        .filter(|r| r.get("draft").and_then(|d| d.as_bool()) != Some(true))
+        .filter_map(|r| release_of(r).ok())
+        .collect())
+}
+
 /// `tag_name`, `html_url` and the assets' `name` / `browser_download_url` from GitHub's release JSON.
 pub(crate) fn parse_release(body: &[u8]) -> io::Result<Release> {
-    let v: serde_json::Value = serde_json::from_slice(body).map_err(io::Error::other)?;
+    release_of(&serde_json::from_slice(body).map_err(io::Error::other)?)
+}
+
+fn release_of(v: &serde_json::Value) -> io::Result<Release> {
     let field = |k: &str| {
         v.get(k)
             .and_then(|s| s.as_str())

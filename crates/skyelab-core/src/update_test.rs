@@ -56,7 +56,8 @@ fn settings_default_on_and_round_trip() {
         UpdateSettings {
             check: false,
             last_check: Some(5),
-            skipped: Some("v0.3.0".into())
+            skipped: Some("v0.3.0".into()),
+            channel: None,
         }
     );
     assert_eq!(display_version("v0.3.0"), "0.3.0");
@@ -115,4 +116,90 @@ fn checksums_listing() {
     );
     assert_eq!(expected_sha256(&sums, "x"), None, "not a sha256");
     assert_eq!(expected_sha256(&sums, "SkyeLab"), None, "whole names only");
+}
+
+#[test]
+fn nightlies_order_by_semver_below_their_release() {
+    let chain = [
+        "v0.1.7",
+        "v0.1.8-nightly.20261127",
+        "v0.1.8-nightly.20261128",
+        "v0.1.8-nightly.20261128.2",
+        "v0.1.8-nightly.20261128.10",
+        "v0.1.8",
+        "v0.1.9-nightly.20261201",
+    ];
+    for pair in chain.windows(2) {
+        assert!(is_newer(pair[1], pair[0]), "{} > {}", pair[1], pair[0]);
+        assert!(!is_newer(pair[0], pair[1]), "{} < {}", pair[0], pair[1]);
+    }
+    assert!(is_newer("0.1.8", "0.1.8-dev"));
+    assert!(is_newer("0.1.8-nightly.20261127", "0.1.7"));
+    assert!(!is_newer(
+        "0.1.8-nightly.20261127",
+        "0.1.8-nightly.20261127"
+    ));
+    // Numeric identifiers sort below alphanumeric ones, and a bad identifier isn't a version.
+    assert!(is_newer("1.0.0-rc", "1.0.0-1"));
+    assert!(!is_newer("1.0.0-a..b", "0.1.0"));
+    assert!(
+        is_nightly("v0.1.8-nightly.20261127.2")
+            && !is_nightly("v0.1.8")
+            && !is_nightly("1.0.0-rc.1")
+    );
+    assert!(is_prerelease("1.0.0-rc.1") && !is_prerelease("v1.0.0+build.5"));
+}
+
+#[test]
+fn channels_choose_and_offer() {
+    let tags = [
+        "v0.1.7",
+        "v0.1.8-nightly.20261128.2",
+        "v0.1.8-nightly.20261128",
+        "v0.1.6",
+    ];
+    assert_eq!(newest(tags, Channel::Stable), Some("v0.1.7"));
+    assert_eq!(
+        newest(tags, Channel::Nightly),
+        Some("v0.1.8-nightly.20261128.2")
+    );
+    // A newer stable wins on Nightly too.
+    let with_stable = ["v0.1.8-nightly.20261128", "v0.1.8", "junk"];
+    assert_eq!(newest(with_stable, Channel::Nightly), Some("v0.1.8"));
+    assert_eq!(newest(["junk"], Channel::Nightly), None);
+    // A stable user is never offered a pre-release, however new.
+    assert!(!offered(
+        "v0.2.0-nightly.20261128",
+        "0.1.7",
+        Channel::Stable
+    ));
+    assert!(offered(
+        "v0.2.0-nightly.20261128",
+        "0.1.7",
+        Channel::Nightly
+    ));
+    assert!(offered("v0.1.8", "0.1.8-nightly.20261128", Channel::Stable));
+    assert!(!offered(
+        "v0.1.7",
+        "0.1.8-nightly.20261128",
+        Channel::Nightly
+    ));
+}
+
+#[test]
+fn channel_follows_the_build_until_chosen() {
+    let mut s = UpdateSettings::default();
+    assert_eq!(s.channel("0.1.7"), Channel::Stable);
+    assert_eq!(s.channel("0.1.8-nightly.20261128"), Channel::Nightly);
+    // An unset channel isn't written, so an older build still reads the file.
+    let text = toml::to_string(&s).expect("serializes");
+    assert!(!text.contains("channel"), "{text}");
+    s.channel = Some(Channel::Stable);
+    assert_eq!(s.channel("0.1.8-nightly.20261128"), Channel::Stable);
+    let text = toml::to_string(&s).expect("serializes");
+    assert!(text.contains("channel = \"stable\""), "{text}");
+    let back: UpdateSettings = toml::from_str(&text).expect("parses");
+    assert_eq!(back, s);
+    let old: UpdateSettings = toml::from_str("check = true").expect("an older file parses");
+    assert_eq!(old.channel, None);
 }

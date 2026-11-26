@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 /// The public endpoint the app asks; no auth, nothing sent but the GET.
 pub const LATEST_RELEASE_URL: &str =
     "https://api.github.com/repos/OpenSkye-Labs/skyelab/releases/latest";
+/// Every published release, newest first (the Nightly channel picks from these); drafts never show to an anonymous GET.
+pub const RELEASES_URL: &str =
+    "https://api.github.com/repos/OpenSkye-Labs/skyelab/releases?per_page=30";
 /// Only a page under this prefix is opened by Download.
 pub const RELEASES_PAGE: &str = "https://github.com/OpenSkye-Labs/skyelab/releases/";
 /// The start check runs at most this often (seconds of wall-clock time).
@@ -21,6 +24,39 @@ pub struct UpdateSettings {
     pub last_check: Option<u64>,
     /// A version the user chose to skip: the automatic check doesn't show it again.
     pub skipped: Option<String>,
+    /// Stable or Nightly; unset follows the build ([`Channel::of_build`]). Written only once chosen: an older build
+    /// refuses a settings.toml with a field it doesn't know.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<Channel>,
+}
+
+impl UpdateSettings {
+    /// The channel in effect for a build at version `current`.
+    pub fn channel(&self, current: &str) -> Channel {
+        self.channel.unwrap_or_else(|| Channel::of_build(current))
+    }
+}
+
+/// Which releases the update check offers (Settings → General → Update channel).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Channel {
+    /// Published releases only (GitHub's latest release, which skips pre-releases).
+    #[default]
+    Stable,
+    /// The newest release including pre-releases: nightlies, and a newer stable once one is out.
+    Nightly,
+}
+
+impl Channel {
+    /// A nightly build follows Nightly until the user picks otherwise; every other build follows Stable.
+    pub fn of_build(current: &str) -> Self {
+        if is_nightly(current) {
+            Self::Nightly
+        } else {
+            Self::Stable
+        }
+    }
 }
 
 impl Default for UpdateSettings {
@@ -29,6 +65,7 @@ impl Default for UpdateSettings {
             check: true,
             last_check: None,
             skipped: None,
+            channel: None,
         }
     }
 }
@@ -42,16 +79,74 @@ fn parts(tag: &str) -> Option<Vec<u64>> {
     parts.filter(|p| !p.is_empty() && p.len() <= 4)
 }
 
-/// Whether release `latest` is newer than `current`, comparing numerically part by part (a missing part is 0).
-/// Anything that isn't a version is never newer.
-pub fn is_newer(latest: &str, current: &str) -> bool {
-    let (Some(mut l), Some(mut c)) = (parts(latest), parts(current)) else {
-        return false;
+/// A version's numeric parts (padded to four) and its semver pre-release identifiers (none for a release); build
+/// metadata (`+…`) is ignored. `None` if not a version.
+fn parse(tag: &str) -> Option<(Vec<u64>, Vec<&str>)> {
+    let mut nums = parts(tag)?;
+    nums.resize(4, 0);
+    let tag = tag.trim();
+    let tag = tag.strip_prefix(['v', 'V']).unwrap_or(tag);
+    let tag = tag.split('+').next().unwrap_or(tag);
+    let pre: Vec<&str> = match tag.split_once('-') {
+        None => Vec::new(),
+        Some((_, pre)) => pre.split('.').collect(),
     };
-    let n = l.len().max(c.len());
-    l.resize(n, 0);
-    c.resize(n, 0);
-    l > c
+    let ident_ok =
+        |i: &&str| !i.is_empty() && i.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    pre.iter().all(ident_ok).then_some((nums, pre))
+}
+
+/// Semver order of two versions (`v0.1.7` < `0.1.8-nightly.20261127` < `0.1.8-nightly.20261127.2` < `0.1.8`);
+/// `None` when either isn't a version.
+pub fn compare(a: &str, b: &str) -> Option<std::cmp::Ordering> {
+    use std::cmp::Ordering::{Equal, Greater, Less};
+    let ((an, ap), (bn, bp)) = (parse(a)?, parse(b)?);
+    let pre = match (ap.is_empty(), bp.is_empty()) {
+        (true, true) => Equal,
+        (true, false) => Greater,
+        (false, true) => Less,
+        (false, false) => ap
+            .iter()
+            .zip(&bp)
+            .map(|(x, y)| match (x.parse::<u64>(), y.parse::<u64>()) {
+                (Ok(x), Ok(y)) => x.cmp(&y),
+                (Ok(_), Err(_)) => Less,
+                (Err(_), Ok(_)) => Greater,
+                _ => x.cmp(y),
+            })
+            .find(|o| o.is_ne())
+            .unwrap_or_else(|| ap.len().cmp(&bp.len())),
+    };
+    Some(an.cmp(&bn).then(pre))
+}
+
+/// Whether release `latest` is newer than `current` by semver (a missing part is 0, a pre-release sorts below its
+/// release). Anything that isn't a version is never newer.
+pub fn is_newer(latest: &str, current: &str) -> bool {
+    compare(latest, current) == Some(std::cmp::Ordering::Greater)
+}
+
+/// Whether `tag` is a pre-release (`0.1.8-nightly.20261127`, `1.0.0-rc.1`).
+pub fn is_prerelease(tag: &str) -> bool {
+    parse(tag).is_some_and(|(_, pre)| !pre.is_empty())
+}
+
+/// Whether `tag` is a nightly build (`0.1.8-nightly.20261127[.N]`).
+pub fn is_nightly(tag: &str) -> bool {
+    parse(tag).is_some_and(|(_, pre)| pre.first() == Some(&"nightly"))
+}
+
+/// Whether the check offers release `tag` to a build at `current` on `channel`: newer, and on Stable never a
+/// pre-release.
+pub fn offered(tag: &str, current: &str, channel: Channel) -> bool {
+    is_newer(tag, current) && (channel == Channel::Nightly || !is_prerelease(tag))
+}
+
+/// The newest of `tags` that `channel` takes (Stable: releases only), by semver.
+pub fn newest<'a>(tags: impl IntoIterator<Item = &'a str>, channel: Channel) -> Option<&'a str> {
+    tags.into_iter()
+        .filter(|t| parse(t).is_some() && (channel == Channel::Nightly || !is_prerelease(t)))
+        .reduce(|a, b| if is_newer(b, a) { b } else { a })
 }
 
 /// The version as shown: the tag without its `v`.

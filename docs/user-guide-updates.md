@@ -11,6 +11,13 @@ right away, skipped version included. Before the first release is published, the
 yet**. The requests carry nothing about you. **Settings → General → Check for
 updates** turns the daily check off.
 
+**Settings → General → Update channel** picks what is offered. **Stable** (the default) offers published releases
+only. **Nightly** also offers the nightly builds of the next version (`0.1.8-nightly.20261128`), published when the
+maintainers run one, and moves you on to the next stable release once it is out, since `0.1.8` is newer than any
+`0.1.8-nightly`. A nightly build starts on Nightly; picking Stable there waits for the next stable release rather
+than going back. When the offer is a nightly, the pill says **Nightly available** and its details name the nightly.
+Both channels download and verify the same way.
+
 **Download and install** downloads the release's file for your computer (with its progress in the pill) and checks
 it against the `SHA256SUMS` list published with the release. On macOS it also opens the disk image, copies the new
 app next to yours; it must be SkyeLab (the same bundle identifier) and, when your SkyeLab is signed with a Developer ID, signed by the

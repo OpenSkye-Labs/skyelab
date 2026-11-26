@@ -62,6 +62,11 @@ pub(super) fn look(status: &UpdateStatus, folder: bool) -> Option<Look> {
         tip: tip.clone(),
     };
     Some(match step {
+        None if skyelab_core::update::is_nightly(tag) => plain(
+            "Nightly available".into(),
+            "Nightly".into(),
+            SkyeIcon::ArrowDown,
+        ),
         None => plain(
             "Update available".into(),
             "Update".into(),
@@ -498,6 +503,11 @@ fn details(cx: &App) -> AnyElement {
 /// What the popover's title and the pill's tooltip say about `tag` at `step`.
 fn headline(tag: &str, step: Option<&Step>) -> String {
     let version = skyelab_core::update::display_version(tag);
+    let version = if skyelab_core::update::is_nightly(tag) {
+        format!("Nightly {version}")
+    } else {
+        version.to_owned()
+    };
     match step {
         None => format!("SkyeLab {version} is available"),
         Some(Step::Downloading { done, total }) if total.is_some_and(|t| *done >= t) => {

@@ -7,7 +7,7 @@
 
 use gpui::{App, AppContext as _, Global, Task, actions};
 use skyelab_client::release::Release;
-use skyelab_core::update;
+use skyelab_core::update::{self, Channel};
 use skyelab_core::update_install::{self as install, Install, Staged};
 use skyelab_core::{AppSettings, Provider};
 use std::path::PathBuf;
@@ -19,8 +19,8 @@ pub use sources::{downloader, fetcher};
 
 actions!(skyelab, [CheckForUpdates]);
 
-/// How the latest release is fetched: the network in the app, a fake in tests and debug runs.
-pub type Fetch = Arc<dyn Fn() -> std::io::Result<Release> + Send + Sync>;
+/// How the newest release on a channel is fetched: the network in the app, a fake in tests and debug runs.
+pub type Fetch = Arc<dyn Fn(Channel) -> std::io::Result<Release> + Send + Sync>;
 /// How a release asset is downloaded: streams `url` into the writer, reporting (bytes so far, total if known).
 pub type Download = Arc<
     dyn Fn(&str, &mut dyn std::io::Write, &mut dyn FnMut(u64, Option<u64>)) -> std::io::Result<()>
@@ -84,6 +84,8 @@ pub struct Updates {
     pub(crate) current: String,
     /// The automatic check's switch, as settings.toml had it at start and Settings → About set it since.
     pub enabled: bool,
+    /// Settings → General's update channel, as settings.toml had it at start (or this build's default) and set since.
+    pub channel: Channel,
     /// Welcome's agent CLI check; `None` until the app sets it, so tests never reach the network.
     agent_fetch: Option<AgentFetch>,
     installer: Option<Installer>,
@@ -182,16 +184,19 @@ pub fn agent_check(cx: &App) -> Option<AgentFetch> {
 
 /// Installs the check and runs the start check if it is due, then asks again every [`TICK`].
 pub fn init(path: Option<PathBuf>, fetch: Fetch, cx: &mut App) {
-    let enabled = path
+    let saved = path
         .as_deref()
         .and_then(|p| AppSettings::load(p).ok())
-        .is_none_or(|s| s.updates.check);
+        .map(|s| s.updates)
+        .unwrap_or_default();
+    let current = env!("CARGO_PKG_VERSION").to_owned();
     cx.set_global(Updates {
         status: UpdateStatus::Idle,
-        enabled,
+        enabled: saved.check,
+        channel: saved.channel(&current),
         path,
         fetch,
-        current: env!("CARGO_PKG_VERSION").to_owned(),
+        current,
         agent_fetch: None,
         installer: None,
         release: None,
@@ -238,14 +243,15 @@ pub fn check(manual: bool, cx: &mut App) {
         if !manual && !(settings.check && update::due(settings.last_check, now)) {
             return None;
         }
-        let got = fetch();
+        let channel = settings.channel(&current);
+        let got = fetch(channel);
         // A failed check (offline) is tried again at the next tick, not a day later.
         if let (Some(p), true) = (&path, got.is_ok()) {
             let _ = AppSettings::update(p, |s| s.updates.last_check = Some(now));
         }
         let release = got.as_ref().ok().cloned();
         Some((
-            status(got, &current, settings.skipped.as_deref(), manual),
+            status(got, &current, settings.skipped.as_deref(), manual, channel),
             release,
         ))
     });
@@ -304,11 +310,12 @@ fn status(
     current: &str,
     skipped: Option<&str>,
     manual: bool,
+    channel: Channel,
 ) -> UpdateStatus {
     match got {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => UpdateStatus::NoRelease,
         Err(e) => UpdateStatus::Failed(e.to_string()),
-        Ok(r) if !update::is_newer(&r.tag, current) => UpdateStatus::UpToDate,
+        Ok(r) if !update::offered(&r.tag, current, channel) => UpdateStatus::UpToDate,
         Ok(r) if !update::release_page_ok(&r.url) => {
             UpdateStatus::Failed("the release named an unexpected page".into())
         }
@@ -500,5 +507,28 @@ pub fn set_enabled(on: bool, cx: &mut App) -> Task<anyhow::Result<()>> {
             Some(p) => AppSettings::update(&p, |s| s.updates.check = on).map(|_| ()),
             None => Ok(()),
         }
+    })
+}
+
+/// Settings → General's update channel: saves it and checks again on it, so an offer from the other channel goes.
+pub fn set_channel(channel: Channel, cx: &mut App) -> Task<anyhow::Result<()>> {
+    let Some(u) = cx.try_global::<Updates>() else {
+        return Task::ready(Ok(()));
+    };
+    let path = u.path.clone();
+    cx.global_mut::<Updates>().channel = channel;
+    if available(cx).is_some() {
+        set_status(UpdateStatus::Idle, cx);
+    }
+    let save = cx.background_spawn(async move {
+        match path {
+            Some(p) => AppSettings::update(&p, |s| s.updates.channel = Some(channel)).map(|_| ()),
+            None => Ok(()),
+        }
+    });
+    cx.spawn(async move |cx| {
+        save.await?;
+        cx.update(|cx| check(true, cx));
+        Ok(())
     })
 }
