@@ -6,9 +6,20 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.6]
+
 ### Changed
 
 - Every agent, git/gh call and terminal SkyeLab starts gets `DO_NOT_TRACK=1`, so tools that honor it skip telemetry.
+- Sidebar rows are two lines, a thread waiting on you leaves **Working**, and **Undo** after a delete sits in the
+  sidebar footer.
+- The composer's `/` menu has **/model**, **/plan** and **/default**; `@` lists files git doesn't track yet.
+- **Worked for** sits above the reply, and question buttons say what they do.
+
+### Fixed
+
+- A connection to another machine no longer drops as "the environment stopped answering" while the app is busy.
+- Scheduled task form fixes.
 
 ## [0.1.5]
 
@@ -183,7 +194,10 @@ testing by hand.
 - **Debug mode** with an overlay, a redacted debug log, Perfetto traces and opt-in profilers.
 - Release packages: `.dmg` (macOS arm64), `-setup.exe` (Windows), `.deb` and `.AppImage` (Linux).
 
-[Unreleased]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.5...v0.1.6
+[0.1.5]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.0...v0.1.1
