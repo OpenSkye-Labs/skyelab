@@ -39,7 +39,8 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
   thread, so it is there when you reopen it. When no picture can be taken (Linux is untested so far), the card says so
   and the expand button still opens the page.
 - A finished turn folds its work (tool calls, thinking, the text in between) under one line above the reply:
-  **Worked for 4.2s · 12.3k in · 175 out · $0.0421 ›** (that turn's own tokens and cost). Click it to open or fold the work. A running turn shows
+  **Worked for 4.2s ›** followed, fainter, by that turn's own tokens and cost (**12.3k in · 175 out · $0.0421**). Click
+  it to open or fold the work. A turn with nothing to fold shows the same line above its reply, without the chevron. A running turn shows
   everything; one that failed, or was stopped before it finished, isn't folded and keeps its line after the turn: a
   stopped turn reads **Stopped after 12.4s** in grey, a failed one **Failed after 12.4s** in red. A turn you stopped
   never shows the failure banner, even when the agent reports the stop as an error; an error that isn't a stop does.
@@ -91,7 +92,8 @@ Stopping a turn yourself (Stop, Interrupt) shows no banner.
 
 A thread with two or more of your messages gets a thin rail at the left edge of the timeline: one short line per
 message, top to bottom. The line of the turn you are reading is brighter. Hover the rail to see that message and the
-turn's last reply (as plain text); click a line to scroll its message to the top.
+turn's last reply (as plain text); click a line to scroll its message to the top. When the timeline is too narrow to leave a margin left of
+the chat (side panels open), the rail stays hidden until the pointer finds it, so it never sits over the text.
 
 ## Find in thread
 

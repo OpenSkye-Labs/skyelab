@@ -270,7 +270,10 @@ impl ThreadView {
                         this.attach_files(&AttachFiles, window, cx)
                     })),
             )
-            .child(self.render_mode_picker(compact, cx))
+            .child(self.render_mode_picker(
+                crate::workspace::thread_render::mode_picker::icon_only(width),
+                cx,
+            ))
             .child(div().flex_1())
             .child(
                 Button::new("model-picker")
@@ -404,11 +407,12 @@ impl ThreadView {
     fn render_menu(&self, menu: &Menu, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         let (title, empty) = match menu.kind {
-            MenuKind::Files => ("Files", "No tracked file matches"),
+            MenuKind::Files => ("Files", "No file matches"),
             MenuKind::Commands => ("Commands", "No command matches"),
             MenuKind::Skills => ("Skills", "No skill in this account"),
+            // Only a thread's own linked pull request is offered, under the thread: the title says so.
             MenuKind::Context => (
-                "Threads and pull requests",
+                "Threads and their pull requests",
                 "No other thread of this account in this project",
             ),
         };

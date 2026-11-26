@@ -338,3 +338,22 @@ fn usage_dot_reflects_account_limits_and_sidebar_footer_has_no_duplicates(cx: &m
         "usage dot appears when an account is rate-limited"
     );
 }
+
+/// Scheduled, Usage and Settings open the Settings modal; clicking the highlighted one again closes it, as a page
+/// toggle would.
+#[gpui::test]
+fn a_second_rail_click_closes_settings(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    cx.simulate_resize(size(px(1200.), px(800.)));
+    cx.run_until_parked();
+    for id in ["rail-settings", "rail-scheduled", "rail-usage"] {
+        let at = cx.debug_bounds(id).expect("drawn").center();
+        cx.simulate_click(at, Modifiers::none());
+        cx.run_until_parked();
+        assert!(r.ws.read_with(cx, |ws, _| ws.settings_open), "{id} opens Settings");
+        let at = cx.debug_bounds(id).expect("drawn over Settings").center();
+        cx.simulate_click(at, Modifiers::none());
+        cx.run_until_parked();
+        assert!(!r.ws.read_with(cx, |ws, _| ws.settings_open), "{id} again closes it");
+    }
+}

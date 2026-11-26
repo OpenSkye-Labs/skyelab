@@ -73,9 +73,10 @@ impl RowState {
         matches!(self.status, Status::Starting | Status::Running)
     }
 
-    /// On the Working shelf: busy, or waiting for the user's answer.
+    /// On the Working shelf: busy and not waiting on the user. A thread waiting for an answer is the user's turn, so
+    /// it lists by time with its ask badge, as T3's `isThreadWorking` does.
     pub(super) fn working(self) -> bool {
-        self.running() || self.ask.is_some()
+        self.running() && self.ask.is_none()
     }
 }
 

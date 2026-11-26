@@ -194,7 +194,7 @@ impl Workspace {
                 cx,
             );
             if undo {
-                ws.undo_notice(
+                ws.thread_undo_notice(
                     format!("Settled “{title}”"),
                     move |ws, _, cx| ws.restore(id, was, cx),
                     window,
@@ -227,7 +227,7 @@ impl Workspace {
             );
             if let Some(until) = until.filter(|_| undo) {
                 let when = snooze::wake_label(until, crate::ui::now_ms());
-                ws.undo_notice(
+                ws.thread_undo_notice(
                     format!("Snoozed “{title}” for {when}"),
                     move |ws, _, cx| ws.restore(id, was, cx),
                     window,

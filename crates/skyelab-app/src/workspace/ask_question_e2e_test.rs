@@ -71,6 +71,12 @@ fn answers_given_in_the_docked_panel_reach_the_agent(cx: &mut TestAppContext) {
     // Question 1 is single-choice: a click picks and moves on.
     click(cx, "dock-option-0");
     assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((1, 2)));
+    // A click on Next that was on its way when the pick moved on lands on "Submit answers": ignored, not an empty
+    // submit with "Pick an option".
+    click(cx, "dock-next");
+    assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((1, 2)));
+    assert!(one.view.read_with(cx, |v, _| v.composer.notice.is_none()), "the quick click did nothing");
+    one.view.update(cx, |v, _| v.composer.dock_advanced = None); // the guard's half second has passed
     // Back to question 1 by hand, then 2 on the panel picks option 2 and moves on; 9 has no option.
     let id = ask(&one, cx).expect("asked").0;
     one.view.update(cx, |v, _| v.drafts.get_mut(&id).expect("draft").step = 0);
@@ -354,4 +360,12 @@ fn without_a_selected_thread_the_shown_pane_takes_the_keys(cx: &mut TestAppConte
     wait_until(cx, "the question", |cx| ask(&one, cx).is_some());
     cx.run_until_parked();
     assert!(panel_focused(&one, cx), "the only shown pane took the keys");
+}
+
+#[test]
+fn the_button_says_what_it_does_next() {
+    use super::ask_dock::next_label;
+    assert_eq!(next_label(0, 2), "Next question");
+    assert_eq!(next_label(1, 2), "Submit answers");
+    assert_eq!(next_label(0, 1), "Submit answer");
 }

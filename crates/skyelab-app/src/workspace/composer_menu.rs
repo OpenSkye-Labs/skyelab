@@ -159,14 +159,15 @@ pub(crate) fn model_items(models: &[(String, String)], provider: Provider) -> Ve
         .collect()
 }
 
-/// The `@` menu's rows: `models` (from [`model_items`]), then the files git tracks in `cwd`.
+/// The `@` menu's rows: `models` (from [`model_items`]), then the files in `cwd` git tracks or would add.
 pub(crate) fn at_items(mut models: Vec<MenuItem>, cwd: &Path) -> Vec<MenuItem> {
-    let files = skyelab_git::tracked_files(cwd).map(|f| file_items(&f));
+    // Untracked files too (not ignored ones): a file just written is often the one to mention.
+    let files = skyelab_git::project_files(cwd).map(|f| file_items(&f));
     models.extend(files.unwrap_or_default());
     models
 }
 
-/// The `@` rows for tracked files (from `skyelab_git::tracked_files`).
+/// The `@` rows for files (from `skyelab_git::project_files`).
 pub(crate) fn file_items(files: &[String]) -> Vec<MenuItem> {
     files
         .iter()
@@ -197,13 +198,23 @@ const CLAUDE_BUILTINS: &[(&str, &str)] = &[
     ),
 ];
 
-/// SkyeLab's own commands, which any thread but a side chat takes (`side_chat::side_question`).
+/// SkyeLab's own commands, which any thread but a side chat takes: `/side` (`side_chat::side_question`; `/btw` works
+/// too but isn't listed, so an alias never leads the menu) and T3's `/model`, `/plan` and `/default`
+/// (`composer_send::local_command`).
 const SKYELAB_COMMANDS: &[(&str, &str)] = &[
     (
         "side",
         "Ask in a side chat, without interrupting this thread",
     ),
-    ("btw", "Same as /side"),
+    ("model", "Pick this thread's model"),
+    (
+        "plan",
+        "Switch to Plan mode: the agent plans before it changes anything",
+    ),
+    (
+        "default",
+        "Switch to Ask: the agent asks before anything its rules don't allow",
+    ),
 ];
 
 /// The `/` rows: SkyeLab's own (with `side_commands`, so not in a side chat), the CLI's built-ins, then the account's

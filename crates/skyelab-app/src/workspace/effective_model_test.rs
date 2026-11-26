@@ -25,6 +25,25 @@ fn effective_model_comes_from_the_init_line_and_survives_a_reopen(cx: &mut TestA
     wait_until(cx, "the init line's model", |cx| {
         chip(&one.view, cx) == ("Opus 5.5".into(), true)
     });
+    // A new thread of the same account names that model too, before its own first run.
+    let (project, config) = {
+        let s = one.store.lock().expect("lock");
+        let project = s.list_projects().expect("projects").remove(0);
+        (project, one.view.read_with(cx, |v, _| v.config.clone()))
+    };
+    let store = one.store.clone();
+    let fresh = cx.update(|window, cx| {
+        cx.new(|cx| {
+            let backend = Backend {
+                store,
+                claude_bin: bin.clone(),
+            };
+            ThreadView::new(&project, config, backend, window, cx)
+        })
+    });
+    wait_until(cx, "the account's last default", |cx| {
+        chip(&fresh, cx) == ("Opus 5.5".into(), true)
+    });
     // An explicit pick names the alias (no run on it reported a version yet); effort follows T3's "Opus High".
     one.view.update(cx, |v, cx| {
         v.pick_model(

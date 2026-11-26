@@ -84,7 +84,7 @@ same thread is being made (from any window) does nothing, so a double click make
 ## Continue in the other provider
 
 A thread can move from Claude to Codex, or from Codex to Claude: **Continue in Codex** (or **Continue in Claude**) is in
-the thread details card, in the command palette, and on the "This thread can't continue here" notice. It makes a new
+the thread details card (only for a provider you have an account for), in the command palette, and on the "This thread can't continue here" notice. It makes a new
 thread in the same project whose header says **Continued from** and links to the original; the details card's
 **Lineage** links to it too. The original is not changed.
 
@@ -121,7 +121,7 @@ the threads under it.
 
 ## Side chats
 
-Type `/side <question>` (or `/btw <question>`; both are listed in the composer's `/` menu) in the composer, or run
+Type `/side <question>` (listed in the composer's `/` menu; `/btw <question>` works too) in the composer, or run
 **New Side Chat** from the command palette or the thread details card's **Side chats** section, to ask something on the side
 without interrupting the thread's agent. A tab named after your question opens in the right panel with a small chat.
 Opened without a question, the side chat's composer takes the focus, so you can type it there.

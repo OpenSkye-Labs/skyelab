@@ -151,6 +151,7 @@ impl ThreadView {
             question_drafts::type_answer(&self.items, &mut self.drafts, &a.id, step, "");
             question_drafts::set_step(&self.items, &mut self.drafts, &a.id, step + 1);
             self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+            self.composer.dock_advanced = Some(std::time::Instant::now());
         }
         cx.notify();
     }
@@ -408,16 +409,41 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let (step, n) = self.dock_step()?;
-        let label = if step + 1 < n { "Next" } else { "Submit" };
+        let label = next_label(step, n);
         Some(
             Button::new("dock-next")
+                .debug_selector(|| "dock-next".into())
                 .primary()
                 .small()
                 .label(label)
                 .tooltip(format!("{label} ({})", crate::ui::keys("⌘↩")))
-                .on_click(cx.listener(|this, _, window, cx| this.advance_question(window, cx)))
+                .on_click(cx.listener(|this, _, window, cx| {
+                    // A pick just moved the question on: this click was aimed at the button before it changed.
+                    let just = this
+                        .composer
+                        .dock_advanced
+                        .is_some_and(|at| at.elapsed() < ADVANCE_GUARD);
+                    if !just {
+                        this.advance_question(window, cx)
+                    }
+                }))
                 .into_any_element(),
         )
+    }
+}
+
+/// How long after a pick moved the question on the Next/Submit button ignores clicks.
+const ADVANCE_GUARD: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// T3's labels: "Next question" until the last, then "Submit answer" (one question) or "Submit answers". They differ
+/// in width as well as word, so a button that changed under the pointer reads as changed.
+pub(super) fn next_label(step: usize, n: usize) -> &'static str {
+    if step + 1 < n {
+        "Next question"
+    } else if n > 1 {
+        "Submit answers"
+    } else {
+        "Submit answer"
     }
 }
 
