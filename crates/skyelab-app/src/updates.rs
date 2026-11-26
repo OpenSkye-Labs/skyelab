@@ -22,7 +22,7 @@ mod defer;
 mod sources;
 pub use channel::{restore_channel, set_channel};
 pub use defer::{apply_if_deferred, cancel_deferred, restart, restart_now};
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub use defer::{defer_until_idle, is_deferred};
 pub use sources::{downloader, fetcher};
 

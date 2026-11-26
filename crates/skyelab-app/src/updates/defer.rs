@@ -12,20 +12,20 @@ use skyelab_core::update_install::{self as install, Staged};
 /// The most busy threads the confirmation dialog lists before "and N more".
 const SHOWN: usize = 6;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) type Apply = std::sync::Arc<dyn Fn(&Staged) -> anyhow::Result<()> + Send + Sync>;
 
 #[derive(Default)]
 struct Defer {
     watcher: Option<Task<()>>,
     applying: bool,
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     applier: Option<Apply>,
 }
 
 impl Global for Defer {}
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) fn set_applier(applier: Option<Apply>, cx: &mut App) {
     cx.default_global::<Defer>().applier = applier;
 }
@@ -175,10 +175,10 @@ fn apply_now(cx: &mut App) -> bool {
         return false;
     };
     cx.default_global::<Defer>().applying = true;
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     let applier = cx.try_global::<Defer>().and_then(|d| d.applier.clone());
     let job = cx.background_spawn(async move {
-        #[cfg(test)]
+        #[cfg(all(test, unix))]
         if let Some(apply) = applier {
             return apply(&staged);
         }
