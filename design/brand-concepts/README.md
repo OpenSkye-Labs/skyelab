@@ -1,6 +1,8 @@
 # SkyeLab app icon studies
 
-[Open the full-resolution comparison sheet](sheet.png) at 100% to judge the smallest marks. Each column shows a launcher at 1024, 128, 32 and 16 px, followed by 32 and 16 px monochrome sidebar glyphs. Both rows use the same assets on different surfaces. The first column uses the shipped Porcelain master, Grip at 32 px and mini-Bean at 16 px.
+The selected Fairweather concept became [Corner Peek](fairweather-peek/sheet.png). The first-round sheet below preserves the three original proposals and their Porcelain baseline.
+
+[Open the full-resolution comparison sheet](sheet.png) at 100% to judge the smallest marks. Each column shows a launcher at 1024, 128, 32 and 16 px, followed by 32 and 16 px monochrome sidebar glyphs. Both rows use the same assets on different surfaces. The first column uses the earlier Porcelain master, Grip at 32 px and mini-Bean at 16 px.
 
 ## Fairweather · Bean evolution
 

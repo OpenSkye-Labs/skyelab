@@ -140,7 +140,7 @@ impl Render for Welcome {
                 .child(
                     v_flex()
                         .gap_2()
-                        .child(ui::grip_mark(gpui::px(28.), theme.foreground))
+                        .child(ui::peek_mark(gpui::px(28.), theme.foreground))
                         .child(welcome),
                 )
                 .child(

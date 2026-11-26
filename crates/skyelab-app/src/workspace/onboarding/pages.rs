@@ -370,7 +370,7 @@ fn hero(step: Step, still: bool, cx: &gpui::App) -> impl IntoElement {
                 ))
                 .shadow_lg()
                 .child(match step {
-                    Step::Welcome => ui::grip_mark(glyph, fg).into_any_element(),
+                    Step::Welcome => ui::peek_mark(glyph, fg).into_any_element(),
                     _ => Icon::new(match step {
                         Step::Theme => SkyeIcon::Palette,
                         Step::Agents => SkyeIcon::Bot,

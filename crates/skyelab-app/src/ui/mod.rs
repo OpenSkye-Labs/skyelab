@@ -411,14 +411,14 @@ pub use provider_logo::provider_logo;
 
 const BRAND_MARK: &str = "icons/skyelab-mark.svg";
 
-const GRIP_MARK: &str = "icons/skyelab-grip.svg";
+const PEEK_MARK: &str = "icons/skyelab-peek.svg";
 
 pub fn brand_mark(size: Pixels, color: Hsla) -> gpui::Svg {
     brand_svg(BRAND_MARK, size, color)
 }
 
-pub fn grip_mark(size: Pixels, color: Hsla) -> gpui::Svg {
-    brand_svg(GRIP_MARK, size, color)
+pub fn peek_mark(size: Pixels, color: Hsla) -> gpui::Svg {
+    brand_svg(PEEK_MARK, size, color)
 }
 
 fn brand_svg(path: &'static str, size: Pixels, color: Hsla) -> gpui::Svg {
@@ -446,7 +446,7 @@ impl gpui::AssetSource for AppAssets {
         let path = resolved.as_deref().unwrap_or(path);
         let bytes: &'static [u8] = match path {
             BRAND_MARK => include_bytes!("../../icons/mark.svg"),
-            GRIP_MARK => include_bytes!("../../icons/grip.svg"),
+            PEEK_MARK => include_bytes!("../../icons/peek.svg"),
             _ => match icons::bytes(path).or_else(|| provider_logo::bytes(path)) {
                 Some(bytes) => bytes,
                 None => return gpui_kit_assets::Assets.load(path),
@@ -462,7 +462,7 @@ impl gpui::AssetSource for AppAssets {
                 .iter()
                 .chain(provider_logo::PATHS)
                 .copied()
-                .chain([BRAND_MARK, GRIP_MARK])
+                .chain([BRAND_MARK, PEEK_MARK])
                 .filter(|asset| asset.starts_with(path))
                 .map(gpui::SharedString::from),
         );
