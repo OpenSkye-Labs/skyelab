@@ -79,7 +79,7 @@ impl Render for MachinesPage {
                         .label(if r.enabled { "On" } else { "Off" })
                         .accessibility_label("Share this machine on my tailnet")
                         .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(ToggleSharing), cx)
+                            crate::workspace::dispatch(Box::new(ToggleSharing), window, cx)
                         }),
                 )
         });
@@ -101,10 +101,11 @@ impl Render for MachinesPage {
             };
             let switch_to = |target: Option<String>| {
                 move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut gpui::App| {
-                    window.dispatch_action(
+                    crate::workspace::dispatch(
                         Box::new(SwitchEnvironment {
                             host: target.clone(),
                         }),
+                        window,
                         cx,
                     )
                 }
@@ -153,8 +154,9 @@ impl Render for MachinesPage {
                         let host = host.clone().unwrap_or_default();
                         row.child(button("machine-forget", "Forget").on_click(
                             move |_, window, cx| {
-                                window.dispatch_action(
+                                crate::workspace::dispatch(
                                     Box::new(ForgetEnvironment { host: host.clone() }),
+                                    window,
                                     cx,
                                 )
                             },
@@ -184,7 +186,7 @@ impl Render for MachinesPage {
                                     .primary()
                                     .label("Connect")
                                     .on_click(|_, window, cx| {
-                                        window.dispatch_action(Box::new(ConnectTyped), cx)
+                                        crate::workspace::dispatch(Box::new(ConnectTyped), window, cx)
                                     }),
                             ),
                     )

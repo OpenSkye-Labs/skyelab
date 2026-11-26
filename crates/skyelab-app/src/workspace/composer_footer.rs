@@ -26,10 +26,11 @@ pub(in crate::workspace) fn machine_chip(
         .hover(move |s| s.bg(hover))
         .tooltip(move |window, cx| crate::ui::Tooltip::new(tip.clone()).build(window, cx))
         .on_click(|e, window, cx| {
-            window.dispatch_action(
+            crate::workspace::dispatch(
                 Box::new(crate::workspace::env_picker::ShowEnvironments::at(
                     e.position(),
                 )),
+                window,
                 cx,
             )
         })

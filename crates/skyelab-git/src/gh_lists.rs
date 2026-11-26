@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use crate::publish::{checked_within, gh_command, invalid};
 use crate::remote::{PR_VIEW_LIMIT, head_sha, review, rollup};
-use crate::{Checks, Error, Result, Review, git, lossy, repo_root};
+use crate::{Checks, Error, PrState, Result, Review, git, lossy, repo_root};
 
 /// The most rows one list keeps (and asks gh for).
 pub const MAX_ROWS: usize = 50;
@@ -32,6 +32,8 @@ pub struct PrRow {
     pub updated_at: String,
     /// The head commit the checks are for (`headRefOid`), when valid.
     pub head: Option<String>,
+    /// Open or draft as listed; merged or closed once the row is read again after a merge.
+    pub state: PrState,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -241,6 +243,11 @@ pub fn parse_pr_list(json: &[u8]) -> Result<Vec<PrRow>> {
                 title: text(v, "title", MAX_TITLE),
                 author: login(&v["author"]),
                 draft: v["isDraft"] == true,
+                state: if v["isDraft"] == true {
+                    PrState::Draft
+                } else {
+                    PrState::Open
+                },
                 checks: rollup(&v["statusCheckRollup"]).0,
                 review: review(v["reviewDecision"].as_str().unwrap_or_default()),
                 updated_at: text(v, "updatedAt", 64),

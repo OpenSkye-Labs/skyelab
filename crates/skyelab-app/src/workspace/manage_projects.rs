@@ -42,7 +42,9 @@ impl Workspace {
                 );
             }
             ProjectOp::OpenFolder => self.open_dir_in_editor(project.path, None, window, cx),
-            ProjectOp::Accounts => window.dispatch_action(Box::new(super::OpenSettings), cx),
+            ProjectOp::Accounts => {
+                crate::workspace::dispatch(Box::new(super::OpenSettings), window, cx)
+            }
             ProjectOp::Settings => {
                 self.open_settings_at(crate::settings::Section::Chat, window, cx);
                 if let Some(settings) = self.settings.clone() {

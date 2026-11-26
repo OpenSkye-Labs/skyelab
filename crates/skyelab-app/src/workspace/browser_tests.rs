@@ -38,6 +38,9 @@ fn open_browser_adds_center_tabs_and_close_drops_them(cx: &mut TestAppContext) {
     cx.run_until_parked();
     let panels = ws.read_with(cx, |ws, _| ws.browsers.clone());
     assert_eq!(panels.len(), 2, "each press adds a browser tab");
+    // A tab with nothing asked for says so (T3's "No preview yet"), not a blank pane.
+    assert!(cx.debug_bounds("browser-no-page").is_some(), "the empty tab is explained");
+    assert!(cx.debug_bounds("browser-open-local").is_some(), "with one click to the dev server");
     let first = panels[0].upgrade().expect("first tab alive");
     ws.read_with(cx, |ws, cx| {
         let dock = ws.dock.read(cx);

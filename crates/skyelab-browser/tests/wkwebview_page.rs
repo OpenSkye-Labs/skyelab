@@ -3,12 +3,18 @@
 //! to a local server all fail (the server sees no request). macOS and Windows (WebView2), which need a window
 //! server; Linux's WebKitGTK path is cross-checked only.
 
+mod support;
+
 #[cfg(not(any(target_os = "macos", windows)))]
-fn main() {}
+fn main() {
+    support::listed();
+}
 
 #[cfg(any(target_os = "macos", windows))]
 fn main() {
-    real::run();
+    if !support::listed() {
+        real::run();
+    }
 }
 
 #[cfg(any(target_os = "macos", windows))]

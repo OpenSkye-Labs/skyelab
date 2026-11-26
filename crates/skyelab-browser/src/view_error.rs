@@ -14,6 +14,9 @@ use gpui_component::{
 use super::BrowserView;
 use crate::load_error::LoadError;
 
+/// The address the empty tab offers (the bar's placeholder too).
+const LOCAL_DEV: &str = "localhost:3000";
+
 impl BrowserView {
     /// A load that failed: the page is hidden and [`Self::render_load_error`] shows instead, until the next page
     /// commits. `None` (a cancelled load, a download) changes nothing but ending a Retry's spinner.
@@ -96,9 +99,69 @@ impl BrowserView {
         .into_iter()
         .find(|u| !u.is_empty());
         let Some(url) = url else { return };
-        let result = crate::parse_url(&url).and_then(|url| self.engine()?.load(url.as_str(), cx));
-        self.retrying = result.is_ok();
+        // A refused local address fails inside `load`, which ends the spinner.
+        self.retrying = true;
+        let result = crate::parse_url(&url).and_then(|url| self.load(&url, cx));
+        if result.is_err() {
+            self.retrying = false;
+        }
         self.report(result, cx);
+    }
+
+    /// A tab nothing was loaded in yet (T3's "No preview yet"): what to type, and a one-click local dev server.
+    pub(super) fn render_no_page(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        div()
+            .id("no-page")
+            .debug_selector(|| "browser-no-page".into())
+            .flex_1()
+            .min_h_0()
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .gap_2()
+            .px_8()
+            .bg(theme.background)
+            .child(
+                gpui_component::Icon::new(IconName::Globe)
+                    .size(px(24.))
+                    .text_color(theme.muted_foreground),
+            )
+            .child(
+                div()
+                    .text_sm()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(theme.foreground)
+                    .child("No page yet"),
+            )
+            .child(
+                div()
+                    .text_sm()
+                    .text_color(theme.muted_foreground)
+                    .text_center()
+                    .child("Type an address above, or open your dev server."),
+            )
+            .child(
+                div()
+                    .mt_2()
+                    .debug_selector(|| "browser-open-local".into())
+                    .child(
+                        Button::new("no-page-open-local")
+                            .label(format!("Open {LOCAL_DEV}"))
+                            .small()
+                            .outline()
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.url_bar
+                                    .update(cx, |bar, cx| bar.set_value(LOCAL_DEV, window, cx));
+                                if let Err(e) = this.open_from_url_bar(LOCAL_DEV, cx) {
+                                    this.error = Some(format!("{e:#}").into());
+                                }
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .into_any_element()
     }
 
     pub(super) fn render_load_error(
@@ -135,7 +198,7 @@ impl BrowserView {
                             .text_xl()
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(theme.foreground)
-                            .child("This site can't be reached"),
+                            .child(error.title.clone()),
                     )
                     .child(
                         div().text_sm().text_color(theme.muted_foreground).child(

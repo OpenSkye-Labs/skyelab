@@ -39,6 +39,7 @@ mod import_sessions;
 mod keymap_notice;
 mod keys;
 pub(crate) mod layout;
+mod layout_close;
 mod left_rail;
 pub(crate) mod login_status;
 #[cfg(all(test, unix))] // the fake claude is a shell script
@@ -110,6 +111,7 @@ mod thread_list;
 mod thread_search;
 mod timeline_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
+mod click;
 mod find_marks;
 mod limit_banner;
 mod saved_views;
@@ -131,8 +133,10 @@ mod update_notice;
 #[cfg(test)]
 mod update_notice_test;
 mod windows;
+pub(crate) use click::dispatch;
 pub use windows::{
-    NewWindow, WindowKit, open as open_window, restore_windows, set_hub, window_handles,
+    CloseWindow, NewWindow, WindowKit, open as open_window, restore_windows, set_hub,
+    window_handles,
 };
 mod worktree;
 

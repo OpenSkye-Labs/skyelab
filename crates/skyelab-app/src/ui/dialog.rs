@@ -14,6 +14,7 @@ pub fn open_dialog(
     cx: &mut App,
     build: impl Fn(Dialog, &mut Window, &mut App) -> Dialog + 'static,
 ) {
+    super::tooltip::dialog_opened(window, cx);
     window.open_dialog(cx, move |dialog, window, cx| {
         build(dialog.entrance(super::motion::DIALOG), window, cx)
     });

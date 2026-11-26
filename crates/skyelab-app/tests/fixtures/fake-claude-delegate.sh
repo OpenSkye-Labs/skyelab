@@ -41,6 +41,12 @@ done_turn() {
   printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"num_turns":1,"result":"%s","session_id":"fake-sess-1","total_cost_usd":0}\n' "$1"
 }
 while IFS= read -r line; do
+  # The usage poll: signed out, as fake-claude.sh answers without a fake-usage.json. Unanswered, each poll held the
+  # test's one background thread for usage_limits' 20 s deadline.
+  case $line in *'"subtype":"get_usage"'*)
+    printf '%s\n' '{"type":"control_response","response":{"subtype":"success","request_id":"skyelab-usage","response":{"rate_limits_available":false,"rate_limits":null}}}'
+    continue ;;
+  esac
   case $line in *'"type":"user"'*) ;; *) continue ;; esac
   # A JSON string value: ([^"\\]|\\.)* stops at its closing quote, whatever key comes next.
   case $line in *'"content":"hold"'*) continue ;; esac # stays mid-turn
@@ -76,6 +82,8 @@ while IFS= read -r line; do
   [ -n "$tap" ] && call="device_tap {\\\"device_id\\\":\\\"$tap\\\",\\\"x\\\":50,\\\"y\\\":100}"
   [ -n "$project" ] && call="start_thread {\\\"project_id\\\":$project,\\\"prompt\\\":\\\"${child:-Write the release notes}\\\"}"
   if [ -z "$call" ] || [ -z "$cfg" ]; then
+    # As fake-claude.sh: an agent that edits a file each turn, here with the session kept alive between turns.
+    [ -f .fake-agent-edits ] && printf 'turn\n' >> agent-edit.txt
     printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"Done with the delegated task."}]}}'
     done_turn "done"
     continue

@@ -4,6 +4,15 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 
 - Commands are `actions!(skyelab, [NewThread, ..])`, bound with `KeyBinding::new("cmd-n", NewThread, Some("Workspace"))`. `KeyBinding::new` panics on `secondary-` (it has no OS to resolve it): use `KeyBinding::load(.., cx)` for those.
   Use `secondary-` (cmd on mac, ctrl elsewhere) for cross-platform bindings.
+- A button's `on_click` runs its action with `crate::workspace::dispatch`, never `window.dispatch_action`. The latter
+  starts from the focused element, and when that element isn't drawn any more (a menu or popover that just closed)
+  GPUI falls back to the window's root node: gpui-component's `Root`, above the Workspace, so no Workspace handler
+  runs and the click does nothing. `dispatch` starts from the focus only while it sits under this window's
+  Workspace (`FocusHandle::contains_focused`), else from the Workspace's own handle (`FocusHandle::dispatch_action`),
+  deferred like the original. Keys keep going through key contexts. Test a button with a real mouse click
+  (`simulate_click`) after focusing a terminal and after focusing an undrawn handle (`click_focus_test.rs`); a
+  keyboard press on a button fires on key-up, not key-down. Only the palette and `SKYELAB_VERIFY_ACTIONS` dispatch from
+  the focus on purpose (they act like keys).
 - Handlers: `.key_context("Workspace").on_action(cx.listener(Self::new_thread))`. Every user command is an action,
   so it is bindable and shows in the command palette. No ad-hoc `on_key_down` for commands.
 - The palette lists the actions the focused element can handle (`is_action_available`), so an action that only makes

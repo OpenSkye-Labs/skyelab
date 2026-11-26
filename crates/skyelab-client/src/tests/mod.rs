@@ -87,6 +87,15 @@ pub fn seqs(client: &Client, n: usize) -> Vec<i64> {
         .collect()
 }
 
+/// Returns once the client's connection has handled every command sent before this one (an `unwatch`): commands
+/// run in order, and a call's reply can only come after it. Without it a pushed event can overtake the unwatch.
+pub fn settled(client: &Client) {
+    client
+        .list_projects()
+        .recv_timeout(Duration::from_secs(60))
+        .expect("a call after the earlier commands");
+}
+
 /// Nothing more arrives for `d`.
 pub fn quiet(client: &Client, d: Duration) {
     if let Ok(update) = client.updates().recv_timeout(d) {

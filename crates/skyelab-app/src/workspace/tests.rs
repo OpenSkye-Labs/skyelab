@@ -49,6 +49,9 @@ fn keys_toggle_docks_open_settings_and_terminals(cx: &mut TestAppContext) {
 
     cx.simulate_keystrokes(TOGGLE_BOTTOM_KEY);
     assert!(open(&ws, DockPlacement::Bottom, cx));
+    cx.run_until_parked();
+    ws.read_with(cx, |ws, _| assert_eq!(ws.terminals.len(), 1, "opening with none starts a shell"));
+    ws.update_in(cx, |ws, window, cx| ws.focus.focus(window, cx));
     cx.simulate_keystrokes(TOGGLE_BOTTOM_KEY);
     assert!(!open(&ws, DockPlacement::Bottom, cx));
 
@@ -66,7 +69,7 @@ fn keys_toggle_docks_open_settings_and_terminals(cx: &mut TestAppContext) {
     ws.update_in(cx, |ws, window, cx| ws.focus.focus(window, cx));
     cx.simulate_keystrokes(NEW_TERMINAL_KEY);
     cx.run_until_parked();
-    ws.read_with(cx, |ws, _| assert_eq!(ws.terminals.len(), 1));
+    ws.read_with(cx, |ws, _| assert_eq!(ws.terminals.len(), 2));
     assert!(
         open(&ws, DockPlacement::Bottom, cx),
         "a new terminal opens the bottom panel"

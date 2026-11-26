@@ -158,7 +158,9 @@ impl Render for DebugHud {
                     .xsmall()
                     .label("Dump")
                     .tooltip("Write a JSON snapshot for a bug report")
-                    .on_click(|_, window, cx| window.dispatch_action(Box::new(DumpDebugState), cx)),
+                    .on_click(|_, window, cx| {
+                        crate::workspace::dispatch(Box::new(DumpDebugState), window, cx)
+                    }),
             )
             .child(
                 Button::new("debug-hud-close")
@@ -167,7 +169,7 @@ impl Render for DebugHud {
                     .icon(SkyeIcon::Close)
                     .tooltip("Hide the overlay")
                     .on_click(|_, window, cx| {
-                        window.dispatch_action(Box::new(ToggleDebugOverlay), cx)
+                        crate::workspace::dispatch(Box::new(ToggleDebugOverlay), window, cx)
                     }),
             );
         let body = match self.log {

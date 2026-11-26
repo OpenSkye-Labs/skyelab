@@ -322,6 +322,46 @@ fn a_failed_load_shows_why_and_retry_loads_it_again(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_local_address_with_nothing_listening_says_so_and_retry_loads_it_once_it_runs(
+    cx: &mut TestAppContext,
+) {
+    let (_ws, browser, page, cx) = agent_tab("https://example.com/", cx);
+    browser.update(cx, |b, _| b.set_probe_local(true));
+    // A port that was just free: bound, then let go.
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .expect("a free port")
+        .port();
+    let url = format!("http://127.0.0.1:{port}/");
+    let failures = browser.read_with(cx, |b, _| b.load_failures());
+    browser
+        .update(cx, |b, cx| b.navigate(&url, cx))
+        .expect("navigate");
+    cx.run_until_parked();
+    assert_eq!(*page.url.borrow(), "https://example.com/", "the engine was never asked");
+    let shown = browser.read_with(cx, |b, _| b.load_error().cloned()).expect("an error");
+    assert_eq!(shown.title, format!("Nothing is running at 127.0.0.1:{port}"));
+    assert!(shown.hint.is_some_and(|h| h.contains("Retry")));
+    assert_eq!(browser.read_with(cx, |b, _| b.load_failures()), failures + 1, "an agent's navigate hears why");
+    assert!(cx.debug_bounds("browser-load-error").is_some(), "the error page is drawn, not a blank pane");
+
+    // Still nothing: Retry keeps the page up and ends its spinner.
+    let at = cx.debug_bounds("browser-load-retry").expect("Retry is drawn");
+    cx.simulate_click(at.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(*page.url.borrow(), "https://example.com/");
+    assert!(browser.read_with(cx, |b, _| b.load_error().is_some()));
+
+    // The dev server starts: Retry loads it.
+    let _server = std::net::TcpListener::bind(("127.0.0.1", port)).expect("listen on the port again");
+    let at = cx.debug_bounds("browser-load-retry").expect("Retry is drawn");
+    cx.simulate_click(at.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(*page.url.borrow(), url, "Retry loads the address once it answers");
+    assert!(browser.read_with(cx, |b, _| b.load_error().is_none()));
+}
+
+#[gpui::test]
 fn back_from_the_error_page_shows_the_page_underneath(cx: &mut TestAppContext) {
     let (_ws, browser, _page, cx) = agent_tab("http://localhost:3000/", cx);
     let failed = skyelab_browser::load_error::describe("NSURLErrorDomain", -1003, "", "https://nope.invalid/");

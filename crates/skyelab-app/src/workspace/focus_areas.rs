@@ -64,7 +64,7 @@ pub fn composer_ringed(prompt: &FocusHandle, window: &Window, cx: &App) -> bool 
 
 impl Workspace {
     /// The active tab's focus in a dock, and whether any of its tabs holds focus now.
-    fn dock_focus(
+    pub(super) fn dock_focus(
         &self,
         at: DockPlacement,
         window: &Window,

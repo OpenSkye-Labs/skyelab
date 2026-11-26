@@ -105,7 +105,7 @@ impl Rig {
         let focus = self.ws.read_with(cx, |ws, _| ws.focus.clone());
         cx.update(|window, cx| {
             window.focus(&focus, cx);
-            window.dispatch_action(Box::new(AddProject), cx);
+            crate::workspace::dispatch(Box::new(AddProject), window, cx);
         });
         cx.run_until_parked();
     }

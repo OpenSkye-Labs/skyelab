@@ -328,18 +328,32 @@ impl TabGroupRenderer for CenterTabs {
     ) -> AnyElement {
         let bar = self.tabs.render_tab_bar(group, window, cx);
         // Windows: the right dock's tab bar is the top row's end there, so it leaves the caption buttons room. Only the
-        // right dock holds the Surfaces panel.
+        // right dock holds the Surfaces panel; a zoomed group fills the window, so it reaches them too.
         let bar = if crate::ui::window_controls::drawn()
-            && group
-                .panels()
-                .iter()
-                .any(|p| p.panel_name(cx) == "Surfaces")
+            && (group.is_zoomed()
+                || group
+                    .panels()
+                    .iter()
+                    .any(|p| p.panel_name(cx) == "Surfaces"))
         {
             div()
                 .w_full()
                 .pr(crate::ui::window_controls::WINDOW_CONTROLS_W)
                 .bg(gpui_component::ActiveTheme::theme(cx).tokens.tab_bar)
                 .child(bar)
+                .into_any_element()
+        } else {
+            bar
+        };
+        // macOS: a zoomed group fills the window, so its bar starts under the traffic lights: leave them room.
+        let bar = if super::MAC && group.is_zoomed() {
+            div()
+                .w_full()
+                .flex()
+                .pl(crate::ui::MAC_TOP_PAD + gpui::px(8.))
+                .bg(gpui_component::ActiveTheme::theme(cx).tokens.tab_bar)
+                .debug_selector(|| "zoomed-tab-bar".into())
+                .child(div().flex_1().min_w_0().child(bar))
                 .into_any_element()
         } else {
             bar

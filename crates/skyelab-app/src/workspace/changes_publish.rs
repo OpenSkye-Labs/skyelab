@@ -297,8 +297,13 @@ impl ChangesView {
 
     pub(super) fn render_publish(&self, cx: &mut Context<Self>) -> AnyElement {
         let total = self.changes.as_ref().map_or(0, |c| c.uncommitted);
-        let commit_label = commit_label(self.selected.len(), total);
-        let nothing = total == 0 && self.selected.is_empty();
+        let loading = self.changes.is_none() && self.error.is_none();
+        let commit_label = if loading {
+            "Loading…".to_string()
+        } else {
+            commit_label(self.selected.len(), total)
+        };
+        let nothing = loading || (total == 0 && self.selected.is_empty());
         let button = |id: &'static str, label: String| {
             Button::new(id)
                 .small()

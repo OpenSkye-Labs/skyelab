@@ -47,22 +47,32 @@ impl Workspace {
     /// Splits the focused pane: a new shell beside it (`Row`) or under it (`Column`), built like a new tab (its
     /// folder's account env).
     fn split_focused(&mut self, axis: Axis, window: &mut Window, cx: &mut Context<Self>) {
-        if self.is_remote() {
-            return;
-        }
-        let Some((panel, cwd)) = self.terminals.iter().find_map(|p| {
+        let Some((panel, at)) = self.terminals.iter().find_map(|p| {
             let at = p.read(cx).focused_pane(window, cx)?;
-            let cwd = p.read(cx).panes[at]
-                .view
-                .read(cx)
-                .terminal()
-                .cwd()
-                .to_path_buf();
-            Some((p.clone(), cwd))
+            Some((p.clone(), at))
         }) else {
             return;
         };
-        // The new pane starts where the focused one did (a worktree, a script's folder), under that folder's account.
+        self.split_pane(panel, at, axis, window, cx);
+    }
+
+    /// Splits pane `at` of `panel` (a tab bar button splits the tab's active pane, wherever focus is).
+    pub(super) fn split_pane(
+        &mut self,
+        panel: Entity<TerminalPanel>,
+        at: usize,
+        axis: Axis,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_remote() {
+            return;
+        }
+        let Some(pane) = panel.read(cx).panes.get(at) else {
+            return;
+        };
+        let cwd = pane.view.read(cx).terminal().cwd().to_path_buf();
+        // The new pane starts where the split one did (a worktree, a script's folder), under that folder's account.
         let job = self.terminal_job_in(cwd, cx);
         let options = cx.background_spawn(async move { job() });
         cx.spawn_in(window, async move |this, cx| {
@@ -165,9 +175,32 @@ impl Workspace {
             |this, panel, e: &TabEvent, window, cx| match e {
                 TabEvent::Changed => this.schedule_layout_save(window, cx),
                 TabEvent::Close => this.close_terminal_tab(panel, window, cx),
+                TabEvent::Split(axis) => {
+                    let at = panel.read(cx).active;
+                    this.split_pane(panel.clone(), at, *axis, window, cx)
+                }
+                TabEvent::New => this.new_terminal(&NewTerminal, window, cx),
+                TabEvent::CloseActive => {
+                    let p = panel.read(cx);
+                    if let Some(id) = p.panes.get(p.active).map(|p| p.view.entity_id()) {
+                        this.close_pane(panel.clone(), id, window, cx);
+                    }
+                }
             },
         )
         .detach();
+        // Numbered among the unnamed tabs that started in the same folder (a named tab already reads differently).
+        let folder = |t: &TerminalPanel| t.panes.first().map(|p| p.cwd.clone());
+        let mine = folder(panel.read(cx));
+        let taken: Vec<usize> = self
+            .terminals
+            .iter()
+            .map(|t| t.read(cx))
+            .filter(|t| t.name.is_none() && folder(t) == mine)
+            .map(|t| t.number)
+            .collect();
+        let number = (1..).find(|n| !taken.contains(n)).unwrap_or(1);
+        panel.update(cx, |p, _| p.number = number);
         self.dock_terminal(&panel, window, cx);
         self.terminals.push(panel);
     }

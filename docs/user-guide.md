@@ -92,7 +92,7 @@ it moves to the **Settled** shelf at the bottom, folded, newest settle first, 25
 the alarm clock **snoozes** it: **In 1 hour**, **Tonight** (18:00, while that's ahead), **Tomorrow** (09:00), **Next
 week** (Monday 09:00) or **Custom…**, where you type `45m`, `3h`, `2d`, `18:30` or `2026-12-01 09:00`. A snoozed
 thread waits in the folded **Snoozed** shelf with how long until it wakes; then it is back in the list marked
-**Woke** until you open it. Each notice has **Undo**. A settled row's hover button un-settles it, and a snoozed row's
+**Woke** until you open it. Each notice has **Undo** for 5 seconds (it stays while the pointer is on it). A settled row's hover button un-settles it, and a snoozed row's
 wakes it now. The row's right-click menu has the same entries, and the palette has **Settle Thread** and **Snooze
 Thread** for the open thread. A thread that starts working shows under Working whatever its shelf, and a settled or
 snoozed thread leaves Pinned while it's shelved. Archived threads can't be settled or snoozed.
@@ -116,8 +116,8 @@ and **Stop** stops them (a subagent stops with the turn that runs it). Tools ope
 thread: **Changes**, browsers and **Devices**. The right panel's first tab (**+**) is **Open a surface**: Browser
 (<kbd>B</kbd>), Terminal (<kbd>T</kbd>), Files (<kbd>F</kbd>), Diff (<kbd>D</kbd>), Pull request (<kbd>P</kbd>),
 Linked items (<kbd>L</kbd>), Device (<kbd>M</kbd>) and Side chat (<kbd>S</kbd>). Press the letter while the panel has
-focus, or click the row; a surface the shown thread can't have (no pull request linked, no thread open) is greyed out.
-The expand button at the panel's top right fills the window with it. **Reopen Closed View** (<kbd>⇧⌘T</kbd>) brings
+focus (<kbd>Esc</kbd> hides the panel), or click the row; a surface the shown thread can't have (no pull request linked, no thread open) is greyed out.
+The expand button at the panel's top right fills the window with it; press it again to put it back. Every right-panel and terminal tab also has **Zoom In** / **Zoom Out** in its **…** menu. **Reopen Closed View** (<kbd>⇧⌘T</kbd>) brings
 back the tab you closed last in this window: a browser tab on its page, the file preview on its file, or a Changes
 tab while its thread is open. Terminals, side chats and agents' browser tabs don't come back.
 
@@ -131,7 +131,8 @@ right panel leaves it no room beside the conversation, it covers the chat and a 
 and Windows, outside text fields), and so do a mouse's back and forward buttons.
 
 The page's top row shows where you are (project / thread) and its actions, and at its right end four buttons show
-and hide the thread details card (<kbd>⇧⌘B</kbd>), the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Drag
+and hide the thread details card (<kbd>⇧⌘B</kbd>), the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). These buttons work wherever the focus is, a terminal included. The terminal drawer's buttons: [user-guide-terminal.md](user-guide-terminal.md).
+Drag
 a panel's edge to resize it. Drag the sidebar's edge almost to the window's left edge and it fades; let go there and
 it hides (anywhere else the drag only resizes it, down to its minimum width). A hidden sidebar comes back with
 <kbd>⌘B</kbd> at the width it had, or from the thin handle that shows when you point at the middle of the window's
@@ -208,7 +209,7 @@ added to the repo's local `info/exclude`, so it never shows up in `git status`.
 The thread details card then has:
 
 - **Changes** opens a diff of everything the agent changed in the worktree, committed or not; **Commit all** counts
-  only the files not committed yet, and says **Nothing to commit** when there are none. It follows the folder live:
+  only the files not committed yet, and says **Nothing to commit** when there are none (**Loading…** until the first read lands). It follows the folder live:
   an edit made in your editor or a terminal, a commit or a branch switch shows up within a second, as do the
   composer's change count and branch (see [live updates](user-guide-git.md#live-updates)). **Refresh** reloads it
   by hand. New files count in the card's **Changes vs** line too.
@@ -228,7 +229,7 @@ Sharing this machine over Tailscale, device approval and the environment switche
 
 ## Device hub
 
-Open it with <kbd>⇧⌘D</kbd> (<kbd>Ctrl+Alt+D</kbd> on Linux and Windows), or **Devices** in the status bar. It
+Open it with <kbd>⇧⌘D</kbd> (<kbd>Ctrl+Alt+D</kbd> on Linux and Windows), or **Devices** in the status bar, pressed while the tab shows. The key or button again, or <kbd>Esc</kbd> in the tab, hides it. It
 lists your iOS Simulators (macOS with Xcode) and Android emulators and devices (needs the Android SDK: SkyeLab looks in
 `ANDROID_HOME`, `ANDROID_SDK_ROOT`, Android Studio's default folder, then `PATH`). **Boot** starts a device. A booted one has **Shutdown**,
 **Screenshot**, **Open URL…** and **Install app…**. **Refresh** reloads the list.

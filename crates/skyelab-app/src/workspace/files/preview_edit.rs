@@ -130,8 +130,9 @@ impl PreviewPanel {
             return cx.propagate();
         }
         self.leave(
+            // CloseTab, not ClosePanel again: the dock is locked, and CloseTab unlocks it for the close.
             Box::new(|_, window, cx| {
-                window.dispatch_action(Box::new(gpui_component::dock::ClosePanel), cx)
+                crate::workspace::dispatch(Box::new(crate::workspace::layout::CloseTab), window, cx)
             }),
             window,
             cx,

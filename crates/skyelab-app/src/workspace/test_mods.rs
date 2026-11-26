@@ -238,6 +238,8 @@ mod terminal_restore_test;
 #[cfg(test)]
 mod terminal_split_test;
 #[cfg(all(test, unix))]
+mod click_focus_test;
+#[cfg(all(test, unix))]
 mod terminal_title_test;
 #[cfg(test)]
 mod tests;
@@ -302,3 +304,13 @@ mod mcp_sign_in_test;
 mod antigravity_thread_test;
 #[cfg(all(test, unix))] // the fake cursor is a shell script
 mod cursor_thread_test;
+#[cfg(test)]
+mod devices_toggle_test;
+#[cfg(all(test, unix))]
+mod dock_menu_test;
+#[cfg(all(test, unix))]
+mod terminal_controls_test;
+#[cfg(all(test, unix))]
+mod onboarding_docks_test;
+#[cfg(all(test, unix))]
+mod drawer_review_test;

@@ -59,7 +59,11 @@ impl Workspace {
                     crate::palette::Kind::Project,
                     std::rc::Rc::new(move |window, cx| {
                         let account = account.clone();
-                        window.dispatch_action(Box::new(NewScratchThreadFor { account }), cx)
+                        crate::workspace::dispatch(
+                            Box::new(NewScratchThreadFor { account }),
+                            window,
+                            cx,
+                        )
                     }),
                 )
                 .title(a.label.clone())

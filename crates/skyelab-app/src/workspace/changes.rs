@@ -419,8 +419,21 @@ impl Render for ChangesView {
                 .text_color(crate::ui::ink(theme, theme.danger))
                 .child(e.clone())
                 .into_any_element()
+        } else if self.changes.is_none() {
+            // Not read yet: never an empty list that reads as "no changes".
+            div()
+                .flex_1()
+                .flex()
+                .items_center()
+                .justify_center()
+                .debug_selector(|| "changes-loading".into())
+                .text_size(ui::BODY)
+                .text_color(theme.muted_foreground)
+                .child("Loading changes…")
+                .into_any_element()
         } else if empty {
             div()
+                .debug_selector(|| "changes-empty".into())
                 .flex_1()
                 .flex()
                 .items_center()

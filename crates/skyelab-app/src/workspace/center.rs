@@ -77,11 +77,11 @@ impl Render for Center {
             // Mouse back/forward buttons, and the swipes macOS reports as those buttons.
             .on_mouse_down(
                 MouseButton::Navigate(NavigationDirection::Back),
-                |_, window, cx| window.dispatch_action(Box::new(GoBack), cx),
+                |_, window, cx| crate::workspace::dispatch(Box::new(GoBack), window, cx),
             )
             .on_mouse_down(
                 MouseButton::Navigate(NavigationDirection::Forward),
-                |_, window, cx| window.dispatch_action(Box::new(GoForward), cx),
+                |_, window, cx| crate::workspace::dispatch(Box::new(GoForward), window, cx),
             )
             .child(page(&self.content))
     }

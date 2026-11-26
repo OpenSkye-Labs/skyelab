@@ -18,8 +18,11 @@ impl Workspace {
             .xsmall()
             .tooltip("Accounts and folder bindings")
             .child(badge.chip())
-            .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenSettings), cx));
+            .on_click(|_, window, cx| {
+                crate::workspace::dispatch(Box::new(OpenSettings), window, cx)
+            });
         let remote = self.is_remote();
+        let devices_shown = self.devices_shown(cx);
         // Debug mode on: a chip that shows or hides the overlay (docs/debugging.md).
         let debug = skyelab_core::debug::enabled().then(|| {
             Button::new("status-debug")
@@ -28,7 +31,7 @@ impl Workspace {
                 .label("Debug")
                 .tooltip("Debug mode is on: show or hide the overlay")
                 .on_click(|_, window, cx| {
-                    window.dispatch_action(Box::new(super::ToggleDebugOverlay), cx)
+                    crate::workspace::dispatch(Box::new(super::ToggleDebugOverlay), window, cx)
                 })
         });
         StatusBar::new()
@@ -59,8 +62,16 @@ impl Workspace {
                     .ghost()
                     .xsmall()
                     .label("Devices")
-                    .tooltip("iOS Simulators and Android emulators")
-                    .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenDevices), cx)),
+                    .toggled(devices_shown)
+                    .selected(devices_shown)
+                    .tooltip_with_action(
+                        "iOS Simulators and Android emulators",
+                        &OpenDevices,
+                        Some(super::CONTEXT),
+                    )
+                    .on_click(|_, window, cx| {
+                        crate::workspace::dispatch(Box::new(OpenDevices), window, cx)
+                    }),
             )
             .right(
                 h_flex()

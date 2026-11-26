@@ -128,7 +128,9 @@ impl ThreadView {
                     .primary()
                     .small()
                     .label("Bind this folder to an account")
-                    .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenSettings), cx)),
+                    .on_click(|_, window, cx| {
+                        crate::workspace::dispatch(Box::new(OpenSettings), window, cx)
+                    }),
             ),
             cx,
         )
@@ -149,8 +151,12 @@ impl ThreadView {
                         .label("Start a new thread")
                         .on_click(move |_, window, cx| {
                             // The sidebar may show another project by now; start in this thread's.
-                            window.dispatch_action(Box::new(SelectProject { id: project_id }), cx);
-                            window.dispatch_action(Box::new(NewThread), cx);
+                            crate::workspace::dispatch(
+                                Box::new(SelectProject { id: project_id }),
+                                window,
+                                cx,
+                            );
+                            crate::workspace::dispatch(Box::new(NewThread), window, cx);
                         }),
                 ),
             ),
@@ -201,7 +207,9 @@ fn thread_link(element_id: impl Into<gpui::ElementId>, id: i64, title: SharedStr
         .xsmall()
         .label(title)
         .map(ui::no_drag)
-        .on_click(move |_, window, cx| window.dispatch_action(Box::new(OpenThread { id }), cx))
+        .on_click(move |_, window, cx| {
+            crate::workspace::dispatch(Box::new(OpenThread { id }), window, cx)
+        })
 }
 
 impl Render for ThreadView {

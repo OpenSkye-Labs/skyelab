@@ -94,3 +94,7 @@ mod turn_cost_test;
 
 #[path = "timeline_keys_test.rs"]
 mod timeline_keys_test;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "pending_dock_test.rs"]
+mod pending_dock_test;

@@ -299,6 +299,7 @@ pub(super) fn render_plan<V: ItemsView>(
     let actions = answerable.then(|| {
         let (yes, no) = (a.id.clone(), a.id.clone());
         h_flex()
+            .debug_selector(|| "plan-actions".into())
             .gap_2()
             .child(
                 Button::new(SharedString::from(format!("approve-{}", a.id)))

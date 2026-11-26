@@ -1,9 +1,15 @@
 //! Which binary a launched agent is. The env it inherits is `skyelab_core::env`'s rule.
 
+use crate::Mode;
 use anyhow::{Context as _, Result, bail};
+use serde_json::json;
 use skyelab_core::{Account, AccountsConfig};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// Set on every background Claude call (title, commit and PR text, usage poll, login check): they run strict and need
+/// none of the account's claude.ai connectors, which agent turns load.
+pub(crate) const NO_CLAUDEAI_MCP: (&str, &str) = ("ENABLE_CLAUDEAI_MCP_SERVERS", "false");
 
 /// The agent's command for `account` in `dir`, checked and scrubbed: `dir` (canonicalized, returned) must still resolve
 /// to `account`, and the env is the allowlist plus the account's own, never the parent's.
@@ -70,18 +76,16 @@ pub(crate) fn kill_group(pid: u32) {
     .and_then(|mut c| c.wait());
 }
 
-/// SIGINT to process group `pid` (for interrupting a one-turn-per-process agent like Cursor).
+/// SIGINT to process group `pid` (for interrupting a one-turn-per-process agent like Cursor). A syscall, not a
+/// spawned `kill`: a loaded machine can refuse a new process (EAGAIN), and the interrupt was lost.
 #[cfg(unix)]
 pub(crate) fn interrupt_group(pid: u32) {
-    let kill = resolve_bin(Path::new("kill")).unwrap_or_else(|_| "/bin/kill".into());
-    let _ = skyelab_core::process::spawn(
-        Command::new(kill)
-            .args(["-INT", "--", &format!("-{pid}")])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null()),
-    )
-    .and_then(|mut c| c.wait());
+    if let Some(pid) = i32::try_from(pid)
+        .ok()
+        .and_then(rustix::process::Pid::from_raw)
+    {
+        let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::INT);
+    }
 }
 
 /// Turns `bin` into an absolute path before the child's cwd (an untrusted project) can matter.
@@ -152,6 +156,64 @@ fn is_executable(p: &Path) -> bool {
 #[cfg(windows)]
 fn is_executable(p: &Path) -> bool {
     p.is_file()
+}
+
+/// `deny_mcp`: `None` keeps `--strict-mcp-config` (only the `--mcp-config` file's servers); `Some(names)` lets Claude
+/// load the account's own MCP config, plugins and claude.ai connectors too, refusing those names (ones that would read
+/// as SkyeLab's server). Never the repo's: `--setting-sources user` keeps `.mcp.json` and local-scope servers out.
+pub(crate) fn claude_args(
+    cmd: &mut Command,
+    mcp_config: Option<&Path>,
+    deny_mcp: Option<&[String]>,
+    resume: Option<&str>,
+    mode: Mode,
+) {
+    cmd.args([
+        "-p",
+        "--input-format",
+        "stream-json",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        // Text and thinking as they stream, as `Event::Delta`.
+        "--include-partial-messages",
+        // `-p` skips the trust dialog, so the project's own settings and .mcp.json must not load.
+        "--setting-sources",
+        "user",
+        // Every permission ask comes to us as a `can_use_tool` control request, answered in the thread.
+        "--permission-prompt-tool",
+        "stdio",
+    ])
+    // Always named, so the account's own `defaultMode` setting can't quietly loosen Ask.
+    .args(match mode {
+        Mode::Default | Mode::Plan | Mode::AcceptEdits => vec!["--permission-mode", mode.claude()],
+        Mode::Bypass => vec![
+            "--permission-mode",
+            mode.claude(),
+            "--allow-dangerously-skip-permissions",
+        ],
+    })
+    .args(match deny_mcp {
+        None => vec!["--strict-mcp-config".to_owned()],
+        Some([]) => Vec::new(),
+        Some(names) => {
+            let denied: Vec<_> = names.iter().map(|n| json!({ "serverName": n })).collect();
+            vec![
+                "--settings".to_owned(),
+                json!({ "deniedMcpServers": denied }).to_string(),
+            ]
+        }
+    })
+    // Only our own server's tools are pre-allowed; they enforce their own rules. Every other server's tools ask.
+    .args(mcp_config.into_iter().flat_map(|path| {
+        [
+            "--mcp-config".as_ref(),
+            path.as_os_str(),
+            "--allowedTools".as_ref(),
+            "mcp__skyelab".as_ref(),
+        ]
+    }))
+    .args(resume.into_iter().flat_map(|id| ["--resume", id]));
 }
 
 #[cfg(test)]

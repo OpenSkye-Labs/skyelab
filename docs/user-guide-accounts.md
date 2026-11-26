@@ -10,7 +10,7 @@ Cursor account, or an Antigravity account. A folder with no binding never runs a
 ### First-run onboarding
 
 On a fresh install (no accounts or no projects), onboarding opens in place of the Welcome page, one page per step,
-with progress dots on top. **Return** or **Space** goes to the next page and **Esc** to the one before, while no field
+with progress dots on top. Opening it hides the terminal drawer and the right panel, so nothing covers it. **Return** or **Space** goes to the next page and **Esc** to the one before, while no field
 or button has the keyboard; **Back** and **Skip** do the same with the mouse. **Skip** or **Start building** on the last
 page saves `onboarded = true` in `settings.toml`, so it never opens by itself again. Run **Open Onboarding** from the
 command palette to go through it again. Pages slide in and lists fade up; with macOS **Reduce motion** on (read at
@@ -100,7 +100,9 @@ against the real Codex). A server whose name starts with `skyelab` is left out, 
 name). If the account's
 `.claude.json` can't be read, the thread starts without those servers and says why. The MCP servers of the account's
 enabled Claude Code plugins load too (the plugins on in its `settings.json`, installed for the user, not per project),
-named as Claude names them, such as `plugin:posthog:posthog`, and their tools ask like any other. A plugin that can't be
+named as Claude names them, such as `plugin:posthog:posthog`, and their tools ask like any other. A Claude account's
+claude.ai connectors (the ones you connected on claude.ai, such as Slack or Notion) load in its threads too, and only
+that account's; titles, commit messages and the usage check never load them. A plugin that can't be
 read is left out with a note; so is a plugin server whose name one of your own servers already uses. After you add or change a server, run **Restart Agent
 Session** in a thread to pick it up.
 

@@ -153,7 +153,9 @@ fn user_servers_merge_into_the_grant_project_ones_never() {
     assert_eq!(names(&config), ["files", "linear", "skyelab"], "{config}");
     assert_eq!(config["mcpServers"]["files"]["env"]["ROOT"], "/data");
     assert_eq!(config["mcpServers"]["skyelab"]["command"], "/bin/skyelab");
-    assert!(args.contains("--strict-mcp-config"), "{args}");
+    // Claude loads the account's own config and claude.ai connectors too; --setting-sources user keeps the repo's out.
+    assert!(!args.contains("--strict-mcp-config"), "{args}");
+    assert!(args.contains("--setting-sources user"), "{args}");
     let (servers, warning) = launch_report(&events);
     let mut reported: Vec<&str> = servers.iter().map(|s| s.name.as_str()).collect();
     reported.sort();

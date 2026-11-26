@@ -6,6 +6,37 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.5]
+
+### Fixed
+
+- Buttons always respond: a click right after a menu or popover closed used to do nothing (about 70 buttons).
+- **⌘W** closes the focused terminal or the right panel's tab, as in T3 Code, never the window.
+- **Devices** closes on a second click or Esc; dock **Zoom In/Out** works.
+- The terminal drawer has **Split right**, **Split down**, **New terminal** and **Close terminal** buttons; ⌘J with no
+  terminal starts a shell; unnamed tabs in one folder are numbered.
+- The sidebar's snooze button opens its menu; questions, plans and the usage banner take less room and keep Approve in
+  view; Changes shows Loading instead of "Nothing to commit" while it reads.
+- Merging a PR shows progress and a Merged notice; a PR's title opens its diff (**Review with agent** is its own
+  button); tooltips no longer stay over dialogs.
+- The browser says when a tab is empty or nothing runs at a local address, with Retry.
+- The zoomed right panel's "+" tab clears the window controls, and onboarding is never covered by the docks.
+
+## [0.1.4]
+
+### Added
+
+- **Antigravity** as a provider, on a shared ACP driver: each account keeps its own Google login in its own folder.
+- Claude agent turns load the account's own MCP servers and **claude.ai connectors**, as T3 Code does; connectors you
+  never connected show as "Not connected".
+
+### Fixed
+
+- **Windows:** one top row like macOS, with the window controls in its corner (no extra title strip), and shortcut
+  hints say Ctrl instead of ⌘.
+- **Codex:** turns no longer hang while the account's hooks run (children start with no blocked signals).
+- `git init` (New project) works on git 2.54 and later.
+
 ## [0.1.3]
 
 ### Added

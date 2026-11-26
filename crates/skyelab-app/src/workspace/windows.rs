@@ -15,7 +15,7 @@ use skyelab_core::WindowLayout;
 use std::rc::Rc;
 use std::sync::Arc;
 
-actions!(skyelab, [NewWindow]);
+actions!(skyelab, [NewWindow, CloseWindow]);
 
 pub(crate) const NEW_WINDOW_KEY: &str = if super::MAC {
     "cmd-shift-n"
@@ -36,7 +36,7 @@ pub struct WindowKit {
 impl Global for WindowKit {}
 
 pub(super) struct Registered {
-    window: AnyWindowHandle,
+    pub(super) window: AnyWindowHandle,
     pub(super) workspace: WeakEntity<Workspace>,
     store: SharedStore,
     /// Its frame, panel and page as last laid out: every layout save writes each open window's.
