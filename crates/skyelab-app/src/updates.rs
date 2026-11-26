@@ -14,9 +14,16 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(all(test, unix))]
+#[path = "updates/apply_when_idle_test.rs"]
+mod apply_when_idle_test;
 mod channel;
+mod defer;
 mod sources;
 pub use channel::{restore_channel, set_channel};
+pub use defer::{apply_if_deferred, cancel_deferred, restart, restart_now};
+#[cfg(test)]
+pub use defer::{defer_until_idle, is_deferred};
 pub use sources::{downloader, fetcher};
 
 actions!(skyelab, [CheckForUpdates]);
@@ -66,6 +73,8 @@ pub enum Step {
     },
     /// Verified and staged: Restart to update (or Show in folder for a package) is next.
     Ready,
+    /// Armed to swap and restart once active threads finish and SkyeLab is idle.
+    Deferred,
     Failed(String),
 }
 
@@ -459,37 +468,6 @@ pub fn install(cx: &mut App) {
 pub fn staged_is_folder(cx: &App) -> bool {
     cx.try_global::<Updates>()
         .is_some_and(|u| matches!(u.staged, Some(Staged::Folder(_))))
-}
-
-/// Restart to update: swaps the verified download in, starts the relaunch and quits. A failed swap leaves the old
-/// app in place and says why. For a package, shows it in its folder instead.
-pub fn restart(cx: &mut App) {
-    let Some((tag, _)) = shown(cx) else { return };
-    if let Some(Staged::Folder(file)) = cx.try_global::<Updates>().and_then(|u| u.staged.as_ref()) {
-        cx.reveal_path(file);
-        return;
-    }
-    // Taken, so a second click can't swap twice.
-    let Some(staged) = cx.global_mut::<Updates>().staged.take() else {
-        return;
-    };
-    let job = cx.background_spawn(async move {
-        install::recheck(&staged)?;
-        if let Staged::Swap { new, target, .. } = &staged {
-            install::swap(new, target)?;
-        }
-        install::finish(&staged, std::process::id())
-            .map_err(anyhow::Error::from)
-            .map_err(|e| e.context("updated, but couldn't restart; quit and reopen SkyeLab"))
-    });
-    let task = cx.spawn(async move |cx| {
-        let result = job.await;
-        cx.update(|cx| match result {
-            Ok(()) => cx.quit(),
-            Err(e) => set_step(&tag, Step::Failed(format!("{e:#}")), cx),
-        });
-    });
-    cx.global_mut::<Updates>()._install = Some(task);
 }
 
 /// Skip this version: hides the notice and remembers the tag, so the automatic check stays quiet about it.

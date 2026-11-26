@@ -144,6 +144,25 @@ impl Settings {
                             })),
                         cx,
                     ),
+                    setting(
+                        false,
+                        "Resume interrupted turns after restart",
+                        "Automatically continue local threads that were running when SkyeLab restarted or crashed, \
+                         unless they were waiting for an approval or already auto-resumed once.",
+                        Switch::new("resume-after-restart")
+                            .checked(crate::workspace::resume_after_restart::enabled(cx))
+                            .accessibility_label("Resume interrupted turns after restart")
+                            .on_click(cx.listener(|this, on: &bool, _, cx| {
+                                if let Err(e) =
+                                    crate::workspace::resume_after_restart::set_enabled(*on, cx)
+                                {
+                                    this.error =
+                                        Some(format!("Saving the quit setting failed: {e:#}"));
+                                }
+                                cx.notify();
+                            })),
+                        cx,
+                    ),
                 ],
                 cx,
             ))
@@ -224,7 +243,7 @@ impl Settings {
     }
 
     /// The header's Restore defaults: this section's preferences back to how a fresh install has them.
-    pub(super) fn restore_defaults(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn restore_defaults(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let fresh = ThreadSettings::default();
         if let Some(dir) = self.scope.clone()
             && matches!(self.section, Section::Chat | Section::Worktrees)
@@ -279,7 +298,8 @@ impl Settings {
                 let save = prefs::save_terminal(Default::default(), cx);
                 self.report(save, "the terminal settings", cx);
                 let quit = crate::workspace::quit_guard::set_asks(true, cx)
-                    .and_then(|()| crate::workspace::quit_guard::set_keeps(false, cx));
+                    .and_then(|()| crate::workspace::quit_guard::set_keeps(false, cx))
+                    .and_then(|()| crate::workspace::resume_after_restart::set_enabled(true, cx));
                 if let Err(e) = quit {
                     self.error = Some(format!("Saving the quit settings failed: {e:#}"));
                 }

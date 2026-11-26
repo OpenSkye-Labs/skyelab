@@ -103,3 +103,24 @@ fn developer_mode_is_off_by_default_and_round_trips() {
     std::fs::write(&path, "developer_mode = true\n").unwrap();
     assert!(AppSettings::load(&path).unwrap().developer_mode);
 }
+
+#[test]
+fn resume_after_restart_defaults_on_and_round_trips() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("settings.toml");
+    assert!(
+        AppSettings::load(&path)
+            .expect("missing")
+            .resume_after_restart
+    );
+    std::fs::write(&path, "").expect("empty");
+    assert!(
+        AppSettings::load(&path)
+            .expect("empty")
+            .resume_after_restart
+    );
+    AppSettings::update(&path, |s| s.resume_after_restart = false).expect("off");
+    assert!(!AppSettings::load(&path).expect("off").resume_after_restart);
+    AppSettings::update(&path, |s| s.resume_after_restart = true).expect("on");
+    assert!(AppSettings::load(&path).expect("on").resume_after_restart);
+}

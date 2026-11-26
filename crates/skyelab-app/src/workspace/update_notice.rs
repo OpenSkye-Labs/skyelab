@@ -96,6 +96,11 @@ pub(super) fn look(status: &UpdateStatus, folder: bool) -> Option<Look> {
             "Restart".into(),
             SkyeIcon::CircleCheck,
         ),
+        Some(Step::Deferred) => plain(
+            "Updating when idle".into(),
+            "When idle".into(),
+            SkyeIcon::CircleCheck,
+        ),
         Some(Step::Failed(_)) => Look {
             label: "Update failed".into(),
             short: "Failed".into(),
@@ -433,6 +438,14 @@ fn details(cx: &App) -> AnyElement {
             .on_click(|_, _, cx| crate::updates::restart(cx))
             .into_any_element(),
         ],
+        Some(Step::Deferred) => vec![
+            button("update-restart-now", "Restart now", true)
+                .on_click(|_, _, cx| crate::updates::restart_now(cx))
+                .into_any_element(),
+            button("update-cancel-defer", "Cancel", false)
+                .on_click(|_, _, cx| crate::updates::cancel_deferred(cx))
+                .into_any_element(),
+        ],
         Some(Step::Failed(_)) => vec![
             button("update-retry", "Try again", true)
                 .on_click(|_, _, cx| crate::updates::install(cx))
@@ -480,6 +493,14 @@ fn details(cx: &App) -> AnyElement {
                     ),
             )
         })
+        .when(matches!(step, Some(Step::Deferred)), |d| {
+            d.child(
+                div()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child("SkyeLab will restart and install once active threads finish."),
+            )
+        })
         .when_some(
             match step {
                 Some(Step::Failed(e)) => Some(e.clone()),
@@ -515,6 +536,7 @@ fn headline(tag: &str, step: Option<&Step>) -> String {
         }
         Some(Step::Downloading { .. }) => format!("Downloading {version}"),
         Some(Step::Ready) => format!("SkyeLab {version} is ready"),
+        Some(Step::Deferred) => format!("Updating to {version} when idle"),
         Some(Step::Failed(_)) => format!("Couldn't update to {version}"),
     }
 }

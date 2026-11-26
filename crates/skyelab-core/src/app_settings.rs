@@ -15,7 +15,7 @@ mod send_shortcut_test;
 #[path = "sidebar_views_test.rs"]
 mod sidebar_views_test;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AppSettings {
     /// Serve this machine to the user's own tailnet devices. Off unless the user turns it on.
@@ -58,6 +58,9 @@ pub struct AppSettings {
     /// Settings → General: Quit while a thread works or waits closes the windows and keeps SkyeLab running in the
     /// background instead of asking. Off: the dialog asks.
     pub keep_running_in_background: bool,
+    /// Settings → General: automatically resume local threads that were left running when SkyeLab restarted or
+    /// crashed. On by default.
+    pub resume_after_restart: bool,
     /// The first-run onboarding was finished or skipped, so it never opens by itself again.
     pub onboarded: bool,
     /// Settings → Chat → Visual replies: where an agent's page may load scripts, styles and fonts from.
@@ -65,6 +68,35 @@ pub struct AppSettings {
     /// Dictation languages (normalized locales, [`same_locale`]) the user allowed to go to Apple's servers because
     /// the Mac can't recognize them on the device. Empty: every server-side language asks first.
     pub dictation_server_locales: Vec<String>,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            share_on_tailnet: false,
+            recent_environments: Vec::new(),
+            linked_environments: Vec::new(),
+            environment_nodes: BTreeMap::new(),
+            approved_devices: Vec::new(),
+            window: None,
+            windows: Vec::new(),
+            editor: None,
+            threads: ThreadSettings::default(),
+            diff: DiffSettings::default(),
+            updates: crate::update::UpdateSettings::default(),
+            appearance: AppearanceSettings::default(),
+            scheduled: ScheduledSettings::default(),
+            terminal: TerminalSettings::default(),
+            sidebar_views: Vec::new(),
+            developer_mode: false,
+            quit_without_asking: false,
+            keep_running_in_background: false,
+            resume_after_restart: true,
+            onboarded: false,
+            visual_replies: VisualReplySettings::default(),
+            dictation_server_locales: Vec::new(),
+        }
+    }
 }
 
 /// Whether two locale ids name the same language: `en-US`, `en_US` and `EN-us` do.

@@ -28,6 +28,7 @@ mod thread_row;
 pub use model::ModelChoice;
 pub(crate) use thread_row::{THREAD_COLS, thread_from_row};
 mod migrations;
+mod recover;
 mod rows;
 pub use rows::RowChange;
 mod settle;
@@ -123,6 +124,8 @@ pub struct Store {
     row_hooks: rows::RowHooks,
     /// The threads [`Store::open`] purged, until [`Store::take_purged`] hands them over (their git checkpoints go too).
     purged: Vec<Thread>,
+    /// Active local threads [`Store::open`] recovered from `starting`/`running` to `interrupted`.
+    recovered: Vec<Thread>,
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
@@ -138,36 +141,10 @@ impl Store {
         if mode != "wal" {
             bail!("store at {} refused WAL mode (got {mode})", path.display());
         }
-        let store =
+        let mut store =
             Self::init(conn).with_context(|| format!("init store at {}", path.display()))?;
-        // shortcut: assumes one app per store; a second instance on the same data dir would interrupt the first
-        // one's live threads. Upgrade with an owner pid per row or an instance lock if that becomes real.
-        store
-            .conn
-            .execute(
-                "UPDATE threads SET status = 'interrupted' WHERE status IN ('starting', 'running')",
-                [],
-            )
-            .context("marking the last run's threads interrupted")?;
-        // A delete whose undo window the last run didn't see out is final now.
-        let mut store = store;
-        let sql = format!("SELECT {THREAD_COLS} FROM threads WHERE deleted_at IS NOT NULL");
-        store.purged = store
-            .conn
-            .prepare(&sql)?
-            .query_map([], thread_from_row)?
-            .collect::<rusqlite::Result<_>>()
-            .context("listing deleted threads")?;
-        store
-            .conn
-            .execute("DELETE FROM threads WHERE deleted_at IS NOT NULL", [])
-            .context("purging deleted threads")?;
+        store.recover_on_open()?;
         Ok(store)
-    }
-
-    /// The threads the last [`Store::open`] purged (once: later calls get none).
-    pub fn take_purged(&mut self) -> Vec<Thread> {
-        std::mem::take(&mut self.purged)
     }
 
     pub fn open_in_memory() -> Result<Self> {
@@ -207,6 +184,7 @@ impl Store {
             on_append: None,
             row_hooks,
             purged: Vec::new(),
+            recovered: Vec::new(),
         })
     }
 

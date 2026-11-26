@@ -26,6 +26,12 @@ same developer and accepted by Gatekeeper. On Windows a signed SkyeLab runs only
 same publisher. Nothing you run changes yet. When it says **SkyeLab x.y.z is ready**, click **Restart to
 update**: SkyeLab replaces itself and opens again.
 
+If a thread is working or waiting on you (or a scheduled task is due shortly), **Restart to update** asks first
+instead of stopping active work: choose **Update when threads finish** to install and relaunch automatically once
+SkyeLab is idle (including when you keep it running in the background), **Restart now** to stop those threads and
+update right away, or **Cancel**. While waiting for idle, the pill reads **Updating when idle** and its popover lets
+you **Restart now** or **Cancel**.
+
 - **macOS:** the `.app` is swapped in place (a failed swap puts the old one back).
 - **Windows:** the installer runs silently once SkyeLab has quit, then starts it again. If the installer fails, your
   old SkyeLab opens and the pill says why.

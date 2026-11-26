@@ -12,7 +12,7 @@ use gpui::{TestAppContext, VisualTestContext};
 use skyelab_agent::Decision;
 
 /// A thread in the rig's project whose agent asks to run a command and waits for the answer.
-pub(super) fn waiting_thread(cx: &mut VisualTestContext) -> Entity<ThreadView> {
+pub(crate) fn waiting_thread(cx: &mut VisualTestContext) -> Entity<ThreadView> {
     cx.update(|_, cx| cx.set_global(TestQuits(0)));
     cx.dispatch_action(NewThread);
     cx.run_until_parked();
@@ -32,7 +32,7 @@ pub(super) fn waiting_thread(cx: &mut VisualTestContext) -> Entity<ThreadView> {
 }
 
 /// Allows the waiting thread's request.
-pub(super) fn approve(view: &Entity<ThreadView>, cx: &mut VisualTestContext) {
+pub(crate) fn approve(view: &Entity<ThreadView>, cx: &mut VisualTestContext) {
     let id = view.read_with(cx, |v, _| {
         v.items.iter().find_map(|i| match i {
             Item::Approval(a) if a.decision.is_none() => Some(a.id.clone()),
@@ -43,12 +43,12 @@ pub(super) fn approve(view: &Entity<ThreadView>, cx: &mut VisualTestContext) {
     view.update(cx, |v, cx| v.answer(&id, Decision::AllowOnce, cx));
 }
 
-pub(super) fn quits(cx: &mut VisualTestContext) -> usize {
+pub(crate) fn quits(cx: &mut VisualTestContext) -> usize {
     TestAppContext::update(cx, |cx| cx.try_global::<TestQuits>().map_or(0, |q| q.0))
 }
 
 /// The hidden hub's window, once there is one.
-pub(super) fn hidden_hub(cx: &mut VisualTestContext) -> Option<gpui::AnyWindowHandle> {
+pub(crate) fn hidden_hub(cx: &mut VisualTestContext) -> Option<gpui::AnyWindowHandle> {
     TestAppContext::update(cx, |cx| {
         cx.windows()
             .into_iter()
