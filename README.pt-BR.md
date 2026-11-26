@@ -121,6 +121,7 @@ cargo packager --release -p skyelab-app -f app,dmg    # writes target/release/Sk
 ## Documentação
 
 - [Primeiros passos](docs/getting-started.md): instalação, contas, vínculos, importação de sessões, o fluxo do dia a dia.
+- [Configuração diária, vindo do T3 Code](docs/user-guide-daily-setup.md): uma lista curta para trazer seu trabalho diário.
 - [Guia do usuário](docs/user-guide.md): cada recurso, página por página.
 - [Modelo de segurança](docs/security.md): o que o SkyeLab garante e como.
 - [Arquitetura](docs/architecture.md): crates, o daemon dentro do processo, decisões e roadmap.

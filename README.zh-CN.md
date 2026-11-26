@@ -118,6 +118,7 @@ cargo packager --release -p skyelab-app -f app,dmg    # writes target/release/Sk
 ## 文档
 
 - [入门指南](docs/getting-started.md)：安装、账号、绑定、导入会话，以及日常工作流程。
+- [日常设置：从 T3 Code 迁移](docs/user-guide-daily-setup.md)：迁移日常工作的简短清单。
 - [用户指南](docs/user-guide.md)：所有功能，逐页说明。
 - [安全模型](docs/security.md)：SkyeLab 保证了什么，以及如何保证。
 - [架构](docs/architecture.md)：crate、进程内守护进程、设计决策和路线图。
