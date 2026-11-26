@@ -396,6 +396,11 @@ pub fn section_title(text: impl Into<SharedString>, theme: &Theme) -> Div {
         .child(text.into())
 }
 
+/// A group's title under a page's own heading (Machines' "Your machines"): body size, so it reads as part of the page.
+pub fn subsection_title(text: impl Into<SharedString>, theme: &Theme) -> Div {
+    section_title(text, theme).text_size(BODY)
+}
+
 /// T3's settings card: rounded 12, a hairline border on the muted fill, rows divided by hairlines (give each row
 /// `group_row`). Backed by [`super::Card::flush`] so card chrome lives in one place.
 pub fn group(_theme: &Theme) -> super::Card {
