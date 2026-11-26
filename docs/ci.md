@@ -53,14 +53,20 @@ it and attach the files plus `SHA256SUMS` (the in-app updater refuses anything i
   version's nightly: `vX.Y.Z-nightly.YYYYMMDD`, `.2`, `.3`… for a second run that day. Next is the `Cargo.toml`
   version without its `-dev` when it has one, else its patch + 1 (main normally carries the last stable, so after
   0.1.7 the nightlies are `0.1.8-nightly.*`). The version is stamped into `Cargo.toml` and `Cargo.lock` inside the
-  job and never committed. It publishes a **pre-release** at once (not a draft, never "latest", so GitHub's latest
+  job and never committed, by `scripts/stamp-version.sh` (package.yml runs it). The same script makes the
+  platform packages sort right: the macOS bundle's `CFBundleShortVersionString` is the numeric `0.1.8` (Apple's
+  format; `CFBundleVersion` stays cargo-packager's UTC `YYYYMMDD.HHMMSS` for every build), and the `.deb`'s control
+  `Version` is `0.1.8~nightly.…`, since Debian reads `-nightly…` as a revision and would rank it above `0.1.8`. The
+  tag, the binary's version and the asset file names keep `0.1.8-nightly.…`; the updater compares the tag with the
+  binary's version, never the plist or the package. It publishes a **pre-release** at once (not a draft, never "latest", so GitHub's latest
   release and the Stable channel still see only stable releases), then keeps the newest 14 nightlies and deletes the
   older ones with their tags (`gh release delete --cleanup-tag`, only tags matching `v*-nightly.*`).
 - Semver sorts `0.1.8-nightly.*` below `0.1.8`, so the stable release supersedes the nightlies: the updater's
   Nightly channel moves to it. `release.yml` ignores `v*-nightly*` tags.
 - `SKYELAB_UPDATE_FAKE=<tag>[,<tag>…]` fakes the release list in a debug build (each channel takes its newest):
   `SKYELAB_UPDATE_FAKE=v0.1.7,v0.1.8-nightly.20261128` shows the nightly offer on Nightly and nothing on Stable.
-- `test/acceptance/packaging.sh workflow` lints the three workflows (actionlint) and checks these rules.
+- `test/acceptance/packaging.sh workflow` lints the three workflows (actionlint) and checks these rules;
+  `packaging.sh versions` stamps a temp copy and checks the plist and the Debian order (`brew install dpkg`).
 
 ## Traps, by platform
 

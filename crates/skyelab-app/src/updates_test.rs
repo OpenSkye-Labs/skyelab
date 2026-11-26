@@ -374,3 +374,33 @@ fn a_check_on_the_old_channel_never_lands(cx: &mut TestAppContext) {
         "the last click is saved"
     );
 }
+
+#[gpui::test]
+fn switching_channels_keeps_a_skipped_version_hidden(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("settings.toml");
+    let fetch = updates::fetcher(Some("v0.0.1,v99.0.0-nightly.20261128".into()), None, true);
+    cx.update(|cx| updates::init(Some(path.clone()), fetch, cx));
+    cx.update(|cx| updates::set_channel(Channel::Nightly, cx))
+        .detach();
+    cx.run_until_parked();
+    cx.update(updates::skip);
+    cx.run_until_parked();
+    // Away and back: the skipped nightly isn't offered again.
+    for channel in [Channel::Stable, Channel::Nightly] {
+        cx.update(|cx| updates::set_channel(channel, cx)).detach();
+        cx.run_until_parked();
+    }
+    assert_eq!(status(cx), UpdateStatus::Idle);
+    // Check for updates still shows it.
+    cx.update(|cx| updates::check(true, cx));
+    cx.run_until_parked();
+    let tag = "v99.0.0-nightly.20261128";
+    assert_eq!(
+        status(cx),
+        UpdateStatus::Available {
+            tag: tag.into(),
+            url: format!("{RELEASES_PAGE}tag/{tag}"),
+        }
+    );
+}

@@ -15,7 +15,8 @@ updates** turns the daily check off.
 only. **Nightly** also offers the nightly builds of the next version (`0.1.8-nightly.20261128`), published when the
 maintainers run one, and moves you on to the next stable release once it is out, since `0.1.8` is newer than any
 `0.1.8-nightly`. A nightly build starts on Nightly; picking Stable there waits for the next stable release rather
-than going back. When the offer is a nightly, the pill says **Nightly available** and its details name the nightly.
+than going back. A version you skipped stays hidden when you switch channels and back. **Restore defaults** on
+General puts the channel back to your build's own. When the offer is a nightly, the pill says **Nightly available** and its details name the nightly.
 Both channels download and verify the same way.
 
 **Download and install** downloads the release's file for your computer (with its progress in the pill) and checks
@@ -29,7 +30,8 @@ update**: SkyeLab replaces itself and opens again.
 - **Windows:** the installer runs silently once SkyeLab has quit, then starts it again. If the installer fails, your
   old SkyeLab opens and the pill says why.
 - **Linux AppImage:** the AppImage file is replaced in place. **.deb:** the package is saved to your Downloads folder
-  and **Show in folder** opens it there; install it with your package manager.
+  and **Show in folder** opens it there; install it with your package manager. A nightly package's version reads
+  `0.1.8~nightly.20261128`, so apt sorts it below `0.1.8` and treats the stable release as an upgrade.
 
 If anything fails, the pill says so, and its details say why and offer **Try again** and **Release page**; your installed SkyeLab is left
 as it was. A copy that can't update itself (built from source) shows **Download**, which opens the release page.

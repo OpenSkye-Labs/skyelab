@@ -16,7 +16,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 mod channel;
 mod sources;
-pub use channel::set_channel;
+pub use channel::{restore_channel, set_channel};
 pub use sources::{downloader, fetcher};
 
 actions!(skyelab, [CheckForUpdates]);
@@ -228,6 +228,12 @@ fn now() -> u64 {
 /// Checks now (`manual`: Check for Updates, which ignores the schedule, the switch and a skipped version), or
 /// only if the automatic check is on and due.
 pub fn check(manual: bool, cx: &mut App) {
+    check_with(manual, !manual, cx)
+}
+
+/// [`check`], with a skipped version hidden or not on its own (`honor_skip`): a channel switch checks at once but
+/// keeps a version skipped there hidden, as the automatic check does.
+fn check_with(manual: bool, honor_skip: bool, cx: &mut App) {
     let Some(u) = cx.try_global::<Updates>() else {
         return;
     };
@@ -257,7 +263,12 @@ pub fn check(manual: bool, cx: &mut App) {
         }
         let release = got.as_ref().ok().cloned();
         Some((
-            status(got, &current, settings.skipped.as_deref(), manual, channel),
+            status(
+                got,
+                &current,
+                settings.skipped.filter(|_| honor_skip),
+                channel,
+            ),
             release,
         ))
     });
@@ -314,8 +325,7 @@ fn busy(status: &UpdateStatus) -> bool {
 fn status(
     got: std::io::Result<Release>,
     current: &str,
-    skipped: Option<&str>,
-    manual: bool,
+    skipped: Option<String>,
     channel: Channel,
 ) -> UpdateStatus {
     match got {
@@ -325,7 +335,7 @@ fn status(
         Ok(r) if !update::release_page_ok(&r.url) => {
             UpdateStatus::Failed("the release named an unexpected page".into())
         }
-        Ok(r) if !manual && skipped == Some(r.tag.as_str()) => UpdateStatus::Idle,
+        Ok(r) if skipped.as_ref() == Some(&r.tag) => UpdateStatus::Idle,
         Ok(r) => UpdateStatus::Available {
             tag: r.tag,
             url: r.url,

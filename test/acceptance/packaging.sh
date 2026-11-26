@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Acceptance checks for desktop packaging (macOS host). Usage: packaging.sh [icons|plist|profile|start [bin]|workflow|all]
+# Acceptance checks for desktop packaging (macOS host). Usage: packaging.sh [icons|plist|profile|start [bin]|workflow|versions|all]
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -82,12 +82,39 @@ workflow() {
     grep -q "$s" CLAUDE.md || fail "$s not documented"
     grep -qw "$s" <<<"$gate" || fail "$s gates no step"
   done
+  grep -q 'stamp-version.sh stamp "$VERSION"' "$w" && grep -q 'stamp-version.sh deb "$VERSION"' "$w" \
+    || fail "package.yml must stamp the version through scripts/stamp-version.sh (Cargo, Info.plist, .deb)"
   grep -q '^## Release' CLAUDE.md || fail "no Release section"
   echo "workflow ok"
 }
 
+versions() {
+  command -v dpkg-deb >/dev/null || fail "versions needs dpkg (brew install dpkg)"
+  local t v=0.1.8-nightly.20261127.2; t=$(mktemp -d)
+  mkdir -p "$t/crates/skyelab-app/macos" "$t/deb/DEBIAN"
+  cp Cargo.toml Cargo.lock "$t/"; cp crates/skyelab-app/macos/Info.plist "$t/crates/skyelab-app/macos/"
+  local stamp=$PWD/scripts/stamp-version.sh p=$t/crates/skyelab-app/macos/Info.plist
+  (cd "$t" && "$stamp" stamp 0.1.9)
+  cmp -s crates/skyelab-app/macos/Info.plist "$p" || fail "a release build changed Info.plist"
+  (cd "$t" && "$stamp" stamp "$v")
+  grep -qxF "version = \"$v\"" "$t/Cargo.toml" || fail "Cargo.toml not stamped"
+  grep -qxF "version = \"$v\"" "$t/Cargo.lock" || fail "Cargo.lock not stamped"
+  plutil -lint "$p" >/dev/null || fail "stamped Info.plist doesn't parse"
+  [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$p")" = 0.1.8 ] || fail "CFBundleShortVersionString"
+  printf 'Package: skyelab\nVersion: %s\nArchitecture: amd64\nMaintainer: x\nDescription: x\n' "$v" > "$t/deb/DEBIAN/control"
+  dpkg-deb --root-owner-group -b "$t/deb" "$t/SkyeLab_${v}_amd64.deb" >/dev/null
+  "$stamp" deb "$v" "$t/SkyeLab_${v}_amd64.deb"
+  local dv; dv=$(dpkg-deb -f "$t/SkyeLab_${v}_amd64.deb" Version)
+  [ "$dv" = 0.1.8~nightly.20261127.2 ] || fail "deb Version $dv"
+  dpkg --compare-versions "$dv" lt 0.1.8 || fail "$dv not below 0.1.8"
+  dpkg --compare-versions 0.1.7 lt "$dv" || fail "$dv not above 0.1.7"
+  dpkg --compare-versions 0.1.8~nightly.20261127 lt "$dv" || fail "$dv not above the day's first nightly"
+  rm -rf "$t"
+  echo "versions ok"
+}
+
 case "${1:-all}" in
-  icons) icons ;; plist) plist ;; profile) profile ;; start) start "${2:-}" ;; workflow) workflow ;;
-  all) icons; profile; plist; workflow ;;
+  icons) icons ;; plist) plist ;; profile) profile ;; start) start "${2:-}" ;; workflow) workflow ;; versions) versions ;;
+  all) icons; profile; plist; workflow; versions ;;
   *) fail "unknown check $1" ;;
 esac

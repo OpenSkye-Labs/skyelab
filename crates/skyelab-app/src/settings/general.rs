@@ -250,6 +250,8 @@ impl Settings {
                 self.save_editor(cx);
                 let save = crate::updates::set_enabled(true, cx);
                 self.report(save, "the update check", cx);
+                let save = crate::updates::restore_channel(cx);
+                self.report(save, "the update channel", cx);
                 let save = prefs::save_terminal(Default::default(), cx);
                 self.report(save, "the terminal settings", cx);
             }

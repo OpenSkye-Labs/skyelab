@@ -43,21 +43,15 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install
-      # A nightly build carries its own version, stamped here and never committed: the workspace version (every crate
-      # inherits it) and its entries in Cargo.lock, so the --locked build below still matches.
+      # A nightly build carries its own version, stamped here and never committed: Cargo.toml and Cargo.lock (so the
+      # --locked build below still matches) and the macOS bundle's numeric CFBundleShortVersionString.
       - name: Stamp the version
         if: inputs.version != ''
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          # A Windows checkout has CRLF lines; cargo reads LF as well, and the patterns below expect it.
-          perl -pi -e 's/\r$//' Cargo.toml Cargo.lock
-          old=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
-          perl -pi -e 'if (!$done && s/^version = ".*"/version = "$ENV{VERSION}"/) { $done = 1 }' Cargo.toml
-          # Workspace crates are the lock entries with no `source` line.
-          OLD="$old" perl -0pi -e 's/(\nname = "[^"]+"\nversion = )"\Q$ENV{OLD}\E"\n(?!source = )/$1"$ENV{VERSION}"\n/g' Cargo.lock
-          grep -qxF "version = \"$VERSION\"" Cargo.toml
+          scripts/stamp-version.sh stamp "$VERSION"
           cargo metadata --locked --format-version 1 > /dev/null
       - name: Install Linux build deps
         if: runner.os == 'Linux'
@@ -152,6 +146,12 @@ jobs:
             [ -n "${!v}" ] || unset "$v"
           done
           cargo packager --release -p skyelab-app -f "$FORMATS"
+      # Debian ranks `0.1.8-nightly.N` above 0.1.8 (`-` starts a revision): the .deb's control says `0.1.8~nightly.N`.
+      - name: Debian version
+        if: runner.os == 'Linux' && inputs.version != ''
+        env:
+          VERSION: ${{ inputs.version }}
+        run: scripts/stamp-version.sh deb "$VERSION" target/release/*.deb
       - uses: actions/upload-artifact@v7
         with:
           name: skyelab-${{ runner.os }}
