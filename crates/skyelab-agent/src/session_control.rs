@@ -17,7 +17,8 @@ impl Session {
 
     /// Changes the running agent's permission mode: Claude's and ACP's at once, Codex's from its next turn. Claude
     /// and Antigravity take Full access only if started in it; otherwise this fails and it keeps its mode until it
-    /// starts again.
+    /// starts again. An Antigravity agent started in Full access can't leave it (agy's modes don't undo its
+    /// `--dangerously-skip-permissions`), so leaving it stops the agent, and this fails saying so.
     pub fn set_mode(&mut self, mode: Mode) -> Result<()> {
         if self.cursor.is_some() {
             // Cursor runs one turn per process; the saved mode applies on the next turn.
@@ -30,6 +31,13 @@ impl Session {
         if mode == Mode::Bypass && self.launched != Mode::Bypass {
             bail!(
                 "Full access applies when this agent starts again: stop it, then send a message to continue"
+            );
+        }
+        if self.acp.is_some() && self.launched == Mode::Bypass && mode != Mode::Bypass {
+            self.kill()?;
+            bail!(
+                "Antigravity can't leave Full access while it runs, so it was stopped: send a message to continue in \
+                 the new mode"
             );
         }
         if let Some(state) = &self.acp {

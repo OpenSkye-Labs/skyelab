@@ -299,6 +299,17 @@ fn acp_permissions_questions_interrupt_modes_and_resume() {
             .contains("--dangerously-skip-permissions"),
         "bypass flag missing: {env_ev}"
     );
+    // agy has no mode that undoes the flag (its `default` still skips every prompt), so leaving Full access stops
+    // the agent: the next message starts it again without the flag.
+    let mut bypass = bypass;
+    let err = bypass
+        .set_mode(Mode::Default)
+        .expect_err("a Full access agy can't drop to Ask while it runs");
+    assert!(err.to_string().contains("stopped"), "{err}");
+    assert!(
+        bypass.try_wait().expect("wait").is_some(),
+        "the Full access agent is stopped"
+    );
 
     // 5. Resume + SessionGone
     let resumed = rig.launch("hi again", Mode::Default, Some("prev_sess_42"), None);

@@ -68,6 +68,7 @@ const SUMMARY_MAX: usize = 200;
 pub fn summary(input: &Value) -> String {
     let text = [
         "command",
+        "CommandLine", // Antigravity's run_command
         "file_path",
         "path",
         "url",
@@ -125,6 +126,10 @@ mod tests {
             "/a/b"
         );
         assert_eq!(summary(&json!({"x": 1})), r#"{"x":1}"#);
+        // Antigravity's run_command, as real agy 1.5 sends it.
+        let agy = json!({"CommandLine": "echo hi > note2.txt", "WaitMsBeforeAsync": 5000,
+            "toolSummary": "Write hi to note2.txt"});
+        assert_eq!(summary(&agy), "echo hi > note2.txt");
         let long = summary(&json!({ "command": "a".repeat(500) }));
         assert_eq!(long.chars().count(), 200);
         let exact = summary(&json!({ "command": "b".repeat(200) }));

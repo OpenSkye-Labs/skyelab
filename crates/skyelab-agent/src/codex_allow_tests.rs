@@ -134,6 +134,10 @@ fn a_retry_without_sandbox_a_newer_field_or_a_subagents_ask_still_waits() {
     let known =
         json!({ "kind": "command", "approvalId": "a", "startedAtMs": 1, "commandActions": [] });
     assert!(auto(&ask(&mut c, 2, "cargo test", known), 2));
+    // Codex 0.172 sends both on every shell ask: the local environment and the answers it takes.
+    let local = json!({ "environmentId": "local", "availableDecisions": ["accept",
+        { "acceptWithExecpolicyAmendment": { "execpolicy_amendment": ["cargo", "test"] } }, "cancel"] });
+    assert!(auto(&ask(&mut c, 7, "cargo test", local), 7));
     for (rpc, extra) in [
         (
             3,
@@ -142,6 +146,8 @@ fn a_retry_without_sandbox_a_newer_field_or_a_subagents_ask_still_waits() {
         (4, json!({ "sandboxPermissions": "requireEscalated" })),
         (5, json!({ "kind": "network" })),
         (6, json!({ "threadId": "sub" })),
+        // Another environment runs the command somewhere else.
+        (8, json!({ "environmentId": "remote-1" })),
     ] {
         let out = ask(&mut c, rpc, "cargo test", extra.clone());
         waiting(&out.0);

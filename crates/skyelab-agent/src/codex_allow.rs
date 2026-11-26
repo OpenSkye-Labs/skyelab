@@ -23,7 +23,11 @@ pub(super) fn bookkeeping(key: &str, value: &Value) -> bool {
             | "startedAtMs"
             | "commandActions"
             | "proposedExecpolicyAmendment"
+            // The answers Codex takes (accept, the execpolicy amendment above, cancel); a network ask still
+            // carries its own fields, which aren't bookkeeping.
+            | "availableDecisions"
     ) || (key == "kind" && value == "command")
+        || (key == "environmentId" && value == "local")
 }
 
 pub(super) struct ThreadAllow {
