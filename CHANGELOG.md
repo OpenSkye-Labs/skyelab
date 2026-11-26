@@ -6,6 +6,38 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.7]
+
+### Added
+
+- A new app icon.
+- **Codex Plan mode** uses Codex's own plan mode, and **Antigravity** plans show a Proposed plan card with
+  **Approve**, as Claude's do (also from another machine).
+- Remote terminals stream live instead of polling (protocol 1.7).
+
+### Changed
+
+- Edit, Write and approval diffs look like T3's: one line-number column, full-row colors, syntax highlighting, folded
+  unchanged lines and **Show all**. Approval rows show the path relative to the project.
+- The `tailscale` CLI also starts from the env allowlist, so it gets `DO_NOT_TRACK=1` like every other child.
+- **Allow for this thread** on a command allows only that exact command.
+- Send is greyed out until there's something to send.
+- Hand-off offers the target provider's accounts right in the dialog.
+- A setup guide for people coming from T3 Code (docs/user-guide-daily-setup.md).
+
+### Fixed
+
+- **Security:** an Antigravity thread moved from Full access to Ask asks again (the agent restarts in the new mode).
+- Sidebar rows keep their real time after a relaunch, and a turn you cut off stays **Interrupted** after a restart.
+- Stop ends a command Codex leaves running, and stopping an agent ends its whole process tree.
+- Codex and Antigravity approvals show the command instead of raw JSON, and project rules match Codex commands.
+- Side chats use the thread's model; Rewind works between turns; Open PR shows its title and description fields.
+- A handed-off thread keeps its own account in the sidebar.
+- Onboarding fits short windows (one-line agent rows, buttons always visible); Add account shows all four providers.
+- Narrow windows: the right panel never squeezes the thread away, and headers and banners no longer overlap.
+- Many smaller UI fixes: question panel, plan card, model label, light-theme contrast, Settings pages, terminal menu,
+  dialogs, palette and docks.
+
 ## [0.1.6]
 
 ### Changed
@@ -194,7 +226,8 @@ testing by hand.
 - **Debug mode** with an overlay, a redacted debug log, Perfetto traces and opt-in profilers.
 - Release packages: `.dmg` (macOS arm64), `-setup.exe` (Windows), `.deb` and `.AppImage` (Linux).
 
-[Unreleased]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.3...v0.1.4
