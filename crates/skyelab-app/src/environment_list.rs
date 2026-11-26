@@ -12,6 +12,7 @@ impl RemoteEnv {
         self._projects = Some(self.await_reply(pending, cx, |this, projects, cx| {
             this.projects = projects;
             this.keep_project();
+            this.got_live(cx);
             this.load_threads(cx);
         }));
     }
@@ -65,6 +66,7 @@ impl RemoteEnv {
                         all.sort_by_key(|t| std::cmp::Reverse(t.updated_at));
                         this.error = None;
                         this.threads = all;
+                        this.got_live(cx);
                     }
                 }
                 cx.notify();

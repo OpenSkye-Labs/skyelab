@@ -410,6 +410,7 @@ impl Workspace {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::environment::forget_cache(&a.host, cx);
         let host = a.host.clone();
         self.save_env_settings(move |s| s.forget_environment(&host), cx);
     }

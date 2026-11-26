@@ -91,6 +91,8 @@ mod env_forward_test;
 #[cfg(test)]
 mod env_harness;
 #[cfg(test)]
+mod env_cache_test;
+#[cfg(test)]
 mod env_identity_gate_test;
 #[cfg(test)]
 mod env_picker_test;

@@ -1,6 +1,7 @@
 //! Every machine, this one included, is an environment the UI reads and drives through one [`Source`]. See
 //! docs/architecture.md. No GPUI here.
 
+pub mod cache;
 mod local;
 mod remote;
 

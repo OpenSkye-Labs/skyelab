@@ -136,11 +136,12 @@ are in [remote-port-forwarding.md](remote-port-forwarding.md).
 Switch Machine and the status bar's Remote badge) opens a menu that picks which machine the window shows: this
 machine, your own online tailnet devices (same ownership rule as the gate: your user, untagged, not this node) and
 recent ones. Settings → Machines lists the same machines with Connect / Disconnect / Forget and takes a MagicDNS name
-typed by hand. Recents are saved as `recent_environments` in `settings.toml`; Forget removes one there and leaves its
-trusted node in `environment_nodes`.
+typed by hand. Recents are saved as `recent_environments` in `settings.toml`; Forget removes one there (and its cached
+shell, below) and leaves its trusted node in `environment_nodes`.
 On a remote machine the sidebar comes from its daemon through `skyelab-client`, in the local flat list's sections,
 with each thread's pin and last reply (1.4: `Thread.pinned`, `Thread.preview`, the reply's first 400 chars), then its
-projects. **The shell stream (1.7)** keeps it current without polling: see [remote-shell.md](remote-shell.md).
+projects. **The shell stream (1.7)** keeps it current without polling, and the last one is cached on disk so a
+machine's threads show at launch before its connection is up: see [remote-shell.md](remote-shell.md).
 Opening a thread watches its events (the client fills gaps and replays after reconnects) into a remote thread page that draws
 items with the same renderer as a local thread. Send starts a thread or sends a follow-up there; Stop interrupts it.
 The status bar and the thread header say which machine you are on and its connection state (connecting, connected,

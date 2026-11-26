@@ -165,6 +165,8 @@ impl Workspace {
             });
         self.env.linked = keep;
         for l in gone {
+            // Unlinked: its rows aren't kept for the next launch either.
+            crate::environment::forget_cache(&l.env.read(cx).host, cx);
             self.close_tabs_of(&l.env, window, cx);
         }
         let mut hosts: Vec<String> = Vec::new();
@@ -371,7 +373,10 @@ impl Workspace {
                     account: None,
                     project: None,
                 });
-                continue;
+                // Still being reached: its last rows (cached at launch) show meanwhile.
+                if !matches!(e.state, ConnState::Connecting | ConnState::Reconnecting(_)) {
+                    continue;
+                }
             }
             let shown = self.shown_on(&l.env, cx);
             let names: HashMap<i64, &skyelab_client::Project> =

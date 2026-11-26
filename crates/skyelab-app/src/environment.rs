@@ -161,6 +161,11 @@ pub struct RemoteEnv {
     _shell: Option<Task<()>>,
     _node: Option<Task<()>>,
     _trust: Option<Task<()>>,
+    /// Whether the rows shown came from this run's connections (else they are the cached ones, or none).
+    live: bool,
+    /// Reading the cached rows at launch (`environment_cache.rs`), and the save due after live changes.
+    _cache: Option<Task<()>>,
+    _persist: Option<Task<()>>,
     /// Ports of this machine forwarded to this one.
     pub forwards: Vec<skyelab_client::Forward>,
     pending_forwards: std::collections::HashMap<u16, Task<()>>,
@@ -188,7 +193,7 @@ impl RemoteEnv {
                 }
             }
         });
-        Self {
+        let mut env = Self {
             host,
             client,
             settings_path,
@@ -207,9 +212,14 @@ impl RemoteEnv {
             _shell: None,
             _node: None,
             _trust: None,
+            live: false,
+            _cache: None,
+            _persist: None,
             forwards: Vec::new(),
             pending_forwards: Default::default(),
-        }
+        };
+        env.load_cache(cx);
+        env
     }
 
     pub fn client(&self) -> Rc<Client> {
@@ -233,6 +243,7 @@ impl RemoteEnv {
                     Update::Disconnected(d) if matches!(
                         d.kind,
                         DisconnectKind::Refused
+                            | DisconnectKind::Denied
                             | DisconnectKind::Certificate
                             | DisconnectKind::NotYourDevice
                             | DisconnectKind::IdentityMismatch
@@ -307,10 +318,11 @@ impl RemoteEnv {
         }));
     }
 
-    /// Clears what the window still shows from this machine and closes its tabs. A refused connection that did
-    /// pass hello stays held by the client, so nothing is sent on it.
+    /// Clears what the window still shows (and keeps on disk) from this machine and closes its tabs. A refused
+    /// connection that did pass hello stays held by the client, so nothing is sent on it.
     fn refuse(&mut self, state: ConnState, cx: &mut Context<Self>) {
         self.state = state;
+        self.drop_cache(cx);
         self.drop_forwards();
         self.projects.clear();
         self.threads.clear();
@@ -406,6 +418,10 @@ impl RemoteEnv {
 
 #[path = "environment_list.rs"]
 mod list;
+
+#[path = "environment_cache.rs"]
+mod cache;
+pub use cache::{ShellCacheDir, forget_cache};
 
 #[path = "environment_shell.rs"]
 mod shell;

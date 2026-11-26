@@ -260,6 +260,9 @@ fn main() {
             |d| d.visible_bounds(),
         );
         workspace::set_hub(Some(calls), orchestrate, cx);
+        if let Some(dir) = skyelab_env::cache::default_dir() {
+            cx.set_global(environment::ShellCacheDir(dir));
+        }
         let setup_tailnet = tailnet.clone();
         cx.set_global(workspace::WindowKit {
             options: std::rc::Rc::new(window_options),
