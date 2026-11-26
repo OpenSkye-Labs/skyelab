@@ -11,7 +11,9 @@ fn pr(n: u64, title: &str) -> serde_json::Value {
         "isDraft": n.is_multiple_of(2),
         "reviewDecision": "CHANGES_REQUESTED",
         "statusCheckRollup": [{"__typename": "CheckRun", "name": "ci", "status": "IN_PROGRESS", "conclusion": ""}],
-        "updatedAt": "2026-11-20T10:00:00Z"
+        "updatedAt": "2026-11-20T10:00:00Z",
+        "headRefName": format!("feature-{n}"),
+        "body": "Fixes \u{202E}it\nfor real"
     })
 }
 
@@ -30,6 +32,11 @@ fn parses_a_pr_list_with_every_column() {
     assert_eq!(r.checks, Checks::Pending);
     assert_eq!(r.review, Review::ChangesRequested);
     assert_eq!(r.updated_at, "2026-11-20T10:00:00Z");
+    assert_eq!(r.head_branch.as_deref(), Some("feature-7"));
+    assert_eq!(
+        r.body, "Fixes it\nfor real",
+        "bidi controls dropped, newlines kept"
+    );
 }
 
 #[test]
@@ -132,6 +139,14 @@ fn list_args_name_the_repo_and_filter() {
     );
     let a = pr_list_args("acme/demo", PrFilter::All);
     assert!(!a.iter().any(|x| x == "@me" || x.contains("@me")), "{a:?}");
+    let a = issue_list_args("acme/demo", IssueFilter::Mine);
+    assert!(a.windows(2).any(|w| w == ["--author", "@me"]), "{a:?}");
+    let a = pr_list_args("acme/demo", PrFilter::All);
+    assert!(
+        a.iter()
+            .any(|x| x.contains("headRefName") && x.contains("body")),
+        "{a:?}"
+    );
     let a = issue_list_args("acme/demo", IssueFilter::Assigned);
     assert!(a.windows(2).any(|w| w == ["--assignee", "@me"]), "{a:?}");
     assert!(
