@@ -95,3 +95,34 @@ fn a_deep_link_moves_an_open_modal(cx: &mut TestAppContext) {
         (true, true, Page::Welcome, Some(Section::SourceControl))
     );
 }
+
+/// QA: Tab past the last control of a Settings page cycles inside the modal, never to the sidebar behind it.
+#[gpui::test]
+fn tab_stays_inside_the_settings_modal(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    cx.update(|window, cx| {
+        window.dispatch_action(
+            Box::new(OpenSettingsSection {
+                section: Section::General,
+            }),
+            cx,
+        )
+    });
+    cx.run_until_parked();
+    let settings = ws.read_with(cx, |ws, _| ws.settings.clone().expect("settings"));
+    let inside = |cx: &mut VisualTestContext| {
+        let focus = settings.read_with(cx, gpui::Focusable::focus_handle);
+        cx.update(|window, cx| focus.contains_focused(window, cx))
+    };
+    assert!(inside(cx), "opening Settings focuses it");
+    for i in 0..40 {
+        cx.simulate_keystrokes("tab");
+        assert!(inside(cx), "TAB_LEFT_THE_MODAL after {} tabs", i + 1);
+    }
+    for i in 0..40 {
+        cx.simulate_keystrokes("shift-tab");
+        assert!(inside(cx), "SHIFT_TAB_LEFT_THE_MODAL after {} tabs", i + 1);
+    }
+}

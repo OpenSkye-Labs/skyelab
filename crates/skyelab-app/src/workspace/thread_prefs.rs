@@ -16,6 +16,8 @@ pub(crate) struct ThreadPrefs {
     pub terminal: TerminalSettings,
     /// Settings → Chat → Visual replies, saved under `[visual_replies]`.
     pub visual: VisualReplySettings,
+    /// Dictation languages allowed to go to Apple's servers, saved as `dictation_server_locales`.
+    pub dictation_locales: Vec<String>,
 }
 
 impl Global for ThreadPrefs {}
@@ -35,6 +37,7 @@ pub(crate) fn install(path: Option<PathBuf>, cx: &mut App) {
         diff: loaded.diff,
         terminal: loaded.terminal,
         visual: loaded.visual_replies,
+        dictation_locales: loaded.dictation_server_locales,
     });
 }
 
@@ -84,6 +87,10 @@ pub(crate) fn edit(
         visual: VisualReplySettings {
             allowed_hosts: page_hosts(cx),
         },
+        dictation_locales: cx
+            .try_global::<ThreadPrefs>()
+            .map(|p| p.dictation_locales.clone())
+            .unwrap_or_default(),
     });
     cx.background_spawn(async move {
         match path {
@@ -112,6 +119,7 @@ pub(crate) fn save_diff(diff: DiffSettings, cx: &mut App) -> Task<anyhow::Result
                 visual: VisualReplySettings {
                     allowed_hosts: page_hosts(cx),
                 },
+                dictation_locales: Vec::new(),
             });
             return Task::ready(Ok(()));
         }
@@ -169,6 +177,69 @@ pub(crate) fn save_page_hosts(hosts: Vec<String>, cx: &mut App) -> Task<anyhow::
             Some(p) => {
                 AppSettings::update(&p, |s| s.visual_replies.allowed_hosts = hosts).map(drop)
             }
+            None => Ok(()),
+        }
+    })
+}
+
+/// The user allowed dictation in `locale` to be recognized on Apple's servers.
+pub(crate) fn allows_server_dictation(locale: &str, cx: &App) -> bool {
+    cx.try_global::<ThreadPrefs>().is_some_and(|p| {
+        p.dictation_locales
+            .iter()
+            .any(|l| skyelab_core::same_locale(l, locale))
+    })
+}
+
+/// Saves `locale` as allowed for server dictation; this session counts it only once the file has it, so a failed save
+/// asks again next time.
+pub(crate) fn allow_server_dictation(locale: String, cx: &mut App) -> Task<anyhow::Result<()>> {
+    let path = path(cx);
+    cx.spawn(async move |cx| -> anyhow::Result<()> {
+        let saved = cx
+            .background_spawn(async move {
+                match path {
+                    Some(p) => AppSettings::update(&p, |s| {
+                        s.allow_server_dictation(&locale);
+                        s.dictation_server_locales.clone()
+                    })
+                    .map(|(_, l)| l),
+                    None => {
+                        let mut s = AppSettings::default();
+                        s.allow_server_dictation(&locale);
+                        Ok(s.dictation_server_locales)
+                    }
+                }
+            })
+            .await?;
+        cx.update(|cx| {
+            if cx.try_global::<ThreadPrefs>().is_none() {
+                install(None, cx);
+            }
+            let p = cx.global_mut::<ThreadPrefs>();
+            for l in saved {
+                if !p
+                    .dictation_locales
+                    .iter()
+                    .any(|m| skyelab_core::same_locale(m, &l))
+                {
+                    p.dictation_locales.push(l);
+                }
+            }
+        });
+        Ok(())
+    })
+}
+
+/// Restore defaults (Settings → Chat): every server-side dictation language asks again.
+pub(crate) fn clear_server_dictation(cx: &mut App) -> Task<anyhow::Result<()>> {
+    let path = path(cx);
+    if cx.has_global::<ThreadPrefs>() {
+        cx.global_mut::<ThreadPrefs>().dictation_locales.clear();
+    }
+    cx.background_spawn(async move {
+        match path {
+            Some(p) => AppSettings::update(&p, |s| s.dictation_server_locales.clear()).map(drop),
             None => Ok(()),
         }
     })

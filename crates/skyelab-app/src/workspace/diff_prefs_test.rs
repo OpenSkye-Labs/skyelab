@@ -17,6 +17,7 @@ fn diff_toggles_are_saved_and_reused(cx: &mut TestAppContext) {
             diff: Default::default(),
             terminal: Default::default(),
             visual: Default::default(),
+            dictation_locales: Vec::new(),
         })
     });
     let path = dir.path().to_path_buf();

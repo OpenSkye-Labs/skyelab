@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::ui::SkyeIcon;
-use gpui_component::{Icon, h_flex, v_flex};
+use gpui_component::{FocusTrapElement as _, Icon, h_flex, v_flex};
 
 /// A Settings section, picked in the nav (T3's settings routes).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -154,6 +154,7 @@ impl Settings {
         }
         if section == Section::Chat {
             self.refresh_rules(cx); // a binding changed on Accounts shows here
+            self.discover_codex_models(cx);
         }
         cx.notify();
     }
@@ -282,7 +283,6 @@ impl Render for Settings {
         div()
             .id("settings")
             .key_context(CONTEXT)
-            .track_focus(&self.focus)
             // The form's keys act only where the form shows.
             .when(self.section == Section::Accounts, |d| {
                 d.on_action(cx.listener(Self::save_account))
@@ -311,5 +311,7 @@ impl Render for Settings {
                     .child(header)
                     .child(section),
             )
+            // Tab cycles inside the modal instead of reaching the sidebar behind it.
+            .focus_trap("settings-trap", &self.focus)
     }
 }

@@ -15,8 +15,11 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme as _, Icon, h_flex};
 use skyelab_core::dictation::{Edit, Phase};
-use skyelab_speech_sys::{Event, Refusal};
+use skyelab_speech_sys::{Capability, Event, Refusal};
 use std::rc::Rc;
+
+#[path = "composer_voice_consent.rs"]
+mod consent;
 
 actions!(skyelab, [ToggleDictation, CancelDictation]);
 
@@ -52,6 +55,8 @@ pub(in crate::workspace) trait Listening {
 pub(in crate::workspace) trait Recognizer {
     /// Checks (asking the first time) the permissions; `done` may run on any thread.
     fn authorize(&self, done: Box<dyn FnOnce(Result<(), Refusal>) + Send>);
+    /// The language and whether it is recognized on the Mac, read without turning the microphone on.
+    fn probe(&self) -> Result<Capability, Refusal>;
     fn start(&self, sink: Box<dyn Fn(Event) + Send + Sync>) -> Result<Box<dyn Listening>, String>;
 }
 
@@ -60,6 +65,9 @@ struct Apple;
 impl Recognizer for Apple {
     fn authorize(&self, done: Box<dyn FnOnce(Result<(), Refusal>) + Send>) {
         skyelab_speech_sys::authorize(done)
+    }
+    fn probe(&self) -> Result<Capability, Refusal> {
+        skyelab_speech_sys::probe()
     }
     fn start(&self, sink: Box<dyn Fn(Event) + Send + Sync>) -> Result<Box<dyn Listening>, String> {
         Ok(Box::new(skyelab_speech_sys::start(sink)?))
@@ -120,7 +128,11 @@ impl ThreadView {
         }
     }
 
-    fn start_dictation(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn start_dictation(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if !skyelab_speech_sys::SUPPORTED && cx.try_global::<Voice>().is_none() {
             return;
         }
@@ -187,11 +199,30 @@ impl ThreadView {
                 if self.composer.dictation.phase() == &Phase::Finishing {
                     return self.end_dictation(cx);
                 }
+                let recognizer = recognizer(cx);
+                let cap = match recognizer.probe() {
+                    Ok(cap) => cap,
+                    Err(refusal) => return self.voice_failed(id, refusal.to_string(), cx),
+                };
+                let allowed = |cx: &App| {
+                    crate::workspace::thread_extras::prefs::allows_server_dictation(&cap.locale, cx)
+                };
+                // Audio for a language the Mac can't recognize goes to Apple: ask first, with the microphone off.
+                if !cap.on_device && !allowed(cx) {
+                    self.end_dictation(cx);
+                    return consent::ask(cap.locale, window, cx);
+                }
                 let tx = tx.clone();
                 let sink = Box::new(move |e| {
                     let _ = tx.unbounded_send(Msg::Event(e));
                 });
-                match recognizer(cx).start(sink) {
+                match recognizer.start(sink) {
+                    // The probe said on-device but this session isn't, and nobody allowed that: drop it at once and ask.
+                    Ok(session) if !session.on_device() && !allowed(cx) => {
+                        drop(session);
+                        self.end_dictation(cx);
+                        consent::ask(cap.locale, window, cx)
+                    }
                     Ok(session) => {
                         self.composer.dictation.started(id, session.on_device());
                         self.composer.voice.session = Some(session);

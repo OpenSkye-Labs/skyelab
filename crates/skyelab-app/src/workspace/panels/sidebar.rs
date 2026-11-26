@@ -151,6 +151,8 @@ pub struct Shelf {
 
 use super::super::thread_list::SETTLED_PAGE;
 
+#[path = "sidebar_clock.rs"]
+mod clock;
 #[path = "sidebar_shelves.rs"]
 mod shelves;
 #[cfg(test)]
@@ -202,8 +204,8 @@ pub struct Sidebar {
     _search: Subscription,
     /// Redraws when the update check finds (or drops) a newer release.
     _updates: Subscription,
-    /// Redraws each second while a row shows a working timer.
-    _tick: Option<gpui::Task<()>>,
+    /// Moves the rows' times on: each second while a row works, else when a minute changed a label.
+    clock: clock::Clock,
     /// A row's snooze menu, drawn by the sidebar above its list: a popover inside a list row never paints.
     pub(in crate::workspace) snooze: SnoozeMenu,
     /// The thread filter has text: rows show their matched line.
@@ -247,8 +249,8 @@ impl Sidebar {
             rebuilds: 0,
             _search,
             _updates: cx.observe_global::<crate::updates::Updates>(|_, cx| cx.notify()),
-            _tick: None,
-            snooze: SnoozeMenu::new(&focus, cx),
+            clock: clock::Clock::new(window, cx),
+            snooze: SnoozeMenu::new(cx),
             searching: false,
             shelf_pressed: None,
             undo: None,
@@ -273,24 +275,6 @@ impl Sidebar {
         self.sync_tick(cx);
         cx.notify();
     }
-
-    /// Working rows read "Working 1m 12s": redraw each second while one does, and stop when none does.
-    fn sync_tick(&mut self, cx: &mut Context<Self>) {
-        if !self.marks.values().any(|m| m.started_ms.is_some()) {
-            self._tick = None;
-        } else if self._tick.is_none() {
-            self._tick = Some(cx.spawn(async move |this, cx| {
-                loop {
-                    cx.background_executor()
-                        .timer(std::time::Duration::from_secs(1))
-                        .await;
-                    if this.update(cx, |_, cx| cx.notify()).is_err() {
-                        return;
-                    }
-                }
-            }));
-        }
-    }
 }
 
 // The sidebar draws its own header.
@@ -300,7 +284,7 @@ impl Sidebar {
     /// List line `ix`, spaced as the sections were: 16 px between blocks, 4 under a header, 2 between rows.
     fn render_entry(&self, ix: usize, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        let now = ui::now_ms();
+        let now = (self.clock.now)();
         let (top, el) = match self.entries[ix] {
             Entry::Header(s) if self.sections[s].foldable => {
                 let s = &self.sections[s];

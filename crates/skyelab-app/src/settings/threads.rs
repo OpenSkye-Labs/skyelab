@@ -179,17 +179,13 @@ impl Settings {
                 false,
                 "Codex model",
                 if self.scope.is_some() {
-                    "A Codex model id (empty: inherit All projects'), and its reasoning effort."
+                    "The model for this project's new Codex threads (Inherit: All projects'), and its reasoning effort."
                 } else {
-                    "A Codex model id (empty: the account's default), and its reasoning effort."
+                    "The model for new Codex threads (Default: the account's), and its reasoning effort."
                 },
                 h_flex()
                     .gap_2()
-                    .child(
-                        div()
-                            .w(gpui::px(160.))
-                            .child(TextField::new(&self.codex_model_input).small()),
-                    )
+                    .child(self.codex_model_control(cx))
                     .child(self.field_choice(
                         "threads-codex-effort",
                         ThreadField::CodexEffort,

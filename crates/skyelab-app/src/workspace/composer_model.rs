@@ -303,6 +303,9 @@ impl ThreadView {
         cx.spawn(async move |this, cx| {
             let listed = task.await;
             let _ = this.update(cx, |this, cx| {
+                if let Ok(models) = &listed {
+                    crate::settings::KnownCodexModels::remember(models, cx);
+                }
                 this.composer.codex_models = Some(listed);
                 this.highlight_current(cx); // an open picker's rows just arrived
                 if this

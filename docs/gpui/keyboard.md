@@ -35,6 +35,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - `InputState::set_value` emits no `InputEvent::Change`. A test of a search field types into it
   (`simulate_input`), and the field must be drawn (its section shown) to take the keys.
 - Focusable views hold a `FocusHandle` (`cx.focus_handle()`), render `.track_focus(&self.focus)` and implement `Focusable`.
+- A modal drawn in the workspace's tree (not a gpui-component `Dialog`) wraps its root in gpui-base's
+  `.focus_trap(id, &focus)`, or Tab walks past its last control into the window behind it (Settings did).
 - A modal that closes on focus-out must not give the focus back on that path: whatever took it (the palette, F6)
   keeps it. Restore the saved focus only when the focus is still inside the modal or nowhere (Esc, ×, backdrop).
 - A read-only gpui-component text field drops ⌘↩ instead of emitting `InputEvent::PressEnter`, so a submit hung on

@@ -5,12 +5,17 @@
 use super::composer_voice::{Listening, Recognizer, use_recognizer};
 use super::thread::ThreadView;
 use super::threads_test::{fixture, open_workspace, project_thread, setup, wait_until};
+use crate::workspace::thread_extras::prefs;
 use crate::workspace::thread_model::Item;
 use gpui::{Entity, TestAppContext, VisualTestContext};
-use skyelab_speech_sys::{Event, Refusal};
+use gpui_component::WindowExt as _;
+use skyelab_speech_sys::{Capability, Event, Refusal};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+
+#[path = "composer_voice_consent_test.rs"]
+mod consent;
 
 const MIC_KEY: &str = "cmd-shift-m";
 
@@ -25,6 +30,10 @@ struct Fake {
     held: Option<Arc<Mutex<Option<Done>>>>,
     refuse: Option<Refusal>,
     server: bool,
+    /// What the probe reports: the language, and (unset) on-device unless `server`.
+    locale: Arc<Mutex<String>>,
+    probe_on_device: Option<bool>,
+    starts: Arc<AtomicUsize>,
     /// Running sessions: a start adds one, a drop takes it away.
     live: Arc<AtomicUsize>,
     stops: Arc<AtomicUsize>,
@@ -61,7 +70,14 @@ impl Recognizer for Fake {
         // From another thread, as Apple's callbacks come.
         std::thread::spawn(move || done(refuse.map_or(Ok(()), Err)));
     }
+    fn probe(&self) -> Result<Capability, Refusal> {
+        Ok(Capability {
+            locale: self.locale.lock().expect("locale").clone(),
+            on_device: self.probe_on_device.unwrap_or(!self.server),
+        })
+    }
     fn start(&self, sink: Sink) -> Result<Box<dyn Listening>, String> {
+        self.starts.fetch_add(1, Ordering::SeqCst);
         *self.sink.lock().expect("sink") = Some(sink);
         self.live.fetch_add(1, Ordering::SeqCst);
         Ok(Box::new(FakeSession {
@@ -74,6 +90,8 @@ impl Recognizer for Fake {
 
 struct Handles {
     sink: Arc<Mutex<Option<Sink>>>,
+    locale: Arc<Mutex<String>>,
+    starts: Arc<AtomicUsize>,
     live: Arc<AtomicUsize>,
     stops: Arc<AtomicUsize>,
 }
@@ -96,6 +114,8 @@ impl Handles {
 fn install(fake: Fake, cx: &mut VisualTestContext) -> Handles {
     let h = Handles {
         sink: fake.sink.clone(),
+        locale: fake.locale.clone(),
+        starts: fake.starts.clone(),
         live: fake.live.clone(),
         stops: fake.stops.clone(),
     };
@@ -228,6 +248,10 @@ fn a_server_recognizer_says_audio_goes_to_apple(cx: &mut TestAppContext) {
         },
         cx,
     );
+    *h.locale.lock().expect("locale") = "fr-FR".into();
+    cx.update(|_, cx| prefs::allow_server_dictation("fr_FR".into(), cx))
+        .detach();
+    cx.run_until_parked();
     type_at(&thread, "", 0, cx);
     cx.simulate_keystrokes(MIC_KEY);
     wait_until(cx, "started", |_| h.live() == 1);

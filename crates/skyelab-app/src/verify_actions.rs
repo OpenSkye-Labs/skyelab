@@ -130,9 +130,16 @@ pub(crate) fn dispatch_verify_actions(cx: &mut App) {
                     }
                     return;
                 }
-                if let Some(at) = entry.strip_prefix("click:") {
+                if let Some((at, button)) = entry
+                    .strip_prefix("click:")
+                    .map(|at| (at, gpui::MouseButton::Left))
+                    .or_else(|| {
+                        let at = entry.strip_prefix("rclick:")?;
+                        Some((at, gpui::MouseButton::Right))
+                    })
+                {
                     match parse_point(at) {
-                        Some(position) => click(window, cx, position),
+                        Some(position) => click(window, cx, position, button),
                         None => eprintln!("SKYELAB_VERIFY_ACTIONS: bad point {at}"),
                     }
                     return;
@@ -156,10 +163,15 @@ fn parse_point(at: &str) -> Option<gpui::Point<gpui::Pixels>> {
     ))
 }
 
-/// A left click at `position`: move there, press, release.
-fn click(window: &mut gpui::Window, cx: &mut App, position: gpui::Point<gpui::Pixels>) {
-    use gpui::{Modifiers, MouseButton, PlatformInput as P};
-    let (button, modifiers) = (MouseButton::Left, Modifiers::default());
+/// A click of `button` at `position` (`rclick:` is the right one): move there, press, release.
+fn click(
+    window: &mut gpui::Window,
+    cx: &mut App,
+    position: gpui::Point<gpui::Pixels>,
+    button: gpui::MouseButton,
+) {
+    use gpui::{Modifiers, PlatformInput as P};
+    let modifiers = Modifiers::default();
     window.dispatch_event(
         P::MouseMove(gpui::MouseMoveEvent {
             position,

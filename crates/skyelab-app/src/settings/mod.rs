@@ -127,6 +127,8 @@ pub struct Settings {
     pub(super) codex_model_input: Entity<InputState>,
     pub(crate) cursor_model_input: Entity<InputState>,
     pub(super) antigravity_model_input: Entity<InputState>,
+    /// "Custom model id…" was picked: the Codex text field shows.
+    pub(super) codex_custom: bool,
     pub(super) threads_error: Option<String>,
     /// Settings → Chat → Visual replies' new-host field.
     pub(super) page_host_input: Entity<InputState>,
@@ -292,6 +294,7 @@ impl Settings {
             codex_model_input,
             cursor_model_input,
             antigravity_model_input,
+            codex_custom: false,
             threads_error: None,
             page_host_input,
             scope: None,
@@ -481,6 +484,8 @@ mod accounts_card;
 pub(crate) use accounts::provider_mark;
 mod appearance;
 mod bindings;
+mod codex_models;
+pub(crate) use codex_models::KnownCodexModels;
 mod general;
 mod keys;
 mod nav;

@@ -6,6 +6,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
+#[path = "dictation_locales_test.rs"]
+mod dictation_locales_test;
+#[cfg(test)]
 #[path = "send_shortcut_test.rs"]
 mod send_shortcut_test;
 #[cfg(test)]
@@ -56,6 +59,19 @@ pub struct AppSettings {
     pub onboarded: bool,
     /// Settings → Chat → Visual replies: where an agent's page may load scripts, styles and fonts from.
     pub visual_replies: VisualReplySettings,
+    /// Dictation languages (normalized locales, [`same_locale`]) the user allowed to go to Apple's servers because
+    /// the Mac can't recognize them on the device. Empty: every server-side language asks first.
+    pub dictation_server_locales: Vec<String>,
+}
+
+/// Whether two locale ids name the same language: `en-US`, `en_US` and `EN-us` do.
+pub fn same_locale(a: &str, b: &str) -> bool {
+    normalize_locale(a) == normalize_locale(b)
+}
+
+/// A locale id as stored: trimmed, `_` as `-`, ASCII lowercase.
+pub fn normalize_locale(locale: &str) -> String {
+    locale.trim().replace('_', "-").to_ascii_lowercase()
 }
 
 /// Settings → Chat → Visual replies.
@@ -401,6 +417,21 @@ impl AppSettings {
     pub fn trust_environment_node(&mut self, host: &str, node_id: &str) {
         self.environment_nodes
             .insert(host.trim().to_ascii_lowercase(), node_id.to_owned());
+    }
+
+    /// The user allowed dictation in `locale` to be recognized on Apple's servers.
+    pub fn allows_server_dictation(&self, locale: &str) -> bool {
+        self.dictation_server_locales
+            .iter()
+            .any(|l| same_locale(l, locale))
+    }
+
+    /// Remembers that dictation in `locale` may go to Apple's servers (once; a blank locale is never stored).
+    pub fn allow_server_dictation(&mut self, locale: &str) {
+        let locale = normalize_locale(locale);
+        if !locale.is_empty() && !self.allows_server_dictation(&locale) {
+            self.dictation_server_locales.push(locale);
+        }
     }
 
     /// A missing file is the defaults.
