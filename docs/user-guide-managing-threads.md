@@ -81,3 +81,18 @@ Relative paths are read from the folder the terminal started in. To ask the agen
 press <kbd>⌘L</kbd> (<kbd>Ctrl+Shift+L</kbd>) or right-click and pick **Add to prompt**: it shows above the prompt
 of the thread on screen as a chip (click it to read the text, × to drop it) and is sent after your message as a
 code block, up to 20,000 characters.
+
+## Settle and snooze
+
+Hover a thread row for two buttons where its time was: the check **settles** it (it's done:
+it moves to the **Settled** shelf at the bottom, folded, newest settle first, 25 at a time with **Show N more**), and
+the alarm clock **snoozes** it: **In 1 hour**, **Tonight** (18:00, while that's ahead), **Tomorrow** (09:00), **Next
+week** (Monday 09:00) or **Custom…**, where you type `45m`, `3h`, `2d`, `18:30` or `2026-12-01 09:00`. A snoozed
+thread waits in the folded **Snoozed** shelf with how long until it wakes; then it is back in the list marked
+**Woke** until you open it. Settling, snoozing, archiving or deleting a thread puts **Undo** in the sidebar's bottom row
+for a few seconds (it stays while the pointer is on it; with the sidebar hidden it is a notice instead). Right after a
+row's button acts, the rows below slide up: a second press within half a second is ignored, so a double click never
+settles the next thread too. Opening a shelf near the bottom scrolls it into view. A settled row's hover button un-settles it, and a snoozed row's
+wakes it now. The row's right-click menu has the same entries, and the palette has **Settle Thread** and **Snooze
+Thread** for the open thread. A thread that starts working shows under Working whatever its shelf, and a settled or
+snoozed thread leaves Pinned while it's shelved. Archived threads can't be settled or snoozed.
