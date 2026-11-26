@@ -92,7 +92,7 @@ projects by folder, so a project you remove is skipped. The **Working** header s
 row): see [user-guide-managing-threads.md](user-guide-managing-threads.md#settle-and-snooze).
 
 A slim rail on the far left of the window switches what the window shows: **Home** (your threads; it reopens the
-sidebar and the last thread you had open), **Pull requests**, **Issues** and **Scheduled
+sidebar and the last thread you had open), **Bots** (coming soon), **Pull requests**, **Issues** and **Scheduled
 tasks** at the top, and **Usage** and **Settings** at the bottom. Scheduled tasks, Usage and Settings open the Settings
 window; clicking the highlighted one again closes it. Usage shows a yellow dot when an account is at 75%
 of a usage window and a red one at 90% or when it is limited; its tooltip says which. The sidebar's bottom row keeps **Refresh**, which reloads

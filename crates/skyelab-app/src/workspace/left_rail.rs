@@ -3,7 +3,7 @@
 use super::center::Page;
 use super::details_panel::{AccountUsage, limit_text};
 use super::gh_pages::{Kind as GhKind, OpenIssues, OpenPullRequests};
-use super::{CONTEXT, OpenHome, OpenSettings, OpenSettingsSection, OpenUsage, Workspace};
+use super::{CONTEXT, OpenBots, OpenHome, OpenSettings, OpenSettingsSection, OpenUsage, Workspace};
 use crate::settings::Section;
 use crate::ui::{self, Button, SkyeIcon};
 use gpui::{Action, App, Context, IntoElement, SharedString, WeakEntity, div, prelude::*, px};
@@ -163,7 +163,15 @@ impl Workspace {
                 None,
                 theme,
             ))
-            // Bots isn't built yet: it stays off the rail (the palette still opens its page) until it is.
+            .child(rail_button(
+                "rail-bots",
+                SkyeIcon::Bot,
+                "Bots".into(),
+                Box::new(OpenBots),
+                active == RailItem::Bots,
+                None,
+                theme,
+            ))
             .child(
                 rail_button(
                     "rail-prs",

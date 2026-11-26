@@ -102,10 +102,10 @@ fn rail_button_runs_after_a_menu_closed(cx: &mut TestAppContext) {
 fn rail_button(how: Focus, cx: &mut TestAppContext) {
     let (r, cx) = start(cx);
     let _focus = focus(how, &r, cx);
-    click("rail-issues", cx);
+    click("rail-bots", cx);
     assert!(
-        r.ws.read_with(cx, |ws, _| matches!(ws.page, Page::Github(_))),
-        "{how:?}: the left rail's Issues button ran"
+        r.ws.read_with(cx, |ws, _| matches!(ws.page, Page::Bots)),
+        "{how:?}: the left rail's Bots button ran"
     );
 }
 

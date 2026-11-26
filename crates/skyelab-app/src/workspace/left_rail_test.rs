@@ -48,6 +48,7 @@ fn rail_draws_items_and_tracks_active_destination(cx: &mut TestAppContext) {
     assert_eq!(rail.size.width, px(48.), "rail is 48 px wide");
     for sel in [
         "rail-home",
+        "rail-bots",
         "rail-prs",
         "rail-issues",
         "rail-scheduled",
@@ -56,8 +57,6 @@ fn rail_draws_items_and_tracks_active_destination(cx: &mut TestAppContext) {
     ] {
         assert!(cx.debug_bounds(sel).is_some(), "{sel} button is drawn");
     }
-    // Bots isn't built yet: no rail slot for a "Coming soon" page.
-    assert!(cx.debug_bounds("rail-bots").is_none());
 
     let active = |cx: &mut gpui::VisualTestContext| r.ws.read_with(cx, |ws, cx| ws.rail_active(cx));
     assert_eq!(active(cx), RailItem::Home, "Welcome highlights Home");
@@ -241,8 +240,11 @@ fn bots_page_supports_history_restore_palette_and_quick_actions(cx: &mut TestApp
         );
     });
 
-    // Opening Bots while Settings is open closes Settings and shows Bots.
-    cx.dispatch_action(OpenBots);
+    // Clicking rail-bots while Settings is open closes Settings and keeps Bots visible.
+    let bots_btn = cx
+        .debug_bounds("rail-bots")
+        .expect("rail-bots drawn while Settings open");
+    cx.simulate_click(bots_btn.center(), Modifiers::none());
     cx.run_until_parked();
     r.ws.read_with(cx, |ws, _| {
         assert!(!ws.settings_open);
