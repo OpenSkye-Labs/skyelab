@@ -207,7 +207,7 @@ impl Render for RemotePanel {
                     .child(
                         v_flex()
                             .gap_1()
-                            .child(ui::page_title("Remote access", theme))
+                            .child(ui::section_title("Sharing & access", theme))
                             .child(div().text_color(theme.muted_foreground).child(
                                 "Use this machine's projects and agents from your other devices.",
                             )),

@@ -26,6 +26,10 @@ impl Settings {
         let login_key = format!("{}-login-{}", a.provider.label().to_lowercase(), a.id);
         let login = self.login.read(cx).get(a);
         let signed_out = crate::workspace::login_status::Status::signed_out(login);
+        let signed_in = matches!(
+            login,
+            Some(crate::workspace::login_status::Status::SignedIn(_))
+        );
         let (status, status_color, why) =
             crate::workspace::login_status::Status::label(login, theme);
         let status_id = format!("login-status-{}", a.id);
@@ -90,7 +94,8 @@ impl Settings {
                         let selector = login_key.clone();
                         div().debug_selector(move || selector).child(
                             Button::new(SharedString::from(login_key))
-                                .label("Log in")
+                                // Signed in already: the button signs in again (another login), as it says.
+                                .label(if signed_in { "Log in again" } else { "Log in" })
                                 .tooltip(format!("Opens a terminal running {login_cmd}"))
                                 .small()
                                 .map(|b| if signed_out { b.primary() } else { b.outline() })

@@ -50,7 +50,7 @@ More: [accounts](user-guide-accounts.md).
 
 ## 3. Bind your folders
 
-In Settings → **Projects & folders**, under **Folder bindings**, pick an account and choose a folder. Everything
+In Settings → **Folder bindings**, pick an account and choose a folder. Everything
 under that folder now runs on that account. The deepest binding wins, so `~/work` can be your work account and
 `~/work/oss-fork` your personal one.
 

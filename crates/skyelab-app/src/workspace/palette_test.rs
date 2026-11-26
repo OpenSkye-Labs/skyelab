@@ -310,3 +310,18 @@ fn the_surface_pickers_terminal_opens_the_drawer_and_puts_away_a_picker_only_pan
         "the picker-only panel is put away, not left showing the picker"
     );
 }
+
+#[gpui::test]
+fn the_hidden_drawers_strip_is_a_button_that_opens_it(cx: &mut TestAppContext) {
+    cx.executor().allow_parking(); // opening the drawer starts a shell
+    setup(cx);
+    let (ws, cx) = open(test_backend(), cx);
+    let bottom = |ws: &Entity<Workspace>, cx: &mut VisualTestContext| {
+        ws.read_with(cx, |ws, cx| ws.dock.read(cx).is_dock_open(DockPlacement::Bottom))
+    };
+    assert!(!bottom(&ws, cx), "precondition: the drawer is hidden");
+    let strip = cx.debug_bounds("drawer-collapsed").expect("the strip is drawn as a button");
+    cx.simulate_click(strip.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert!(bottom(&ws, cx), "a click on the strip opens the drawer");
+}

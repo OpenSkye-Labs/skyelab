@@ -384,7 +384,7 @@ const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
     ("skyelab::SendRemotePrompt", "Send Prompt to Remote"),
     ("skyelab::ToggleSharing", "Toggle Sharing on Tailnet"),
     ("skyelab::CheckForUpdates", "Check for Updates"),
-    ("skyelab::OpenRemote", "Open Remote Access"),
+    ("skyelab::OpenRemote", "Open Sharing & Access"),
     ("skyelab::BindFolder", "Bind Folder to Account"),
     ("skyelab::ContinueInCodex", "Continue in Codex"),
     ("skyelab::ContinueInClaude", "Continue in Claude"),

@@ -24,7 +24,9 @@ fn icon_for(entry: &Entry) -> SkyeIcon {
     const BY_WORD: &[(&str, SkyeIcon)] = &[
         ("NewThread", SkyeIcon::NewThread),
         ("NewScratch", SkyeIcon::NewThread),
-        ("NewSideChat", SkyeIcon::MessagesSquare),
+        ("SideChat", SkyeIcon::MessagesSquare),
+        ("Usage", SkyeIcon::ChartPie),
+        ("Onboarding", SkyeIcon::Sparkles),
         ("Home", SkyeIcon::Home),
         ("Bots", SkyeIcon::Bot),
         ("Settings", SkyeIcon::Settings),
