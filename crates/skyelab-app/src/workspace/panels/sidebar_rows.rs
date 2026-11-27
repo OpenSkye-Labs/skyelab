@@ -177,7 +177,7 @@ fn thread_row(
     let actions = marks
         .shelf
         .clone()
-        .map(|s| hover_actions(s, snooze, now, theme));
+        .map(|s| hover_actions(s, &item.label, snooze, now, theme));
     let right = div()
         .relative()
         .text_size(ui::META)

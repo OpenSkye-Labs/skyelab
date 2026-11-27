@@ -288,7 +288,7 @@ impl Render for ThreadView {
                 .flex_col()
                 .children(quote)
                 .children(find)
-                .child(super::timeline_view::cached(&self.timeline_view))
+                .child(super::timeline_view::cached(&self.timeline_view, window))
                 .into_any_element()
         };
         let line = |text: SharedString, color: gpui::Hsla| {

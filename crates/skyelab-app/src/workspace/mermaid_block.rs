@@ -133,7 +133,10 @@ pub(super) fn render(node: &MarkdownNode, window: &mut Window, cx: &mut App) -> 
                 .right_1()
                 .gap_0p5()
                 .children(toggle)
-                .child(tool_cards::copy(("copy-mermaid", at), block.source.clone())),
+                .child(
+                    tool_cards::copy(("copy-mermaid", at), block.source.clone())
+                        .accessibility_label("Copy diagram source"),
+                ),
         )
         .into_any_element()
 }

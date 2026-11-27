@@ -235,6 +235,53 @@ fn custom_clickables_and_ui_rows_declare_role_and_label() {
             }
         }
 
+        // GPUI drops a reused view's a11y nodes from the frame's tree: views are cached only through `ui::cached_view`.
+        if rel != "ui/mod.rs" && !rel.starts_with("skyelab-browser/") {
+            let mut from = 0;
+            while let Some(at) = masked[from..].find(".cached(") {
+                let pos = from + at;
+                from = pos + ".cached(".len();
+                violations.push(format!(
+                    "{rel}:{}: `.cached(..)` drops the view from the a11y tree on reuse: use `ui::cached_view`",
+                    line_number(masked, pos)
+                ));
+            }
+        }
+
+        // A dropdown trigger shows its value ("Opus", "Every 5 minutes"), so it needs a name saying what it picks.
+        // Settings' `dropdown` sits in a row that is a group named by the setting; the Gallery is a demo.
+        let mut from = 0;
+        while let Some(at) = masked[from..].find("Button::new(") {
+            let pos = from + at;
+            from = pos + "Button::new(".len();
+            let stmt = statement_forward(masked, pos);
+            let trigger = stmt.contains(".dropdown_menu") || stmt.contains(".dropdown_caret(true)");
+            // The trigger's own chain only: the menu closure's items have labels of their own.
+            let stmt = stmt.split(".dropdown_menu").next().unwrap_or(stmt);
+            let word_start = |f: usize| {
+                f == 0
+                    || !masked.as_bytes()[f - 1].is_ascii_alphanumeric()
+                        && masked.as_bytes()[f - 1] != b'_'
+            };
+            let in_fn = masked[..pos]
+                .rmatch_indices("fn ")
+                .find(|&(f, _)| word_start(f))
+                .map(|(f, _)| &masked[f + 3..])
+                .unwrap_or("");
+            let exempt = rel == "ui/gallery_sections.rs"
+                || (rel == "settings/project_scope.rs" && in_fn.starts_with("dropdown("));
+            if trigger
+                && stmt.contains(".label(")
+                && !stmt.contains(".accessibility_label(")
+                && !exempt
+            {
+                violations.push(format!(
+                    "{rel}:{}: dropdown trigger named only by its value: add `.accessibility_label(\"What: {{value}}\")`",
+                    line_number(masked, pos)
+                ));
+            }
+        }
+
         // A scroll container registers where it is on screen, so controls inside it can be scrolled into view.
         if !rel.starts_with("skyelab-browser/") {
             for call in [

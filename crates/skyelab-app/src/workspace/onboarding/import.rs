@@ -211,6 +211,7 @@ impl Onboarding {
                     )))
                     .ghost()
                     .xsmall()
+                    .accessibility_label(format!("Account for {name}: {label}"))
                     .label(SharedString::from(label))
                     .dropdown_caret(true)
                     .dropdown_menu(move |mut menu, _, _| {

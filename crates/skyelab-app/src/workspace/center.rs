@@ -69,7 +69,7 @@ impl Focusable for Center {
 }
 
 impl Render for Center {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("Center");
         div()
             .id("center")
@@ -86,20 +86,21 @@ impl Render for Center {
                 MouseButton::Navigate(NavigationDirection::Forward),
                 |_, window, cx| crate::workspace::dispatch(Box::new(GoForward), window, cx),
             )
-            .child(page(&self.content))
+            .child(page(&self.content, window))
     }
 }
 
 /// The page, cached (the dock draws the center uncached, `center_skin.rs`) unless it is a thread: its composer's
 /// caret blink would miss the cache and rebuild every timeline row, so the thread page caches its timeline itself.
-fn page(content: &AnyView) -> gpui::AnyElement {
+fn page(content: &AnyView, window: &Window) -> gpui::AnyElement {
     if content.clone().downcast::<ThreadView>().is_ok() {
         content.clone().into_any_element()
     } else {
-        content
-            .clone()
-            .cached(gpui::StyleRefinement::default().size_full())
-            .into_any_element()
+        crate::ui::cached_view(
+            content.clone(),
+            gpui::StyleRefinement::default().size_full(),
+            window,
+        )
     }
 }
 

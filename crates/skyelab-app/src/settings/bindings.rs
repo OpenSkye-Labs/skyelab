@@ -212,6 +212,7 @@ impl Settings {
                 Button::new("binding-account")
                     .outline()
                     .small()
+                    .accessibility_label(format!("Account for new binding: {account_label}"))
                     .label(account_label)
                     .tooltip("Account for new binding")
                     .disabled(choices.is_empty())

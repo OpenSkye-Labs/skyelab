@@ -321,6 +321,12 @@ pub(super) fn copy(id: impl Into<gpui::ElementId>, text: impl Into<SharedString>
     Clipboard::new(id).value(text).tooltip("Copy")
 }
 
+/// A reply's copy button. Every reply has one: its first words tell them apart.
+pub(super) fn copy_reply(id: impl Into<gpui::ElementId>, text: &str) -> Clipboard {
+    let first: Vec<&str> = text.split_whitespace().take(8).collect();
+    copy(id, text.to_owned()).accessibility_label(format!("Copy reply: {}", first.join(" ")))
+}
+
 /// The agent's stderr, collapsed to one line until opened.
 pub(super) fn render_output<V: ItemsView>(
     this: &V,

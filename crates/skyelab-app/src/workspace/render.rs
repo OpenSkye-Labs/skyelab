@@ -102,7 +102,7 @@ impl Render for Workspace {
                             .on_drag_move(cx.listener(Self::restore_drag_move))
                             .child(self.dock.clone())
                             .children(self.sidebar_restore_edge(cx))
-                            .children(self.details_card(cx))
+                            .children(self.details_card(window, cx))
                             .children(ring)
                             // Windows: minimize, maximize and close over the top row's end (no separate title strip).
                             .child(crate::ui::WindowControls),
@@ -158,7 +158,7 @@ impl Workspace {
     /// The thread details card, floating over the chat at the top right under the page header's toggles, left of the
     /// right dock when it is open. A deferred layer, so it paints over the dock's content. The card is the
     /// `DetailsPanel` entity drawn as a cached view: a streamed delta that redraws the thread doesn't redraw it.
-    fn details_card(&self, cx: &App) -> Option<impl IntoElement + use<>> {
+    fn details_card(&self, window: &Window, cx: &App) -> Option<impl IntoElement + use<>> {
         if !self.details_open {
             return None;
         }
@@ -170,10 +170,11 @@ impl Workspace {
                 .bottom(px(CARD_GAP))
                 .right(right + px(CARD_GAP))
                 .w(px(CARD_W))
-                .child(
-                    gpui::AnyView::from(self.details.clone())
-                        .cached(gpui::StyleRefinement::default().size_full()),
-                ),
+                .child(crate::ui::cached_view(
+                    self.details.clone().into(),
+                    gpui::StyleRefinement::default().size_full(),
+                    window,
+                )),
         ))
     }
 }

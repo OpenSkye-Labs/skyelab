@@ -117,6 +117,7 @@ mod thread_list;
 mod thread_search;
 mod timeline_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
+mod cached_workspace;
 mod click;
 mod diff_view;
 mod find_marks;

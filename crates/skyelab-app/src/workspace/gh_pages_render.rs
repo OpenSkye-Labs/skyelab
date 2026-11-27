@@ -388,7 +388,11 @@ impl GhPage {
                     .text_color(theme.muted_foreground)
                     .child(n.to_string())
             }));
+        // Its own id scope: every group can show the same placeholder ("Loading…"), and a11y node ids must differ.
         v_flex()
+            .id(SharedString::from(format!("gh-group-{}", source.id)))
+            .role(gpui::accesskit::Role::Group)
+            .aria_label(source.name.clone())
             .gap_1()
             .child(header)
             .children(rows)
