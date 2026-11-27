@@ -8,6 +8,21 @@
 mod a11y_audit_test;
 mod a11y_scroll;
 pub(crate) use a11y_scroll::A11yScrollArea;
+
+/// `view` drawn as a cached view, except while an accessibility client is attached: GPUI 0.3.14 doesn't re-emit a
+/// reused view's a11y nodes, so a cached view would drop out of the tree on every frame that redraws only others.
+pub fn cached_view(
+    view: gpui::AnyView,
+    style: gpui::StyleRefinement,
+    window: &gpui::Window,
+) -> gpui::AnyElement {
+    use gpui::IntoElement as _;
+    if window.is_a11y_active() {
+        view.into_any_element()
+    } else {
+        view.cached(style).into_any_element()
+    }
+}
 #[cfg(test)]
 mod a11y_test;
 mod button;

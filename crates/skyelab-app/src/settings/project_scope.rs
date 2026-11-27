@@ -211,6 +211,7 @@ impl Settings {
         let menu = Button::new("settings-scope")
             .outline()
             .small()
+            .accessibility_label(format!("Applying settings for: {label}"))
             .label(SharedString::from(label))
             .dropdown_caret(true)
             .dropdown_menu(move |menu, _, _| {

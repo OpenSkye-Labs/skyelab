@@ -59,6 +59,7 @@ impl ThreadView {
                 .small()
                 .icon(Icon::new(mode_icon(self.mode)))
                 .when(!compact, |b| b.label(label))
+                .accessibility_label(format!("Permissions: {label}"))
                 .tooltip(super::super::side_chat::PLAN_ONLY)
                 .into_any_element();
         }
@@ -69,6 +70,7 @@ impl ThreadView {
             .small()
             .icon(Icon::new(mode_icon(self.mode)))
             .when(!compact, |b| b.label(label).dropdown_caret(true))
+            .accessibility_label(format!("Permissions: {label}"))
             // A thread keeps its own mode; Settings → Chat only sets where a new one starts.
             .tooltip(format!(
                 "Permissions: {label}. {tip}. This thread's own: new threads start as Settings → Chat says."

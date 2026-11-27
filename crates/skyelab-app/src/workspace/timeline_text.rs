@@ -67,7 +67,7 @@ pub(super) fn markdown<V: ItemsView>(
                     .fold(0u64, |h, b| h.rotate_left(5) ^ u64::from(b));
             div()
                 .debug_selector(|| "code-copy".into())
-                .child(tool_cards::copy(("copy-code", key), code))
+                .child(tool_cards::copy(("copy-code", key), code).accessibility_label("Copy code"))
         })
         .table_actions(super::table_copy::actions)
         .on_link_click(move |url, _, _, cx| {

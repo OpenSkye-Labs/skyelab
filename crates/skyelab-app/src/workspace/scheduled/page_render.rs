@@ -172,25 +172,28 @@ impl ScheduledPage {
                 .child(control)
         };
         let page = cx.entity().downgrade();
-        let menu = |id: &'static str, label: String, items: Vec<(String, bool, Pick)>| {
-            let page = page.clone();
-            Button::new(id)
-                .outline()
-                .small()
-                .label(label)
-                .dropdown_caret(true)
-                .dropdown_menu(move |mut menu, _, _| {
-                    for (label, on, pick) in items.clone() {
-                        let page = page.clone();
-                        menu = menu.item(PopupMenuItem::new(label).checked(on).on_click(
-                            move |_, window, cx| {
-                                let _ = page.update(cx, |this, cx| this.pick(pick, window, cx));
-                            },
-                        ));
-                    }
-                    menu
-                })
-        };
+        // `what` is the field it sits under: the button itself shows only the value.
+        let menu =
+            |id: &'static str, what: &str, label: String, items: Vec<(String, bool, Pick)>| {
+                let page = page.clone();
+                Button::new(id)
+                    .outline()
+                    .small()
+                    .accessibility_label(format!("{what}: {label}"))
+                    .label(label)
+                    .dropdown_caret(true)
+                    .dropdown_menu(move |mut menu, _, _| {
+                        for (label, on, pick) in items.clone() {
+                            let page = page.clone();
+                            menu = menu.item(PopupMenuItem::new(label).checked(on).on_click(
+                                move |_, window, cx| {
+                                    let _ = page.update(cx, |this, cx| this.pick(pick, window, cx));
+                                },
+                            ));
+                        }
+                        menu
+                    })
+            };
         let project_name = d
             .project
             .and_then(|id| self.projects.iter().find(|p| p.id == id))
@@ -246,7 +249,7 @@ impl ScheduledPage {
                     )
                     .child(field(
                         "Project",
-                        menu("sched-project", project_name, projects).into_any_element(),
+                        menu("sched-project", "Project", project_name, projects).into_any_element(),
                     )),
             )
             .child(field(
@@ -261,7 +264,7 @@ impl ScheduledPage {
                     .items_end()
                     .child(field(
                         "Schedule",
-                        menu("sched-kind", d.kind.label().to_owned(), kinds).into_any_element(),
+                        menu("sched-kind", "Schedule", d.kind.label().to_owned(), kinds).into_any_element(),
                     ))
                     .child(
                         div().w(gpui::px(160.)).child(field(
@@ -282,11 +285,11 @@ impl ScheduledPage {
                     )
                     .child(field(
                         "Runs in",
-                        menu("sched-where", where_label.to_owned(), places).into_any_element(),
+                        menu("sched-where", "Runs in", where_label.to_owned(), places).into_any_element(),
                     ))
                     .child(field(
                         "Permissions",
-                        menu("sched-mode", ScheduledPage::mode_label(d.mode).to_owned(), modes)
+                        menu("sched-mode", "Permissions", ScheduledPage::mode_label(d.mode).to_owned(), modes)
                             .into_any_element(),
                     ))
                     .child(

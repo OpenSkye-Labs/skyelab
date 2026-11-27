@@ -3,6 +3,7 @@
 //! The registry here also owns the views, so an agent keeps running when its window closes (macOS keeps the app
 //! running without windows), and it hands the app-wide call queues (sharing, orchestration) to one window at a time.
 
+use super::cached_workspace::CachedWorkspace;
 use super::orchestrate::OrchCall;
 use super::thread::ThreadView;
 use super::{SharedStore, Workspace};
@@ -220,26 +221,12 @@ pub(super) fn open_with(
         let focus = view.read(cx).focus_handle(cx);
         window.focus(&focus, cx);
         made = Some(view.clone());
-        let shell = cx.new(|_| CachedWorkspace(view.into()));
+        let shell = cx.new(|_| CachedWorkspace(view.into(), false));
         cx.new(|cx| gpui_component::Root::new(shell, window, cx))
     });
     cx.default_global::<Windows>().opening_hidden = false;
     opened?;
     made.ok_or_else(|| anyhow::anyhow!("the window opened without its workspace"))
-}
-
-/// Root's child: the workspace as a cached view. A dialog in Root (the command palette) re-renders Root on every
-/// keystroke and hover, which would re-render the workspace too; cached, it renders only on its own notify or a
-/// window refresh (docs/gpui/redraw.md).
-struct CachedWorkspace(gpui::AnyView);
-
-impl gpui::Render for CachedWorkspace {
-    fn render(&mut self, _: &mut Window, _: &mut gpui::Context<Self>) -> impl gpui::IntoElement {
-        use gpui::Styled as _;
-        self.0
-            .clone()
-            .cached(gpui::StyleRefinement::default().size_full())
-    }
 }
 
 /// A window closed: it leaves the registry, and the next window on its store owns what it owned and serves the call

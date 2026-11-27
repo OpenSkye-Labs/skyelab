@@ -275,7 +275,7 @@ fn render_row<V: ItemsView>(
                         .child(
                             div()
                                 .opacity(0.6)
-                                .child(tool_cards::copy(("copy-msg", key), text.clone())),
+                                .child(tool_cards::copy_reply(("copy-msg", key), text)),
                         )
                         .children(reply_at.map(ui::clock))
                         .children(this.fork(ix).map(super::thread_extras::fork::button)),

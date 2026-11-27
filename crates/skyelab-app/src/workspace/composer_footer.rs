@@ -192,15 +192,17 @@ impl ThreadView {
                     })
             }))
             .children(footer.changes.map(|n| {
+                let shown = if n == 0 {
+                    "No changes".to_owned()
+                } else {
+                    format!("{n} changed")
+                };
                 Button::new("footer-changes")
                     .ghost()
                     .xsmall()
                     .icon(Icon::new(SkyeIcon::FileDiff))
-                    .label(if n == 0 {
-                        "No changes".into()
-                    } else {
-                        format!("{n} changed")
-                    })
+                    .accessibility_label(format!("Open Changes ({shown})"))
+                    .label(shown)
                     .tooltip("Open Changes")
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.open_changes(&OpenChanges, window, cx)

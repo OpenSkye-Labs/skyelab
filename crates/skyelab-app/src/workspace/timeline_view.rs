@@ -26,8 +26,15 @@ impl TimelineView {
 }
 
 /// The timeline as its thread view draws it: cached, filling what is left of the timeline column.
-pub(in crate::workspace) fn cached(view: &Entity<TimelineView>) -> impl IntoElement {
-    AnyView::from(view.clone()).cached(StyleRefinement::default().flex_1().min_h_0().w_full())
+pub(in crate::workspace) fn cached(
+    view: &Entity<TimelineView>,
+    window: &gpui::Window,
+) -> impl IntoElement {
+    crate::ui::cached_view(
+        AnyView::from(view.clone()),
+        StyleRefinement::default().flex_1().min_h_0().w_full(),
+        window,
+    )
 }
 
 impl Render for TimelineView {

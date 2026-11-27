@@ -35,6 +35,7 @@ pub(in crate::workspace) fn button(action: ForkThread) -> AnyElement {
                 .xsmall()
                 .icon(Icon::new(crate::ui::SkyeIcon::GitBranch))
                 .tooltip("Fork from here")
+                .accessibility_label(format!("Fork from turn {}", action.turns))
                 .on_click(move |_, window, cx| {
                     crate::workspace::dispatch(action.boxed_clone(), window, cx)
                 }),

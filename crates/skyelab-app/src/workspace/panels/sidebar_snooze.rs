@@ -127,6 +127,7 @@ impl Sidebar {
 /// T3's settle and snooze buttons, shown over the status or time while the row is hovered.
 pub(super) fn hover_actions(
     s: RowShelf,
+    title: &str,
     snooze: &SnoozeMenu,
     now: i64,
     theme: &gpui_component::Theme,
@@ -140,6 +141,8 @@ pub(super) fn hover_actions(
             .xsmall()
             .icon(Icon::new(icon).size_3())
             .tooltip(tip)
+            // Every row has these: the thread's title tells them apart.
+            .accessibility_label(format!("{tip}: {title}"))
     };
     let guard = snooze.sidebar.clone();
     let act = |to: Shelf| {
