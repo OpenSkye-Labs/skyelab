@@ -13,6 +13,7 @@
 //! The sidebar's edge also hides it (T3's rail): base clamps the drag at the minimum width, and past
 //! [`HIDE_BELOW`] the sidebar fades; releasing there hides it through the toggle (`Workspace::hide_sidebar_from_drag`).
 
+use crate::ui::A11yScrollArea as _;
 use gpui::{
     AnyElement, AnyView, App, Axis, Bounds, Div, EntityId, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, Pixels, Stateful, WeakEntity, Window, canvas, div, prelude::*,
@@ -414,6 +415,7 @@ impl TabGroupRenderer for CenterTabs {
         div()
             .id("tab-content")
             .overflow_y_scroll()
+            .a11y_scroll_area()
             .overflow_x_hidden()
             .flex_1()
             .child(div().absolute().size_full().child(panel))

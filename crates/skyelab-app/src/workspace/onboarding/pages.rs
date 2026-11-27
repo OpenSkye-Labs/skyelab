@@ -5,6 +5,7 @@
 
 use super::{Onboarding, Step, motion};
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::{Button, Card, Divider, Kbd, SkyeIcon};
 use gpui::{
     AnyElement, Context, Div, FontWeight, Hsla, ParentElement as _, Pixels, SharedString, Window,
@@ -86,6 +87,7 @@ impl Onboarding {
                             .track_scroll(&self.scroll)
                             .size_full()
                             .overflow_y_scroll()
+                            .a11y_scroll_area()
                             .child(
                                 div()
                                     .relative()

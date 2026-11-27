@@ -6,6 +6,7 @@ use super::ask_cards::{self, OTHER, questions};
 use super::question_drafts;
 use super::thread::ThreadView;
 use super::thread_model::ApprovalItem;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::{self, Kbd, SkyeIcon, icon_button};
 use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement as _, ParentElement as _,
@@ -322,11 +323,7 @@ impl ThreadView {
                     } else {
                         format!("{label}, {description}")
                     })
-                    .aria_toggled(if on {
-                        gpui::accesskit::Toggled::True
-                    } else {
-                        gpui::accesskit::Toggled::False
-                    })
+                    .aria_toggled(on.into())
                     .debug_selector(move || format!("dock-option-{oi}"))
                     .items_start()
                     .gap_2p5()
@@ -429,6 +426,7 @@ impl ThreadView {
                         .id("ask-dock-options")
                         .max_h(options_h)
                         .overflow_y_scroll()
+                        .a11y_scroll_area()
                         .children(rows),
                 )
                 .children(attach)

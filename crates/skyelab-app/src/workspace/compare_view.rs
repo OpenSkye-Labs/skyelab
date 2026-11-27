@@ -7,6 +7,7 @@ use super::thread::{ThreadView, ThreadViewEvent};
 use super::thread_model::Item;
 use super::{OpenThread, SharedStore, Workspace, lock};
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::Button;
 use gpui::{
     AppContext as _, Context, Entity, FocusHandle, Focusable, FontWeight, SharedString,
@@ -243,6 +244,7 @@ impl Render for CompareView {
                         .flex_1()
                         .min_h_0()
                         .overflow_y_scroll()
+                        .a11y_scroll_area()
                         .px_3()
                         .py_2()
                         .text_size(ui::BODY)

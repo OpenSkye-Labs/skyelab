@@ -135,16 +135,12 @@ impl RenderOnce for SegmentedControl {
                     "ui::SegmentedControl item {ix} must have a non-empty label (docs/gpui/accessibility.md)"
                 );
                 // gpui-base's headless button: a tab stop that Space and Enter pick, a press that keeps focus put.
-                gpui_base::Button::new(ix)
+                super::a11y_scroll::scrolls_into_view(gpui_base::Button::new(ix))
                     .selected(on)
                     .on_any_mouse_down(|_, window, _| window.prevent_default())
                     .role(accesskit::Role::RadioButton)
                     .when_some(a11y_label, |d, l| d.accessibility_label(l))
-                    .aria_toggled(if on {
-                        accesskit::Toggled::True
-                    } else {
-                        accesskit::Toggled::False
-                    })
+                    .aria_toggled(on.into())
                     .h(h)
                     .gap_1()
                     .px(c.size.pad_x() - px(2.))
@@ -200,7 +196,7 @@ impl RenderOnce for Tabs {
                     "ui::Tabs item {ix} must have a non-empty label (docs/gpui/accessibility.md)"
                 );
                 // gpui-base's headless button: a tab stop that Space and Enter pick, a press that keeps focus put.
-                gpui_base::Button::new(ix)
+                super::a11y_scroll::scrolls_into_view(gpui_base::Button::new(ix))
                     .selected(on)
                     .on_any_mouse_down(|_, window, _| window.prevent_default())
                     .role(accesskit::Role::Tab)

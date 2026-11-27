@@ -6,6 +6,7 @@ use super::gh_pages::{Dated, Filter, GhEvent, GhPage, Group, Kind, Listing, Sour
 use super::pr_watch::{checks_look, review_look, state_look};
 use super::usage_page_render::segments;
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Tooltip};
 use gpui::{
@@ -494,6 +495,7 @@ impl Render for GhPage {
                 .flex_1()
                 .min_h_0()
                 .overflow_y_scroll()
+                .a11y_scroll_area()
                 .child(
                     v_flex()
                         .w_full()

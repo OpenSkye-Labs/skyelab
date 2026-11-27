@@ -36,7 +36,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
 - UI changes are checked in the running app with `/loop-verify-ui` (native window), not just by compiling.
   Run the app with a throwaway `HOME` (so your real `accounts.toml` is untouched). `SKYELAB_VERIFY_LOGIN_SHELL=1` reads the login shell's PATH as release does. Add `SKYELAB_VERIFY_THEME=dark` or `light` to capture
   a theme without touching the system appearance; the window opens at the frame saved in the throwaway HOME's settings.toml. `SKYELAB_DEBUG_RENDERS=1` prints each view's renders per second to stderr.
-  Read and click the window by name with `agent-desktop` (`list-windows`, `snapshot --window-id <id> -i`, `click @ref`; a control scrolled out of view needs `mouse-wheel --headed` first). Omit `SKYELAB_VERIFY_TOPMOST` then: Accessibility can't see a topmost window.
+  Read and click the window by name with `agent-desktop` (`list-windows`, `snapshot --window-id <id> -i`, `click @ref`, which scrolls an offscreen control in itself). Omit `SKYELAB_VERIFY_TOPMOST` then: Accessibility can't see a topmost window.
   For `screencapture -x -o -l <id> out.png` (never the whole screen) pass `SKYELAB_VERIFY_TOPMOST=1` (CGWindowList, layer > 0, your PID); input can't reach it, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
   (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element, `click:x;y` (or `rclick:`) clicks at a window point (`hover:x;y` only moves the mouse there, `wait` sends nothing for one more gap),
   at the window screenshot's own x and y at 1x (no title-bar offset: the window has no separate title strip); `drag:x;y;x2;y2` drags,

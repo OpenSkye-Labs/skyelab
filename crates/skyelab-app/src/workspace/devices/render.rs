@@ -3,6 +3,7 @@
 use super::super::device_agent::DeviceClaims;
 use super::{DevicesPanel, SectionView, badge};
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::Button;
 use crate::ui::TextField;
 use gpui::{Context, ObjectFit, SharedString, Window, div, img, prelude::*, px};
@@ -260,6 +261,7 @@ impl Render for DevicesPanel {
             }))
             .size_full()
             .overflow_y_scroll()
+            .a11y_scroll_area()
             .bg(theme.background)
             .child(
                 v_flex()

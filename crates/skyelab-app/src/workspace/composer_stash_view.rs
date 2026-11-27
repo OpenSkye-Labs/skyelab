@@ -4,6 +4,7 @@ use super::composer_stash::{PromptStash, SHORTCUT};
 use super::popover;
 use super::thread::ThreadView;
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, FontWeight, div, prelude::*, px};
@@ -192,6 +193,7 @@ impl ThreadView {
                 .id("stash-menu")
                 .max_h(px(320.))
                 .overflow_y_scroll()
+                .a11y_scroll_area()
                 .left_0()
                 .right_0()
                 .child(header)

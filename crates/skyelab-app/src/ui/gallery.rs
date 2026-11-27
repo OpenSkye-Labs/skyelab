@@ -4,6 +4,7 @@
 
 #[path = "gallery_sections.rs"]
 mod sections;
+use super::A11yScrollArea as _;
 use sections::{badges, buttons, command_rows, section, toasts};
 
 use super::{
@@ -345,6 +346,7 @@ impl Render for UiGallery {
                     .id("ui-gallery")
                     .size_full()
                     .overflow_y_scroll()
+                    .a11y_scroll_area()
                     .pt(super::HEADER_H)
                     .px_6()
                     .pb_10()

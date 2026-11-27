@@ -199,11 +199,7 @@ impl Settings {
             .debug_selector(move || format!("theme-{key}"))
             .role(accesskit::Role::RadioButton)
             .selected(on)
-            .aria_toggled(if on {
-                accesskit::Toggled::True
-            } else {
-                accesskit::Toggled::False
-            })
+            .aria_toggled(on.into())
             .accessibility_label(f.label)
             .on_any_mouse_down(|_, window, _| window.prevent_default())
             .flex_col()
@@ -348,11 +344,7 @@ impl Settings {
                         )))
                         .role(accesskit::Role::RadioButton)
                         .selected(on)
-                        .aria_toggled(if on {
-                            accesskit::Toggled::True
-                        } else {
-                            accesskit::Toggled::False
-                        })
+                        .aria_toggled(on.into())
                         .accessibility_label(format!("{label} accent"))
                         .on_any_mouse_down(|_, window, _| window.prevent_default())
                         .size(gpui::px(24.))

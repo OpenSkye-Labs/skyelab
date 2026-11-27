@@ -4,6 +4,7 @@ use super::thread_items::{ItemsView, clip};
 use super::thread_model::ToolItem;
 use super::tool_cards::chevron;
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
@@ -85,6 +86,7 @@ pub(super) fn render_bash<V: ItemsView>(
             .debug_selector(|| "bash-output".into())
             .max_h(px(256.))
             .overflow_y_scroll()
+            .a11y_scroll_area()
             .px_3()
             .py_2()
             .border_t_1()

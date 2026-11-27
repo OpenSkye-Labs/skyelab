@@ -4,6 +4,7 @@
 //! only, never stored) and the Preview tab's image file.
 
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{
@@ -148,7 +149,7 @@ impl Render for ImageViewer {
                     // Centered while it fits; zoomed, it starts at the top left so every edge scrolls into view.
                     .map(|el| match self.zoom {
                         0 => el.flex().items_center().justify_center(),
-                        _ => el.overflow_scroll(),
+                        _ => el.overflow_scroll().a11y_scroll_area(),
                     })
                     // img() takes its height from its width and aspect ratio: max_h keeps it to the box.
                     .child(

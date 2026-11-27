@@ -6,6 +6,7 @@
 
 use super::thread::ThreadView;
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
@@ -276,6 +277,7 @@ impl ThreadView {
                 .id(("context-chip-text", c.id))
                 .max_h(px(160.))
                 .overflow_y_scroll()
+                .a11y_scroll_area()
                 .p_2()
                 .rounded(ui::RADIUS)
                 .border_1()

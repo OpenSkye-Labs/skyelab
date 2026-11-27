@@ -356,8 +356,14 @@ impl Focusable for BrowserView {
 impl Render for BrowserView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let nav =
-            |id: &'static str, label: &'static str| Button::new(id).label(label).small().ghost();
+        // The glyph is the visible label; the spoken name says what it does.
+        let nav = |id: &'static str, glyph: &'static str, name: &'static str| {
+            Button::new(id)
+                .label(glyph)
+                .accessibility_label(name)
+                .small()
+                .ghost()
+        };
         let toolbar = div()
             .flex()
             .items_center()
@@ -365,14 +371,22 @@ impl Render for BrowserView {
             .p_1()
             .border_b_1()
             .border_color(theme.border)
+            .child(div().debug_selector(|| "browser-back".into()).child(
+                nav("back", "←", "Back").on_click(cx.listener(|this, _, _, cx| this.back(cx))),
+            ))
+            .child(
+                nav("forward", "→", "Forward")
+                    .on_click(cx.listener(|this, _, _, cx| this.forward(cx))),
+            )
+            .child(
+                nav("reload", "↻", "Reload")
+                    .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
+            )
             .child(
                 div()
-                    .debug_selector(|| "browser-back".into())
-                    .child(nav("back", "←").on_click(cx.listener(|this, _, _, cx| this.back(cx)))),
+                    .flex_1()
+                    .child(Input::new(&self.url_bar).small().aria_label("Address")),
             )
-            .child(nav("forward", "→").on_click(cx.listener(|this, _, _, cx| this.forward(cx))))
-            .child(nav("reload", "↻").on_click(cx.listener(|this, _, _, cx| this.reload(cx))))
-            .child(div().flex_1().child(Input::new(&self.url_bar).small()))
             .children(self.render_zoom_chip(cx))
             .child(self.render_menu(cx));
         let find_bar = self.render_find(window, cx);

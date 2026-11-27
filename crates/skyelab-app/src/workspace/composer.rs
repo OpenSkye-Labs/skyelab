@@ -282,7 +282,7 @@ impl ThreadView {
                     .ghost()
                     .small()
                     .accessibility_label(format!("Model: {chip}"))
-                    .aria_expanded(self.composer.picker.is_some())
+                    .accessibility_expanded(self.composer.picker.is_some())
                     // The provider's logo is an image in its own colors, so it goes in as a child, not a tinted icon.
                     .map(|b| match self.composer_account() {
                         Some(a) => b.child(ui::provider_logo(a.provider, px(14.), cx)).child(

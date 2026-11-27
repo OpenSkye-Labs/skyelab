@@ -7,6 +7,7 @@ use super::diff_view;
 use super::thread_items::{ItemsView, clip};
 use super::thread_model::{ApprovalItem, Item};
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{
@@ -251,6 +252,7 @@ fn json_box<V: ItemsView>(a: &ApprovalItem, cx: &Context<V>) -> AnyElement {
         .id(SharedString::from(format!("approval-json-{}", a.id)))
         .max_h(px(DETAIL_MAX_H))
         .overflow_y_scroll()
+        .a11y_scroll_area()
         .px_3()
         .py_2()
         .rounded(ui::RADIUS)
@@ -315,6 +317,7 @@ fn approval_diff<V: ItemsView>(a: &ApprovalItem, p: Preview, cx: &mut Context<V>
                 .debug_selector(|| "approval-diff".into())
                 .max_h(px(DETAIL_MAX_H))
                 .overflow_y_scroll()
+                .a11y_scroll_area()
                 .bg(theme.background)
                 .font_family(mono.clone())
                 .text_size(theme.mono_font_size)

@@ -3,6 +3,7 @@
 
 use super::page::GROUPS;
 use super::*;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::Kbd;
 use crate::ui::SkyeIcon;
 use gpui_component::{Icon, h_flex, v_flex};
@@ -291,6 +292,7 @@ impl Settings {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    .a11y_scroll_area()
                     .px_2()
                     .pb_3()
                     .child(list),

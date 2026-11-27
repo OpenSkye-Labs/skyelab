@@ -6,6 +6,7 @@
 use super::env_mode::SwitchEnvironment;
 use crate::environment::RemoteEnv;
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::SkyeIcon;
 use crate::ui::Tooltip;
 use gpui::{
@@ -347,6 +348,7 @@ impl Render for EnvPicker {
             .w(px(MENU_W))
             .max_h(px(480.))
             .overflow_y_scroll()
+            .a11y_scroll_area()
             .p_1()
             .gap_0p5()
             .rounded(ui::RADIUS_LG)

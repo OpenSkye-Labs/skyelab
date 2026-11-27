@@ -82,7 +82,7 @@ impl Toggle {
             "ui::Switch/Checkbox({:?}) must have a non-empty label or accessibility_label, or use .decorative() inside a clickable row (docs/gpui/accessibility.md)",
             self.id
         );
-        gpui_base::Button::new(self.id)
+        super::a11y_scroll::scrolls_into_view(gpui_base::Button::new(self.id))
             .role(role)
             .disabled(self.disabled)
             .flex_shrink_0()
@@ -92,11 +92,7 @@ impl Toggle {
             .rounded(RADIUS_SM)
             .border_1()
             .border_color(gpui::transparent_black())
-            .aria_toggled(if checked {
-                accesskit::Toggled::True
-            } else {
-                accesskit::Toggled::False
-            })
+            .aria_toggled(checked.into())
             .when_some(a11y_label, |d, l| d.accessibility_label(l))
             .when_some(self.aria_id, |d, id| d.accessibility_id(id))
             .when(interactive, |d| {

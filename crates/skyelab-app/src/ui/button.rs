@@ -145,8 +145,7 @@ pub struct Button {
     square: bool,
     toggled: Option<bool>,
     tooltip: Option<(SharedString, Option<ActionRef>)>,
-    /// Popover / dropdown open state passed via [`Selectable::open`]: `Some(open)` means this button drives a
-    /// popover or menu (no tooltip while open; advertises `aria_expanded` and `Action::Click` for `Confirm`).
+    /// `Some` when this button drives a popover or menu (set by [`Selectable::open`]).
     menu_open: Option<bool>,
     key_hint: Option<ActionRef>,
     on_click: Option<OnClick>,
@@ -236,17 +235,17 @@ impl Button {
         self
     }
 
-    pub fn aria_description(mut self, description: impl Into<SharedString>) -> Self {
+    pub fn accessibility_description(mut self, description: impl Into<SharedString>) -> Self {
         self.aria_description = Some(description.into());
         self
     }
 
-    pub fn aria_expanded(mut self, expanded: bool) -> Self {
+    pub fn accessibility_expanded(mut self, expanded: bool) -> Self {
         self.aria_expanded = Some(expanded);
         self
     }
 
-    pub fn aria_selected(mut self, selected: bool) -> Self {
+    pub fn accessibility_selected(mut self, selected: bool) -> Self {
         self.aria_selected = Some(selected);
         self
     }
@@ -440,7 +439,7 @@ impl RenderOnce for Button {
                     .clone()
             });
 
-        let mut base = self.base;
+        let mut base = super::a11y_scroll::scrolls_into_view(self.base);
         // The caller's own style (`.w_full()`, `.rounded(..)`) goes on last, so it wins over ours.
         let caller = std::mem::take(base.style());
         let mut base = base
@@ -481,13 +480,7 @@ impl RenderOnce for Button {
             .when_some(self.aria_expanded.or(self.menu_open), |b, e| {
                 b.aria_expanded(e)
             })
-            .when_some(self.toggled, |b, on| {
-                b.aria_toggled(if on {
-                    gpui::accesskit::Toggled::True
-                } else {
-                    gpui::accesskit::Toggled::False
-                })
-            })
+            .when_some(self.toggled, |b, on| b.aria_toggled(on.into()))
             .when_some(dropdown_click, |b, trigger_focus| {
                 let dispatch_focus = trigger_focus.clone();
                 b.track_focus(&trigger_focus).on_a11y_action(

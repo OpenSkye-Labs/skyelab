@@ -425,11 +425,7 @@ impl Settings {
             .id(SharedString::from(selector.clone()))
             .role(gpui::accesskit::Role::RadioButton)
             .aria_label(format!("{} — {about}", p.label()))
-            .aria_toggled(if on {
-                gpui::accesskit::Toggled::True
-            } else {
-                gpui::accesskit::Toggled::False
-            })
+            .aria_toggled(on.into())
             .debug_selector(move || selector)
             .flex_1()
             .min_w_0()
