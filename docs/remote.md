@@ -119,7 +119,7 @@ store stays the source of truth. A thread not listed here (or archived) is `NotF
 `Thread.snoozed_until` (1.6) carry the state to clients. A client never sends `shelve_thread` to a machine older than
 1.6: `Client::shelve_thread` fails it locally with "update SkyeLab on <machine>". While the machine is offline the
 window refuses the action with a note instead of queueing it: a queued shelf would land later on a thread that may have
-moved on, and the owning store must decide. It can forward ports from this machine's loopback (below). It can't change a thread's permission mode, add projects,
+moved on, and the owning store must decide. An agent on it may delegate here (`delegate`, 1.8) once this machine links its account: [remote-delegation.md](remote-delegation.md). It can forward ports from this machine's loopback (below). It can't change a thread's permission mode, add projects,
 change accounts or bindings, open terminals or run anything else. Remote calls run through the same `ThreadView` code a local prompt uses, so the account rules are
 identical: an unbound folder is refused with an error sent to the client (no fallback account, no thread row), and
 the account is recorded on the thread row. A remote-started thread appears in the local window's sidebar with an

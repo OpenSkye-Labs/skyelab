@@ -154,3 +154,18 @@ permission requests wait above the message box with buttons big enough for a thu
 The mobile app remembers the machine for the name too, with the same **Trust it** warning ("This isn't the machine
 you connected to before"). It can't ask a local Tailscale, so it goes by the node id the machine reports about itself:
 that catches a reused name or a replaced machine, but not a machine that lies about its id.
+
+## Letting agents delegate to another machine
+
+An agent can start and drive threads on another of your machines, under that machine's own account for each folder.
+Both machines must agree:
+
+1. On this machine, link the other one (its threads show in your list), then turn on **Let my agents delegate here**
+   for it in Settings → Machines → Delegation.
+2. The first time an agent tries, the other machine lists the request in Settings → Sharing & access → **Delegation
+   requests**, naming this machine, the agent's account and its Claude login. Click **Allow** there. It is offered only
+   when an account on that machine is signed in to the same Claude login (email and organization). **Revoke** under
+   **Allowed delegation** takes it back.
+
+The child's header there says "Delegated by <your thread> on <this machine>", and your thread lists it in Lineage
+with "on <that machine>". Details and limits: [remote-delegation.md](remote-delegation.md).

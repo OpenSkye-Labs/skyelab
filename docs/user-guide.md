@@ -225,7 +225,7 @@ The branch picker, project scripts, and per-turn checkpoints with rewind: [user-
 
 ## Other machines
 
-Sharing this machine over Tailscale, device approval and the environment switcher: [user-guide-remote.md](user-guide-remote.md).
+Sharing this machine over Tailscale, device approval, the environment switcher and turning on agent delegation: [user-guide-remote.md](user-guide-remote.md).
 
 ## Device hub
 
