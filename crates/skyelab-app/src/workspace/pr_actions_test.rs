@@ -11,7 +11,7 @@ use gpui::VisualTestContext;
 use skyelab_git::PrState;
 use std::path::Path;
 
-pub(super) const URL: &str = "https://github.com/acme/demo/pull/42";
+pub(in crate::workspace) const URL: &str = "https://github.com/acme/demo/pull/42";
 
 /// The rig's project as a github.com repo, its account (acme) logged in to a fake gh dir, accounts.toml saved.
 pub(in crate::workspace) fn github(r: &Rig, cx: &mut VisualTestContext) -> PathBuf {
@@ -62,7 +62,10 @@ fn status(id: i64, cx: &mut VisualTestContext) -> Option<PrView> {
 }
 
 /// A thread with `URL` linked, read once, opened; its PR actions dialog opened from the details card.
-pub(super) fn thread_dialog(r: &Rig, cx: &mut VisualTestContext) -> (i64, Entity<PrActions>) {
+pub(in crate::workspace) fn thread_dialog(
+    r: &Rig,
+    cx: &mut VisualTestContext,
+) -> (i64, Entity<PrActions>) {
     let id = r.thread("Has a PR", cx);
     r.f.store
         .lock()
@@ -85,7 +88,7 @@ pub(super) fn thread_dialog(r: &Rig, cx: &mut VisualTestContext) -> (i64, Entity
     (id, dialog)
 }
 
-pub(super) fn dialog_open(cx: &mut VisualTestContext) -> bool {
+pub(in crate::workspace) fn dialog_open(cx: &mut VisualTestContext) -> bool {
     cx.update(|window, cx| window.has_active_dialog(cx))
 }
 
@@ -280,7 +283,7 @@ fn a_folder_bound_to_another_account_is_refused_before_gh_runs(cx: &mut gpui::Te
 }
 
 /// The Pull requests page, opened and listed (one `pr list` call).
-fn listed_page(
+pub(in crate::workspace) fn listed_page(
     r: &Rig,
     gh: &Path,
     cx: &mut VisualTestContext,
@@ -305,7 +308,7 @@ fn listed_page(
 }
 
 /// Row `number`'s state in the page's shown list.
-fn row_state(
+pub(in crate::workspace) fn row_state(
     page: &Entity<super::super::gh_pages::GhPage>,
     number: u64,
     cx: &mut VisualTestContext,

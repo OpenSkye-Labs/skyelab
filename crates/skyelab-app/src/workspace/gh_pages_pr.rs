@@ -72,7 +72,14 @@ impl GhPage {
         };
         let (gh, file) = (inputs.gh.clone(), inputs.accounts_file.clone());
         let account = target.account.clone();
-        let url = target.url.clone();
+        // The PR and the layers below it: a stack merge changed them all.
+        let mut urls: Vec<String> = super::super::pr_stack::PrStacks::get(cx, &target.url)
+            .into_iter()
+            .flat_map(|s| &s.layers)
+            .filter_map(|l| skyelab_core::github_pr_url(&l.url))
+            .filter(|u| *u != target.url)
+            .collect();
+        urls.push(target.url.clone());
         let read = cx.background_spawn(async move {
             let config = super::super::accounts_now(file.as_deref(), &target.config);
             let gh_dir =
@@ -81,12 +88,17 @@ impl GhPage {
                 gh: &gh,
                 config_dir: &gh_dir,
             };
-            anyhow::Ok(skyelab_git::pr_status(&github, &target.url)?)
+            let mut out = Vec::with_capacity(urls.len());
+            for url in urls {
+                let status = skyelab_git::pr_status(&github, &url)?;
+                out.push((url, status));
+            }
+            anyhow::Ok(out)
         });
         cx.spawn(async move |this, cx| {
-            let status = read.await;
+            let statuses = read.await;
             _ = this.update(cx, |this, cx| {
-                let Ok(status) = status else {
+                let Ok(statuses) = statuses else {
                     this.groups.retain(|key, _| key.1 == this.filter);
                     return this.refresh(cx);
                 };
@@ -95,15 +107,17 @@ impl GhPage {
                     if key.0 != project || group.account.as_ref().map(|a| &a.0) != Some(&account) {
                         continue;
                     }
-                    if let Listing::Prs(list) = &mut group.listing
-                        && let Some(at) = list.iter().position(|r| r.row.url == url)
-                    {
-                        let row = &mut Arc::make_mut(list)[at].row;
-                        row.state = status.state;
-                        row.draft = status.state == skyelab_git::PrState::Draft;
-                        row.checks = status.checks;
-                        row.review = status.review;
-                        row.head = status.head.clone();
+                    if let Listing::Prs(list) = &mut group.listing {
+                        for (url, status) in &statuses {
+                            if let Some(at) = list.iter().position(|r| &r.row.url == url) {
+                                let row = &mut Arc::make_mut(list)[at].row;
+                                row.state = status.state;
+                                row.draft = status.state == skyelab_git::PrState::Draft;
+                                row.checks = status.checks;
+                                row.review = status.review;
+                                row.head = status.head.clone();
+                            }
+                        }
                     }
                 }
                 cx.notify();

@@ -41,6 +41,10 @@ impl ThreadView {
         };
         let (icon, color, word) = state_look(state, theme);
         let label = url.trim_start_matches("https://").to_owned();
+        let stack_badge = state
+            .is_none_or(|s| !s.is_done())
+            .then(|| super::super::pr_stack::badge(cx, &url))
+            .flatten();
         let open = url.clone();
         let link = tinted_row("details-pr", icon, color, label, theme)
             .on_click(move |_, _, cx| {
@@ -48,6 +52,7 @@ impl ThreadView {
                     cx.open_url(&open);
                 }
             })
+            .children(stack_badge)
             .child(
                 div()
                     .flex_shrink_0()

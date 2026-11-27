@@ -17,6 +17,10 @@
 # "$GH_CONFIG_DIR/fake-repo.json" when it exists, else a repo allowing every merge method.
 # The PR's head commit is the content of "$GH_CONFIG_DIR/fake-head", else 40 1s; the default `pr view` and `pr list`
 # answers report it as headRefOid, and `pr merge` fails unless its --match-head-commit is that sha.
+# Per PR (N, the link's last part): "fake-head-N" is its head, "fake-pr-N.json" its `pr view` answer, "fake-base-N"
+# the default answer's baseRefName (else main; `pr edit --base` writes it, logged to fake-gh.actions), and
+# "fake-action-fail-N" fails its merge. With a "fake-stack-mode" file,
+# a merge leaves "fake-merged-N" (only that PR then reads MERGED) instead of "fake-merged".
 #   fake-gh.prdiff  one line per `pr diff` call (its args): it prints "$GH_CONFIG_DIR/fake-pr.diff" when it exists, else a
 #   one-file diff; a "fake-head-after-diff" file then becomes the head (a push landing mid-read)
 #   `api` calls log their args to fake-gh.actions and stdin to fake-gh.review-body (a review with line comments), and
@@ -54,12 +58,17 @@ case "$1 $2" in
     echo "To get started with GitHub CLI, please run:  gh auth login" >&2
     exit 4
   fi
-  if [ -f "$dir/fake-merged" ]; then
-    echo '{"state":"MERGED","isDraft":false,"mergedAt":"2026-11-24T09:00:00Z","reviewDecision":"","statusCheckRollup":[]}'
+  pr_num="${3##*/}"
+  pr_base=$(cat "$dir/fake-base-$pr_num" 2>/dev/null || echo main)
+  if [ -f "$dir/fake-merged" ] || [ -f "$dir/fake-merged-$pr_num" ]; then
+    echo '{"state":"MERGED","isDraft":false,"mergedAt":"2026-11-24T09:00:00Z","reviewDecision":"","baseRefName":"'"$pr_base"'","statusCheckRollup":[]}'
+  elif [ -f "$dir/fake-pr-$pr_num.json" ]; then
+    cat "$dir/fake-pr-$pr_num.json"
   elif [ -f "$dir/fake-pr.json" ]; then
     cat "$dir/fake-pr.json"
   else
-    echo '{"state":"OPEN","isDraft":false,"mergedAt":null,"reviewDecision":"","headRefOid":"'"$head_sha"'","statusCheckRollup":[{"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://github.com/acme/demo/actions/runs/1"}]}'
+    pr_head=$(cat "$dir/fake-head-$pr_num" 2>/dev/null || echo "$head_sha")
+    echo '{"state":"OPEN","isDraft":false,"mergedAt":null,"reviewDecision":"","headRefOid":"'"$pr_head"'","baseRefName":"'"$pr_base"'","statusCheckRollup":[{"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://github.com/acme/demo/actions/runs/1"}]}'
   fi
   ;;
 "pr list" | "issue list")
@@ -118,6 +127,11 @@ case "$1 $2" in
     echo "To get started with GitHub CLI, please run:  gh auth login" >&2
     exit 4
   fi
+  pr_num="${3##*/}"
+  if [ -f "$dir/fake-action-fail-$pr_num" ]; then
+    cat "$dir/fake-action-fail-$pr_num" >&2
+    exit 1
+  fi
   if [ -f "$dir/fake-action-fail" ]; then
     cat "$dir/fake-action-fail" >&2
     exit 1
@@ -129,12 +143,23 @@ case "$1 $2" in
       [ "$prev" = "--match-head-commit" ] && pinned="$a"
       prev="$a"
     done
-    if [ "$pinned" != "$head_sha" ]; then
+    expected_head=$(cat "$dir/fake-head-$pr_num" 2>/dev/null || echo "$head_sha")
+    if [ "$pinned" != "$expected_head" ]; then
       echo "Head branch was modified. Review and try the merge again." >&2
       exit 1
     fi
-    : > "$dir/fake-merged"
+    if [ -f "$dir/fake-stack-mode" ]; then
+      : > "$dir/fake-merged-$pr_num"
+    else
+      : > "$dir/fake-merged"
+    fi
   fi
+  exit 0
+  ;;
+"pr edit")
+  # Only `pr edit <url> --base <branch>` (a stack layer moved onto the branch below): its base becomes "fake-base-N".
+  echo "$*" >> "$dir/fake-gh.actions"
+  [ "$4" = --base ] && printf '%s' "$5" > "$dir/fake-base-${3##*/}"
   exit 0
   ;;
 "issue comment" | "issue close" | "issue reopen")

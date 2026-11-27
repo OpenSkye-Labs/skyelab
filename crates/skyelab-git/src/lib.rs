@@ -12,6 +12,7 @@ mod frozen;
 mod gh_lists;
 mod issue_actions;
 mod pr_actions;
+mod pr_stack;
 mod publish;
 mod remote;
 mod status;
@@ -47,6 +48,7 @@ pub use pr_actions::{
     MergeMethod, PrDiff, ReviewComment, Side, Verdict, merge_methods, merge_pr, pr_diff, review_pr,
     submit_review,
 };
+pub use pr_stack::{PrStack, StackMergeError, merge_stack, repo_open_prs, stack_for};
 pub use publish::{GitHub, create_pr, credential_args, gh_login, push, push_with};
 pub use remote::{
     Checks, FailedCheck, MAX_FAILED_CHECKS, PrState, PrStatus, Review, ahead_behind, fetch,

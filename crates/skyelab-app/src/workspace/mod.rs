@@ -102,6 +102,7 @@ mod ask_dock;
 mod ask_files;
 mod issue_actions;
 mod pr_actions;
+mod pr_stack;
 mod project_rules;
 mod project_rules_page;
 pub use project_rules_page::ProjectRulesPage;

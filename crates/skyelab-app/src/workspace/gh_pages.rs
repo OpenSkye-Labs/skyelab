@@ -262,6 +262,7 @@ impl GhPage {
                 let landed = this.update(cx, |this, cx| {
                     if this.pending.get(&key) == Some(&read) {
                         this.pending.remove(&key);
+                        super::pr_stack::record_listing(key.1, &group.listing, cx);
                         this.groups.insert(key, group);
                         cx.notify();
                     }
