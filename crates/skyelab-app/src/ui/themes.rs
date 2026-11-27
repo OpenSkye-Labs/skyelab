@@ -17,7 +17,7 @@ pub struct Family {
     pub key: &'static str,
     pub label: &'static str,
     pub about: &'static str,
-    json: &'static str,
+    pub(super) json: &'static str,
 }
 
 pub const FAMILIES: [Family; 14] = [
@@ -313,6 +313,16 @@ pub fn sync(window: &mut gpui::Window, cx: &mut App) {
     if Theme::global(cx).mode != m {
         Theme::change(m, Some(window), cx);
     }
+}
+
+/// One theme of family `key` as JSON, with the accent preset and text sizes of `s` written in.
+pub fn adjusted(_key: &str, _s: &AppearanceSettings, _dark: bool) -> serde_json::Value {
+    todo!("stage 2a: adjust on the JSON map")
+}
+
+/// Shows the mode for `appearance` (the window's): what [`sync`] does with the window's own.
+pub fn follow(_appearance: gpui::WindowAppearance, _window: &mut gpui::Window, _cx: &mut App) {
+    todo!("stage 2a: follow the system appearance")
 }
 
 /// The family's terminal colors: each theme's `terminal.ansi`, 16 hex colors (gpui-component ignores the key).

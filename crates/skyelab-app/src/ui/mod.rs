@@ -69,6 +69,18 @@ mod terminal_colors_test;
 #[cfg(test)]
 mod tests;
 mod text_field;
+pub mod theme;
+#[cfg(test)]
+mod theme_boundary_test;
+#[cfg(test)]
+mod theme_font_test;
+pub(crate) mod theme_load;
+#[cfg(test)]
+mod theme_load_test;
+#[cfg(test)]
+mod theme_match_test;
+#[cfg(test)]
+mod theme_switch_test;
 pub mod themes;
 #[cfg(test)]
 mod themes_test;
