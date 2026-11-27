@@ -451,7 +451,10 @@ impl Client {
             let result = result.and_then(|r| pick(r).ok_or(Error::UnexpectedReply));
             let _ = tx.send(result); // the caller may have dropped its Pending
         });
-        self.command(conn::Command::Call { call, reply });
+        self.command(conn::Command::Call {
+            call: Box::new(call),
+            reply,
+        });
         Pending(rx)
     }
 

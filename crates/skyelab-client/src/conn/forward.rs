@@ -97,7 +97,7 @@ pub(super) fn stop_remote(commands: &flume::WeakSender<Command>, port: u16, toke
     if let Some(commands) = commands.upgrade() {
         let token = token.to_owned();
         let _ = commands.send(Command::Call {
-            call: Call::StopForward { port, token },
+            call: Box::new(Call::StopForward { port, token }),
             reply: Box::new(|_| {}),
         });
     }

@@ -34,7 +34,7 @@ pub(crate) type ReplyFn = Box<dyn FnOnce(Result<Reply, Error>) + Send>;
 
 pub(crate) enum Command {
     Call {
-        call: Call,
+        call: Box<Call>,
         reply: ReplyFn,
     },
     Watch {
@@ -316,7 +316,7 @@ impl Live {
                 reply(Err(Error::NotConnected));
                 Ok(())
             }
-            Command::Call { call, reply } => self.request(cx, call, Waiter::User(reply)).await,
+            Command::Call { call, reply } => self.request(cx, *call, Waiter::User(reply)).await,
             Command::Watch { id, after_seq } => {
                 cx.watch(id, after_seq);
                 if self.held.is_some() {
