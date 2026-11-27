@@ -127,11 +127,10 @@ impl AppHost {
             }
             Err(Error::Rpc(e)) if e.code == ErrorCode::DelegationNotAllowed => {
                 self.note_linked(machine, caller, false);
-                let why = format!(
-                    "{machine} doesn't allow this: {}. The user is asked there (Settings → Sharing & access).",
-                    e.message
-                );
-                Err(Failed::Refused(Some(e.code), why))
+                Err(Failed::Refused(
+                    Some(e.code),
+                    not_allowed_text(machine, &e.message),
+                ))
             }
             // The other machine's UI didn't answer in time; its launch may still go on.
             Err(Error::Rpc(e)) if e.code == ErrorCode::Internal => Err(Failed::Lost(format!(
@@ -382,6 +381,19 @@ impl AppHost {
         }
     }
 }
+
+/// What the agent reads when `machine` refuses for want of a link: its reason, then where the user answers.
+fn not_allowed_text(machine: &str, why: &str) -> String {
+    // An older 1.8 peer ends its reason with this itself.
+    let why = why.trim_end_matches("; the user is asked there");
+    format!(
+        "{machine} doesn't allow this: {why}. The user is asked there (Settings → Sharing & access)."
+    )
+}
+
+#[cfg(test)]
+#[path = "delegate_out_text_test.rs"]
+mod text_test;
 
 #[path = "delegate_out_ui.rs"]
 mod ui;

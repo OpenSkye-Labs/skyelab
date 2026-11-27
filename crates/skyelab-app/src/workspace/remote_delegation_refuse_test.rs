@@ -17,6 +17,8 @@ fn refused(b: &B, from: &skyelab_protocol::Delegator, project: &str, code: Error
         assert!(!e.message.contains(part), "{part} in {:?}", e.message);
     }
     assert!(!e.message.contains('/'), "{:?}", e.message);
+    // The calling machine adds where the user is asked; said here too, the agent read it twice.
+    assert!(!e.message.contains("asked there"), "{:?}", e.message);
 }
 
 #[gpui::test]
