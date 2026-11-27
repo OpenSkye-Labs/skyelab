@@ -42,7 +42,7 @@ fn round_trip_hello() {
             capabilities: vec!["events".into()],
             device_key: Some("k".into()),
         },
-        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 7}, "capabilities": ["events"], "device_key": "k"}}),
+        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 8}, "capabilities": ["events"], "device_key": "k"}}),
     );
 }
 

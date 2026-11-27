@@ -25,7 +25,8 @@ pub(super) fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcEr
         Call::ForwardPort { .. }
         | Call::StopForward { .. }
         | Call::OpenTunnel { .. }
-        | Call::SubscribeShell => Err(RpcError::new(ErrorCode::BadRequest, "not a backend call")),
+        | Call::SubscribeShell
+        | Call::Delegate { .. } => Err(RpcError::new(ErrorCode::BadRequest, "not a backend call")),
         Call::AnswerPermission {
             thread_id,
             request_id,

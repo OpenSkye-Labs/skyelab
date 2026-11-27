@@ -328,6 +328,7 @@ fn wire_thread(
             compare_group: t.compare_group,
             scheduled_task_id: t.scheduled_task_id,
             limit_resume_at: t.limit_resume_at,
+            delegated_from: None,
         },
     }
 }

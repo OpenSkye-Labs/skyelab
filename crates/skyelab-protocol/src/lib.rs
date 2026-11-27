@@ -6,11 +6,13 @@
 
 use serde::{Deserialize, Serialize};
 
+mod delegate;
 mod shell;
+pub use delegate::{DELEGATION_SINCE_MINOR, DelegateOp, DelegatedFrom, Delegator, Login};
 pub use shell::{ShellChange, ShellDelta, ShellSnapshot};
 
 /// Minor bumps only add optional fields, methods or error codes. A major bump breaks the wire format.
-pub const VERSION: Version = Version { major: 1, minor: 7 };
+pub const VERSION: Version = Version { major: 1, minor: 8 };
 
 /// The minor version that added port forwarding (`forward_port`, `stop_forward`, `open_tunnel`).
 pub const FORWARDS_SINCE_MINOR: u32 = 5;
@@ -206,6 +208,11 @@ pub enum Call {
     /// this connection as [`ServerMessage::Shell`] (1.7). Subscribing again replaces the stream with a new snapshot:
     /// that is how a client recovers from a gap or a reconnect.
     SubscribeShell,
+    /// An agent on the calling machine delegates here (1.8). Answered with [`Reply::Delegated`].
+    Delegate {
+        caller: Delegator,
+        op: DelegateOp,
+    },
 }
 
 /// What a remote user may answer a permission request with (1.3).
@@ -261,6 +268,8 @@ pub enum Reply {
     },
     /// The answer to `subscribe_shell` (1.7).
     Shell(ShellSnapshot),
+    /// A `delegate` call's answer (1.8): the same JSON the local tool would give.
+    Delegated(serde_json::Value),
     /// For calls with nothing to return (`send_message`, `interrupt`, `answer_permission`, `answer_questions`,
     /// `stop_forward`, `open_tunnel`, `shelve_thread`).
     Ok,
@@ -307,6 +316,8 @@ pub enum ErrorCode {
     NotApproved,
     /// Hello from a device key the user turned down on that machine (1.2). The connection closes.
     Denied,
+    /// A `delegate` call this machine doesn't allow (1.8): no link, a login that doesn't match, another provider.
+    DelegationNotAllowed,
     /// A code from a newer minor version.
     #[serde(other)]
     Unknown,
@@ -402,6 +413,9 @@ pub struct ThreadRow {
     /// Usage limited: it continues by itself then (Unix ms).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit_resume_at: Option<i64>,
+    /// Started by an agent on another machine (1.8).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delegated_from: Option<DelegatedFrom>,
 }
 
 /// How much of a thread's last reply [`Thread::preview`] carries: enough for a sidebar row's two lines.
