@@ -135,7 +135,7 @@ impl RenderOnce for SegmentedControl {
                     "ui::SegmentedControl item {ix} must have a non-empty label (docs/gpui/accessibility.md)"
                 );
                 // gpui-base's headless button: a tab stop that Space and Enter pick, a press that keeps focus put.
-                super::a11y_scroll::scrolls_into_view(gpui_base::Button::new(ix))
+                let button = super::a11y_scroll::scrolls_into_view(gpui_base::Button::new(ix))
                     .selected(on)
                     .on_any_mouse_down(|_, window, _| window.prevent_default())
                     .role(accesskit::Role::RadioButton)
@@ -165,7 +165,8 @@ impl RenderOnce for SegmentedControl {
                     })
                     .when_some(item.icon, |d, i| d.child(Icon::new(i).size(c.size.icon())))
                     .when_some(item.label, |d, l| d.child(l))
-                    .when_some(f, |d, f| d.on_click(move |_, w, cx| f(&ix, w, cx)))
+                    .when_some(f, |d, f| d.on_click(move |_, w, cx| f(&ix, w, cx)));
+                crate::settings::scroll::track_button(ix, button)
             }))
     }
 }
@@ -196,7 +197,7 @@ impl RenderOnce for Tabs {
                     "ui::Tabs item {ix} must have a non-empty label (docs/gpui/accessibility.md)"
                 );
                 // gpui-base's headless button: a tab stop that Space and Enter pick, a press that keeps focus put.
-                super::a11y_scroll::scrolls_into_view(gpui_base::Button::new(ix))
+                let button = super::a11y_scroll::scrolls_into_view(gpui_base::Button::new(ix))
                     .selected(on)
                     .on_any_mouse_down(|_, window, _| window.prevent_default())
                     .role(accesskit::Role::Tab)
@@ -228,7 +229,8 @@ impl RenderOnce for Tabs {
                     .when(!on, |d| d.hover(move |s| s.text_color(fg)))
                     .when_some(item.icon, |d, i| d.child(Icon::new(i).size(c.size.icon())))
                     .when_some(item.label, |d, l| d.child(div().child(l)))
-                    .when_some(f, |d, f| d.on_click(move |_, w, cx| f(&ix, w, cx)))
+                    .when_some(f, |d, f| d.on_click(move |_, w, cx| f(&ix, w, cx)));
+                crate::settings::scroll::track_button(ix, button)
             }))
     }
 }

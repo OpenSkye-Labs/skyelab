@@ -513,7 +513,8 @@ impl RenderOnce for Button {
                 .map(|i| Self::icon_el(i, size.icon(), c.icon).into_any_element())
         };
         let fg = c.fg;
-        base.when_some(lead, |b, i| b.child(i))
+        let button = base
+            .when_some(lead, |b, i| b.child(i))
             .when_some(self.label, |b, label| {
                 b.child(
                     div()
@@ -567,7 +568,8 @@ impl RenderOnce for Button {
                         .build(window, cx)
                     })
                 },
-            )
+            );
+        crate::settings::scroll::track_button(self.id, button)
     }
 }
 

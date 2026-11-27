@@ -149,6 +149,7 @@ impl Settings {
     pub fn show(&mut self, section: Section, _: &mut Window, cx: &mut Context<Self>) {
         if self.section != section {
             self.section = section;
+            self.body_scroll.reset();
             self.error = self.locked.clone();
             self.threads_error = None;
             self.error_open = false;
@@ -241,29 +242,29 @@ impl Settings {
             Section::Worktrees => self.render_worktrees(cx),
             Section::About => self.render_about(cx),
         };
+        let content = v_flex()
+            .w_full()
+            .max_w(crate::ui::SETTINGS_MAX_W)
+            .mx_auto()
+            .px_8()
+            .pt_7()
+            .pb_12()
+            .gap_8()
+            .children(self.render_error(cx))
+            .children(
+                matches!(self.section, Section::Chat | Section::Worktrees)
+                    .then(|| self.render_scope(cx))
+                    .flatten(),
+            )
+            .child(body);
         div()
             .id("settings-body")
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
             .a11y_scroll_area()
-            .child(
-                v_flex()
-                    .w_full()
-                    .max_w(crate::ui::SETTINGS_MAX_W)
-                    .mx_auto()
-                    .px_8()
-                    .pt_7()
-                    .pb_12()
-                    .gap_8()
-                    .children(self.render_error(cx))
-                    .children(
-                        matches!(self.section, Section::Chat | Section::Worktrees)
-                            .then(|| self.render_scope(cx))
-                            .flatten(),
-                    )
-                    .child(body),
-            )
+            .track_scroll(self.body_scroll.handle())
+            .child(self.body_scroll.wrap(content))
             .into_any_element()
     }
 

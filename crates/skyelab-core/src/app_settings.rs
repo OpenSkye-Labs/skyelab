@@ -1,5 +1,6 @@
 //! App preferences that aren't accounts: `settings.toml`, next to `accounts.toml`.
 
+use crate::visual_replies::VisualReplySettings;
 use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -107,25 +108,6 @@ pub fn same_locale(a: &str, b: &str) -> bool {
 /// A locale id as stored: trimmed, `_` as `-`, ASCII lowercase.
 pub fn normalize_locale(locale: &str) -> String {
     locale.trim().replace('_', "-").to_ascii_lowercase()
-}
-
-/// Settings → Chat → Visual replies.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct VisualReplySettings {
-    /// https hosts (`cdn.example.com`, `*.example.com`) a page may load scripts, styles and fonts from; checked
-    /// with `page_hosts::parse_host` when added and again when a page uses it. Only the user adds one.
-    pub allowed_hosts: Vec<String>,
-}
-
-impl Default for VisualReplySettings {
-    fn default() -> Self {
-        Self {
-            allowed_hosts: crate::page_hosts::DEFAULT_PAGE_HOSTS
-                .map(String::from)
-                .to_vec(),
-        }
-    }
 }
 
 /// A named sidebar filter: the scope's projects, by folder (a project's id changes if it is added again), and the

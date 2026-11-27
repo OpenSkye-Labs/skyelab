@@ -82,7 +82,8 @@ impl Toggle {
             "ui::Switch/Checkbox({:?}) must have a non-empty label or accessibility_label, or use .decorative() inside a clickable row (docs/gpui/accessibility.md)",
             self.id
         );
-        super::a11y_scroll::scrolls_into_view(gpui_base::Button::new(self.id))
+        let id = self.id.clone();
+        let button = super::a11y_scroll::scrolls_into_view(gpui_base::Button::new(self.id))
             .role(role)
             .disabled(self.disabled)
             .flex_shrink_0()
@@ -113,8 +114,8 @@ impl Toggle {
             })
             .when_some(self.on_click.filter(|_| interactive), |d, f| {
                 d.on_click(move |_: &ClickEvent, window, cx| f(&!checked, window, cx))
-            })
-            .into_any_element()
+            });
+        crate::settings::scroll::track_button(id, button).into_any_element()
     }
 }
 

@@ -106,3 +106,51 @@ fn a_rendered_page_is_stored_and_drawn_as_a_card(cx: &mut gpui::TestAppContext) 
     let (is_error, _) = wait_result(cx, &rig.store, thread, 1);
     assert!(is_error, "no web engine in a test window");
 }
+
+#[gpui::test]
+fn html_width_changes_target_width_and_snapshot_cache_key(cx: &mut gpui::TestAppContext) {
+    use gpui::{Context, IntoElement, Render, Window, div, px, size};
+    use skyelab_core::HtmlWidth;
+
+    struct Blank;
+    impl Render for Blank {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+        }
+    }
+
+    cx.update(gpui_component::init);
+    let (_, cx) = cx.add_window_view(|_, _| Blank);
+    cx.simulate_resize(size(px(1200.), px(700.)));
+    cx.run_until_parked();
+
+    let (std_w, wide_w, full_w) = cx.update(|window, _| {
+        (
+            super::target_width(HtmlWidth::Standard, window),
+            super::target_width(HtmlWidth::Wide, window),
+            super::target_width(HtmlWidth::Full, window),
+        )
+    });
+    assert_eq!(std_w, 728);
+    assert_eq!(wide_w, 960);
+    assert!(
+        (240..=1600).contains(&full_w) && full_w > wide_w,
+        "Full width at 1200 px viewport should exceed Wide (960) and clamp to 240..=1600; got {full_w}"
+    );
+
+    // Narrow viewport clamps Full cleanly to the 240..=1600 range.
+    cx.simulate_resize(size(px(200.), px(700.)));
+    cx.run_until_parked();
+    let narrow_full = cx.update(|window, _| super::target_width(HtmlWidth::Full, window));
+    assert_eq!(narrow_full, 240);
+
+    // Width changes produce distinct snapshot cache keys so cards re-render at the new width.
+    let theme = cx.update(|_, cx| super::page_theme(true, cx));
+    let hosts = vec!["cdn.jsdelivr.net".to_owned()];
+    let k_std = super::shot_key("toolu_1", "<p>chart</p>", &theme, &hosts, 728);
+    let k_wide = super::shot_key("toolu_1", "<p>chart</p>", &theme, &hosts, 960);
+    let k_full = super::shot_key("toolu_1", "<p>chart</p>", &theme, &hosts, 1280);
+    assert_ne!(k_std, k_wide);
+    assert_ne!(k_wide, k_full);
+    assert_ne!(k_std, k_full);
+}
