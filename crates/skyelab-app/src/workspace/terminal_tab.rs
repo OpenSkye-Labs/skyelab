@@ -233,7 +233,11 @@ impl BasePanel for TerminalPanel {
 
 impl Panel for TerminalPanel {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        super::tab_context_menu::tab_title(cx.entity_id().into(), self.tab(cx))
+        super::tab_context_menu::tab_title(
+            cx.entity_id().into(),
+            self.renaming.is_none().then(|| self.tab_label()),
+            self.tab(cx),
+        )
     }
     fn title_suffix(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         Some(self.controls(cx))

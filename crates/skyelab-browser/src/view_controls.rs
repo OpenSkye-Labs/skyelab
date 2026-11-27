@@ -307,6 +307,9 @@ impl BrowserView {
         Button::new("browser-menu")
             .icon(IconName::Ellipsis)
             .accessibility_label("Browser menu")
+            // The menu opens on the press itself; a click handler is what makes the button advertise an accessibility
+            // press (GPUI's default press is a click at its center, which opens the menu as the mouse does).
+            .on_click(|_, _, _| {})
             .small()
             .ghost()
             .dropdown_menu_with_anchor(gpui::Anchor::TopRight, move |menu, _, cx| {

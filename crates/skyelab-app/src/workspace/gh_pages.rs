@@ -9,8 +9,8 @@ use super::thread::ThreadView;
 use super::thread::composer::composer_context::ChipKind;
 use super::{NewThreadIn, Workspace, center::Page};
 use gpui::{
-    AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, SharedString,
-    Subscription, Window, actions,
+    AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement as _,
+    SharedString, Subscription, Window, actions,
 };
 use skyelab_core::{AccountsConfig, terminal_context};
 use skyelab_git::{GitHub, IssueFilter, IssueRow, PrFilter, PrRow};
@@ -531,3 +531,21 @@ mod review_tests;
 #[cfg(test)]
 #[path = "gh_pages_test.rs"]
 mod tests;
+
+/// `what` ("PR #12") tells each row's button apart.
+pub(super) fn browser_button(id: gpui::SharedString, what: &str, url: &str) -> gpui::AnyElement {
+    let url = url.to_owned();
+    crate::ui::Button::new(id)
+        .ghost()
+        .xsmall()
+        .icon(crate::ui::SkyeIcon::ExternalLink)
+        .tooltip("Open in browser")
+        .accessibility_label(format!("Open {what} in browser"))
+        .on_click(move |_, _, cx| {
+            cx.stop_propagation(); // not the row's own click
+            if let Some(url) = browser_url(&url) {
+                cx.open_url(url);
+            }
+        })
+        .into_any_element()
+}

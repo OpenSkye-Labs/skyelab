@@ -119,6 +119,7 @@ impl Panel for SurfacesPanel {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::workspace::tab_context_menu::tab_title(
             cx.entity_id().into(),
+            Some("Open a surface".into()),
             Icon::new(SkyeIcon::Plus).size_3p5(),
         )
     }

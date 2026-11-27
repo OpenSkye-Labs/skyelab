@@ -218,7 +218,11 @@ impl gpui_component::dock::BasePanel for SideChatPanel {
 impl Panel for SideChatPanel {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let title = self.view.read(cx).title();
-        crate::workspace::tab_context_menu::tab_title(cx.entity_id().into(), title)
+        crate::workspace::tab_context_menu::tab_title(
+            cx.entity_id().into(),
+            Some(title.clone()),
+            title,
+        )
     }
     fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
         None
