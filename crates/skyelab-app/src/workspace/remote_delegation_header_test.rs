@@ -29,6 +29,12 @@ fn the_childs_header_names_the_parent_and_its_machine(cx: &mut TestAppContext) {
     wait_until(cx, "the reopened view's origin", |cx| {
         reopened.read_with(cx, |v, _| v.delegated_label().is_some())
     });
+    // And its header draws it.
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("thread-header-delegated").is_some(), "the header's origin is drawn");
+    let snaps = cx.update(|window, _| gpui_base::test_support::snapshots(window));
+    let texts: Vec<_> = snaps.iter().filter_map(|s| s.label()).collect();
+    assert!(texts.contains(&"Delegated by parent on phone"), "{texts:?}");
 }
 
 #[gpui::test]
