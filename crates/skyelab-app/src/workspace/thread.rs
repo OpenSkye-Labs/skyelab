@@ -64,15 +64,15 @@ pub use super::thread_details::ChildLink;
 pub use event::{GitAction, ThreadViewEvent};
 
 pub struct ThreadView {
-    /// Debug mode's live count (docs/debugging.md): a count that grows as threads close is a leak.
+    /// Debug mode's live count (docs/debugging.md): growing as threads close is a leak.
     _live: skyelab_core::debug::Live,
     pub(super) focus: FocusHandle,
     pub(super) project_id: i64,
-    /// The project's name, as the sidebar shows it (the workspace keeps it current across renames).
+    /// The project's name, as the sidebar shows it (kept current across renames).
     pub(super) project_name: SharedString,
     pub(super) cwd: PathBuf,
     pub(super) config: AccountsConfig,
-    /// The account `cwd` resolves to now, for display (resolving touches the filesystem, so never in render).
+    /// The account `cwd` resolves to now, for display (resolving touches the disk, so never in render).
     pub(super) folder_account: Option<skyelab_core::Account>,
     pub(super) backend: Backend,
     pub(super) prompt: Entity<TextareaState>,
@@ -91,8 +91,7 @@ pub struct ThreadView {
     pub(super) limit_tick: Option<Task<()>>,
     /// The timeline's list state, one per window that shows the thread (`window_owner::Lists`).
     pub(super) lists: window_owner::Lists,
-    /// Rows a live record just added: from this index on, and when (Rex's list insertion fade). History loads
-    /// and rows scrolled into view never set it.
+    /// Rows a live record just added: from this index on, and when (the insertion fade). Never set by loads.
     pub(super) appeared: Option<(usize, std::time::Instant)>,
     expanded: HashSet<String>,
     /// Turn files, the find bar, a closed failure banner.
@@ -101,22 +100,22 @@ pub struct ThreadView {
     pub(super) drafts: std::collections::HashMap<String, super::ask_cards::QuestionDraft>,
     pub(super) error: Option<SharedString>,
     pub(super) starting: bool,
-    /// When the running (or last) turn's prompt was sent, ms since the epoch: the "Working 1m 12s" timers.
+    /// When the running (or last) turn's prompt was sent (epoch ms): the "Working 1m 12s" timers.
     pub(super) turn_started_ms: Option<i64>,
     pub(super) _tick: Option<Task<()>>,
     /// Hooks the agent runs now, newest last.
     pub(super) hooks: Vec<super::thread_hooks::Hook>,
-    /// The launch that hasn't reported its session or output yet: the working row names its step.
+    /// The launch that hasn't reported its session or output yet: the working row names its step
     pub(super) startup: Option<super::thread_hooks::Startup>,
-    /// The prompt a resume launch sent, kept until its session answers: rerun in a new session if it was gone.
+    /// A resume's prompt, kept until its session answers: rerun anew if it was gone.
     pub(super) resumed_prompt: Option<String>,
-    /// Images sent from this tab, by their message's shown text: in memory only, for the thumbnails and viewer.
+    /// Images sent from this tab, by shown text: in memory only, for the thumbnails and viewer.
     pub(super) sent_images: std::collections::HashMap<String, super::image_viewer::Sent>,
     /// Set when the resumed session was gone: rerun when this agent has ended.
     pub(super) rerun: Option<String>,
-    /// Started without the user (delegated, or from another device): its row is marked unread when it gets one.
+    /// Started without the user (delegated, from another device): its row is marked unread.
     pub(super) background: bool,
-    /// The window that owns it (last showed it): its prompt lives there, and only it acts on the view's events.
+    /// The window that owns it (last showed it): its prompt lives there; only it acts on the view's events.
     pub(super) window: gpui::AnyWindowHandle,
     stop_requested: bool,
     /// Bumped by every launch; a pump from an earlier launch never ends a later one.
@@ -131,40 +130,40 @@ pub struct ThreadView {
     pub(super) scripts: Entity<super::scripts::ScriptMenu>,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
-    /// Its owner window (`window`) shows another machine: actions that open a new local thread (Continue in …) can't
-    /// run there.
+    /// Its window shows another machine: actions that open a local thread can't run there.
     pub(in crate::workspace) remote_window: bool,
-    /// Records the store refused, held for a retry, and how many there are (shown as a warning).
+    /// Records the store refused, held for a retry, and how many (shown as a warning).
     unsaved: saves::Unsaved,
     pub(super) unsaved_events: usize,
     retrying_saves: bool,
     /// The thread whose agent started this one: (id, title).
     pub(super) parent: Option<(i64, SharedString)>,
+    /// Or the other machine's agent that did.
+    pub(super) remote_parent: Option<skyelab_store::DelegatedOrigin>,
     /// A delegated start runs only under the account its delegation was approved for.
     pub(super) required_account: Option<String>,
-    /// The multi-model send this draft is one model of: written on its row when the launch saves it.
+    /// The multi-model send this draft is one model of: written on its row at launch.
     pub(super) compare_group: Option<i64>,
     /// The scheduled task this new thread runs for: written on its row (the sidebar's badge).
     pub(super) scheduled_task: Option<i64>,
     pub(super) children: Vec<ChildLink>,
     /// The details card's state for this thread.
     pub(super) details: super::thread_details::Details,
-    /// Which tool calls the agent makes without asking. Stored on the row, used at every launch.
+    /// Which tool calls the agent makes without asking: stored on the row, used at every launch.
     pub(super) mode: Mode,
     /// Full access was picked and waits for the user to confirm it.
     pub(super) confirm_bypass: bool,
-    /// Mode writes (store row, running agent) run one at a time, each writing the newest pick, so two quick picks
-    /// can't land in the wrong order.
+    /// Mode writes run one at a time, each writing the newest pick, so two quick picks can't land out of order.
     mode_writes: Arc<Mutex<()>>,
     mode_now: Arc<std::sync::atomic::AtomicUsize>,
     /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
     grant: Option<super::orchestrate::Grant>,
     pub(super) send_chain: Option<Task<()>>,
-    /// Answered with the next follow-up's result, once its store write (and slot claim) is done.
+    /// Answered with the next follow-up's result, once its store write (and slot claim) ran.
     pub(super) on_sent: Option<flume::Sender<Result<(), String>>>,
     /// Attachments, menus, the model pick, the queue and the footer (`composer_state.rs`).
     pub(super) composer: composer::Composer,
-    /// The rows and minimap, drawn cached so a composer-only redraw (the caret blink) doesn't rebuild them.
+    /// The rows and minimap, cached so a composer-only redraw (caret blink) doesn't rebuild them.
     pub(super) timeline_view: Entity<super::timeline_view::TimelineView>,
     _pump: Option<Task<()>>,
     /// Ends the agent once it has sat idle a while (`thread_release.rs`).
@@ -253,18 +252,20 @@ impl ThreadView {
                         .collect();
                     let sides = lock(&store)?.side_chats(id)?;
                     let sides = sides.into_iter().map(|t| (t.id, t.title.into())).collect();
-                    let lineage = (parent, children, sides);
+                    let from = lock(&store)?.delegated_from(id)?;
+                    let lineage = (parent, children, sides, from);
                     let mark = lock(&store)?.scroll_mark(id)?;
                     anyhow::Ok((row, lineage, rows.len() - records.len(), records, mark))
                 })
                 .await;
             let _ = this.update(cx, |this, cx| match loaded {
-                Ok((row, (parent, children, sides), skipped, records, mark)) => {
+                Ok((row, (parent, children, sides, from), skipped, records, mark)) => {
                     if let Some(row) = row {
                         this.mode = super::side_chat::row_mode(&row);
                         this.thread = Some(row);
                     }
                     this.parent = parent;
+                    this.remote_parent = from;
                     this.children = children;
                     this.details.side_chats = sides;
                     this.finish(cx);
@@ -371,6 +372,7 @@ impl ThreadView {
             retrying_saves: false,
             turns: Arc::default(),
             parent: None,
+            remote_parent: None,
             required_account: None,
             compare_group: None,
             scheduled_task: None,

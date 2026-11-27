@@ -107,6 +107,7 @@ impl ThreadView {
         let base_branch = self.branch_picker.read(cx).base.clone();
         let pin = self.wt.pin.clone();
         let parent = self.parent.as_ref().map(|p| p.0);
+        let remote_parent = self.remote_parent.clone().filter(|_| resume.is_none());
         let compare_group = self.compare_group.filter(|_| resume.is_none());
         // A side chat is a read-only helper: Plan mode and none of SkyeLab's tools, whatever its row or view says.
         let side = self.is_side_chat() || resume.as_ref().is_some_and(|t| t.side_of.is_some());
@@ -181,15 +182,13 @@ impl ThreadView {
                                     anyhow::bail!(BUSY_ELSEWHERE);
                                 }
                                 // A resumed child takes a slot again, under the same lock as its status.
-                                if let Some(parent) = thread.parent_thread_id {
-                                    crate::workspace::child_slots::claim(
-                                        &store,
-                                        parent,
-                                        Some(thread.id),
-                                    )?;
+                                use crate::workspace::child_slots::{claim_for, delegated_parent};
+                                if let Some(key) =
+                                    delegated_parent(&store, thread.id, thread.parent_thread_id)?
+                                {
+                                    claim_for(&store, &key, Some(thread.id))?;
                                 }
                                 store.set_thread_status(thread.id, "starting")?;
-                                claimed = Some(thread.id);
                                 thread
                             }
                             None => crate::workspace::worktree::save(
@@ -206,12 +205,11 @@ impl ThreadView {
                                 },
                                 worktree,
                                 parent,
+                                remote_parent.as_ref(),
                             )?,
                         };
-                        // A new row, or a child's slot: either must not stay busy if this launch fails.
-                        if is_new || thread.parent_thread_id.is_some() {
-                            claimed = Some(thread.id);
-                        }
+                        // A new row, or a resumed thread's slot: neither may stay busy if this launch fails.
+                        claimed = Some(thread.id);
                         // Grouped before the row is announced, so the sidebar folds it in at once.
                         if let Some(group) = compare_group {
                             lock(&store)?.set_thread_compare_group(thread.id, group)?;
@@ -358,7 +356,7 @@ impl ThreadView {
         if let Some(cwd) = thread
             .worktree_path
             .clone()
-            .filter(|_| thread.parent_thread_id.is_none())
+            .filter(|_| thread.parent_thread_id.is_none() && self.remote_parent.is_none())
         {
             let account_id = thread.account_id.clone();
             cx.emit(ThreadViewEvent::WorktreeCreated { cwd, account_id });

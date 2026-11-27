@@ -146,13 +146,26 @@ pub(super) fn save(
     new: &skyelab_store::NewThread,
     worktree: Option<Created>,
     parent: Option<i64>,
+    remote: Option<&skyelab_store::DelegatedOrigin>,
 ) -> Result<skyelab_store::Thread> {
     let path = worktree.as_ref().map(|w| w.path.clone());
     let saved = super::lock(store).and_then(|store| {
         if let Some(parent) = parent {
             super::child_slots::claim(&store, parent, None)?;
         }
+        if let Some(o) = remote {
+            super::child_slots::claim_for(&store, &super::child_slots::remote_key(o), None)?;
+        }
         let mut thread = store.create_thread(new)?;
+        // Before the agent spawns, with its request id: a retried start finds this row.
+        if let Some(o) = remote
+            && let Err(e) = store.set_delegated_from(thread.id, o)
+        {
+            return Err(match store.delete_thread(thread.id) {
+                Ok(()) => e,
+                Err(d) => e.context(format!("deleting its half-saved row also failed: {d}")),
+            });
+        }
         if let Some(parent) = parent {
             let linked = store.set_thread_parent(thread.id, Some(parent));
             if let Err(e) = linked {

@@ -334,3 +334,5 @@ pub(crate) mod background_keep_test;
 mod background_last_window_test;
 #[cfg(all(test, unix))]
 mod resume_after_restart_test;
+#[cfg(all(test, unix))]
+mod remote_delegation_tests;

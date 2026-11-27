@@ -127,6 +127,8 @@ pub struct Remote {
     pub requests: Vec<AccessRequest>,
     /// The devices allowed in settings.toml.
     pub approved: Vec<ApprovedDevice>,
+    /// Callers on other machines refused for want of a delegation link, as the daemon lists them.
+    pub delegation_requests: Vec<skyelab_daemon::DelegationRequest>,
     /// Why the last Allow or Revoke couldn't be saved.
     pub approval_error: Option<String>,
     /// Revokes whose save failed: kept out of every later save, so a later Allow can't bring them back.
@@ -154,6 +156,7 @@ impl Remote {
             peers: Vec::new(),
             requests: Vec::new(),
             approved: Vec::new(),
+            delegation_requests: Vec::new(),
             approval_error: None,
             unsaved_revokes: Vec::new(),
             generation: Arc::default(),
@@ -175,6 +178,16 @@ impl Remote {
             _ => {}
         }
         this
+    }
+
+    /// This machine's settings.toml, where the delegation links live.
+    pub fn settings_path(&self) -> Option<&std::path::Path> {
+        self.host.settings_path.as_deref()
+    }
+
+    /// The running daemon, for what it lists (delegation requests) and forgets.
+    pub fn with_daemon<T>(&self, f: impl FnOnce(&Daemon) -> T) -> Option<T> {
+        lock_slot(&self.host.slot).as_ref().map(f)
     }
 
     pub fn toggle(&mut self, cx: &mut Context<Self>) {
@@ -279,6 +292,7 @@ impl Remote {
         self._poll = None;
         self.peers.clear();
         self.requests.clear();
+        self.delegation_requests.clear();
         self.status = Status::Off;
         cx.notify();
     }
@@ -309,6 +323,13 @@ impl Remote {
         if peers != self.peers || requests != self.requests {
             self.peers = peers;
             self.requests = requests;
+            cx.notify();
+        }
+        let delegation = self
+            .with_daemon(|d| d.delegation_requests())
+            .unwrap_or_default();
+        if delegation != self.delegation_requests {
+            self.delegation_requests = delegation;
             cx.notify();
         }
         if let (Status::Sharing { cert_until, .. }, Some(cert)) = (&mut self.status, cert) {

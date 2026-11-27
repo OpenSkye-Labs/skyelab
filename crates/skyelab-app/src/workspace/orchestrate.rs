@@ -190,34 +190,56 @@ impl AppHost {
         Ok(false)
     }
 
-    /// How many delegations deep `thread` is: 0 for a user's own thread.
+    /// How many delegations deep `thread` is: 0 for a user's own thread. A chain that another machine's agent
+    /// started counts from the depth stored with its first thread here.
     fn depth(&self, thread: &Thread) -> Result<u32, String> {
         let mut depth = 0;
+        let mut top = thread.id;
         let mut parent = thread.parent_thread_id;
         while let Some(id) = parent {
             depth += 1;
             if depth > MAX_CHAIN {
-                break;
+                return Ok(depth);
             }
+            top = id;
             parent = self
                 .store(|s| s.thread(id))?
                 .and_then(|t| t.parent_thread_id);
         }
-        Ok(depth)
+        let origin = self.store(|s| s.delegated_from(top))?;
+        Ok(depth + origin.map_or(0, |o| o.depth))
     }
 
-    /// The thread's last finished turn as data: what `wait_thread` adds once the thread is done.
     fn last_turn(&self, id: i64) -> Result<Option<skyelab_agent::turn_result::TurnResult>, String> {
-        let rows = self.store(|s| s.events_since(id, 0))?;
-        let records: Vec<Record> = rows
-            .iter()
-            .filter_map(|r| Record::from_row(&r.kind, &r.payload_json).ok())
-            .collect();
-        Ok(skyelab_agent::turn_result::last_turn(&records))
+        last_turn(&self.store, id)
     }
 
     fn read(&self, thread: &Thread, since_seq: i64) -> Result<Value, String> {
-        let rows = self.store(|s| s.events_since(thread.id, since_seq))?;
+        read(&self.store, thread, since_seq)
+    }
+}
+
+/// The thread's last finished turn as data: what `wait_thread` adds once the thread is done.
+pub(super) fn last_turn(
+    store: &SharedStore,
+    id: i64,
+) -> Result<Option<skyelab_agent::turn_result::TurnResult>, String> {
+    let rows = lock(store)
+        .and_then(|s| s.events_since(id, 0))
+        .map_err(|e| format!("{e:#}"))?;
+    let records: Vec<Record> = rows
+        .iter()
+        .filter_map(|r| Record::from_row(&r.kind, &r.payload_json).ok())
+        .collect();
+    Ok(skyelab_agent::turn_result::last_turn(&records))
+}
+
+/// `read_thread`'s answer: the thread's text since `since_seq` (the end of it, at most [`MAX_READ`]).
+pub(super) fn read(store: &SharedStore, thread: &Thread, since_seq: i64) -> Result<Value, String> {
+    {
+        let rows = lock(store)
+            .and_then(|s| s.events_since(thread.id, since_seq))
+            .map_err(|e| format!("{e:#}"))?;
         let last_seq = rows.last().map_or(since_seq, |e| e.seq);
         let mut text = Vec::new();
         let mut result = Value::Null;

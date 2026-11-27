@@ -2,6 +2,7 @@ mod debug_mode;
 mod debug_renders;
 mod environment;
 mod keymap;
+mod login_cache;
 mod palette;
 #[cfg(test)]
 #[path = "quit_key_test.rs"]

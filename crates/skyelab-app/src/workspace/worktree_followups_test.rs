@@ -78,7 +78,7 @@ fn failed_row_save_removes_the_new_worktree() {
         account_id: "acme",
         status: "starting",
     };
-    let err = worktree::save(&f.store, &f.project, &new, Some(created), None)
+    let err = worktree::save(&f.store, &f.project, &new, Some(created), None, None)
         .expect_err("the row can't be saved");
     assert!(!path.exists(), "worktree left behind after: {err:#}");
 }

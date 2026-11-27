@@ -91,6 +91,7 @@ impl ThreadView {
         self.thread
             .as_ref()
             .is_some_and(|t| t.parent_thread_id.is_some())
+            || self.remote_parent.is_some()
             || self
                 .children
                 .iter()

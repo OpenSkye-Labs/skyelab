@@ -39,6 +39,16 @@ pub enum RemoteCall {
         reply: Reply<()>,
         gate: CallGate,
     },
+    /// An agent on another machine delegating here (1.8), from `origin` as the connection proved it.
+    Delegate {
+        call: Box<(
+            skyelab_daemon::Origin,
+            skyelab_protocol::Delegator,
+            skyelab_protocol::DelegateOp,
+        )>,
+        reply: Reply<serde_json::Value>,
+        gate: CallGate,
+    },
     /// Settled, snoozed until a time, or neither (protocol 1.6).
     Shelve {
         thread_id: i64,
@@ -55,6 +65,7 @@ impl RemoteCall {
     pub fn abandoned(&self) -> bool {
         match self {
             RemoteCall::Start { reply, gate, .. } => reply.is_disconnected() || gate.cancelled(),
+            RemoteCall::Delegate { reply, gate, .. } => reply.is_disconnected() || gate.cancelled(),
             RemoteCall::Send { reply, gate, .. }
             | RemoteCall::Interrupt { reply, gate, .. }
             | RemoteCall::Answer { reply, gate, .. }
@@ -67,6 +78,7 @@ impl RemoteCall {
         // A send fails only if the client stopped waiting, and then there's nobody to tell.
         match self {
             RemoteCall::Start { reply, .. } => _ = reply.send(Err(error)),
+            RemoteCall::Delegate { reply, .. } => _ = reply.send(Err(error)),
             RemoteCall::Send { reply, .. }
             | RemoteCall::Interrupt { reply, .. }
             | RemoteCall::Answer { reply, .. }
@@ -181,6 +193,20 @@ impl Agents for UiAgents {
             thread_id,
             request_id,
             answers,
+            reply,
+            gate,
+        })
+    }
+
+    fn delegate(
+        &self,
+        origin: &skyelab_daemon::Origin,
+        caller: skyelab_protocol::Delegator,
+        op: skyelab_protocol::DelegateOp,
+    ) -> Result<serde_json::Value, RpcError> {
+        let origin = origin.clone();
+        self.ask(|reply, gate| RemoteCall::Delegate {
+            call: Box::new((origin, caller, op)),
             reply,
             gate,
         })
