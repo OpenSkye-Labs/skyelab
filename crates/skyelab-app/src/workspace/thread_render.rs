@@ -10,6 +10,7 @@ use crate::ui::{Button, Tooltip};
 use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
 };
+use gpui_base::TestSupportExt as _;
 use gpui_component::{
     Icon, h_flex,
     menu::{DropdownMenu as _, PopupMenuItem},
@@ -92,7 +93,12 @@ impl ThreadView {
                     )
                     .children(self.delegated_label().map(|label| {
                         h_flex()
+                            .id("thread-header-delegated")
+                            .test_support()
                             .debug_selector(|| "thread-header-delegated".into())
+                            // Read out (agent-desktop, VoiceOver) like the breadcrumb's links around it.
+                            .role(gpui::accesskit::Role::Label)
+                            .aria_label(label.clone())
                             .flex_shrink_0()
                             .gap_2()
                             .text_color(theme.muted_foreground)

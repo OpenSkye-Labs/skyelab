@@ -169,6 +169,8 @@ pub struct Recorder {
     pub fail: AtomicBool,
     /// (node, key hash, account) a `delegate` call passes for; any other caller is `delegation_not_allowed`.
     pub delegation_links: Mutex<Vec<(String, String, String)>>,
+    /// Every `delegate` call's caller, as it arrived.
+    pub callers: Mutex<Vec<skyelab_protocol::Delegator>>,
 }
 
 /// Records calls; a start creates the thread row (account "work") with its prompt, so it can be listed and watched.
@@ -245,6 +247,11 @@ impl Agents for RecordingAgents {
     ) -> Result<serde_json::Value, RpcError> {
         let op = serde_json::to_string(&op).expect("op serializes");
         self.record(Ran::Delegate(origin.node_id.clone(), op))?;
+        self.recorder
+            .callers
+            .lock()
+            .expect("callers lock")
+            .push(caller.clone());
         let key = (
             origin.node_id.clone(),
             origin.key_hash.clone(),

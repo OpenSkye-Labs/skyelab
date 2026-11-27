@@ -164,9 +164,7 @@ impl Workspace {
         )
         .cloned()
         .ok_or_else(|| {
-            not_allowed(
-                "this machine hasn't allowed delegation from that machine and account; the user is asked there",
-            )
+            not_allowed("this machine hasn't allowed delegation from that machine and account")
         })
     }
 

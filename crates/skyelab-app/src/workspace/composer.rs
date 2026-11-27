@@ -38,6 +38,9 @@ mod composer_picker;
 mod composer_picker_keys;
 #[path = "composer_popover.rs"]
 mod composer_popover;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+#[path = "composer_press_test.rs"]
+mod composer_press_test;
 #[path = "composer_queue.rs"]
 mod composer_queue;
 #[cfg(test)]

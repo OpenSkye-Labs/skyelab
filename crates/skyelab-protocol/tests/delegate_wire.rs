@@ -14,6 +14,7 @@ fn caller() -> Delegator {
         thread_id: 7,
         title: "parent".into(),
         account_id: "work".into(),
+        account_label: None,
         login: Login {
             provider: "claude".into(),
             email: "me@acme.com".into(),
@@ -145,4 +146,23 @@ fn delegated_from_rides_on_the_thread_row() {
     assert_eq!(serde_json::from_value::<Thread>(wire).expect("parses"), t);
     let empty = serde_json::to_value(Thread::default()).expect("serializes");
     assert!(empty.get("delegated_from").is_none());
+}
+
+#[test]
+fn the_account_label_is_optional_on_the_wire() {
+    let without = serde_json::to_value(caller()).expect("serializes");
+    assert!(without.get("account_label").is_none(), "{without}");
+    // What an older 1.8 peer sends parses, with no label.
+    let parsed: Delegator = serde_json::from_value(without).expect("parses");
+    assert_eq!(parsed.account_label, None);
+    let labelled = Delegator {
+        account_label: Some("Work".into()),
+        ..caller()
+    };
+    let wire = serde_json::to_value(&labelled).expect("serializes");
+    assert_eq!(wire["account_label"], "Work");
+    assert_eq!(
+        serde_json::from_value::<Delegator>(wire).expect("parses"),
+        labelled
+    );
 }

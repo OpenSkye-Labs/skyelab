@@ -30,6 +30,8 @@ pub struct DelegationRequest {
     pub origin: Origin,
     /// The caller's account and login there, as that machine says.
     pub account_id: String,
+    /// The account's label there, bounded but not cleaned: clean it before showing it.
+    pub account_label: Option<String>,
     pub email: String,
     pub org_id: String,
     pub provider: String,
@@ -100,6 +102,10 @@ fn bounds(caller: &Delegator, op: &DelegateOp) -> Result<(), String> {
         (
             chars(&caller.title) <= MAX_TITLE,
             "the caller's title is too long",
+        ),
+        (
+            caller.account_label.as_deref().map_or(0, chars) <= MAX_TITLE,
+            "the account label is too long",
         ),
         (
             caller.account_id.len() <= MAX_ID,
@@ -183,6 +189,7 @@ impl Ctx {
         let request = DelegationRequest {
             origin: origin.clone(),
             account_id: caller.account_id.clone(),
+            account_label: caller.account_label.clone(),
             email: caller.login.email.clone(),
             org_id: caller.login.org_id.clone(),
             provider: caller.login.provider.clone(),

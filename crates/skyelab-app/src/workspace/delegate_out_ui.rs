@@ -37,6 +37,7 @@ impl Workspace {
         else {
             return refuse(call, "this thread's account isn't here any more".into());
         };
+        call.delegator.account_label = Some(account.label.clone());
         let bin = self.backend.claude_bin.clone();
         let login = cx.background_spawn(async move { crate::login_cache::login(&bin, &account) });
         cx.spawn_in(window, async move |this, cx| {

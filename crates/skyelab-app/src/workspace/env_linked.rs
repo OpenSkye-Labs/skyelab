@@ -200,6 +200,7 @@ impl Workspace {
         }
         self.env.linked_hosts = hosts;
         self.refresh_sidebar(cx);
+        self.push_waiting(cx);
     }
 
     /// Closes the thread views of `env`; the page falls back to Welcome if it showed one.
@@ -262,6 +263,7 @@ impl Workspace {
         if changed && !self.is_remote() {
             self.refresh_sidebar(cx);
         }
+        self.push_waiting(cx);
     }
 
     /// The command palette's entries for linked machines: a link toggle for every machine this window knows (recent
@@ -367,7 +369,10 @@ impl Workspace {
                     id,
                     label: format!("{} · {}", short(&e.host), state_word(&e.state)).into(),
                     selected: false,
-                    action: Box::new(gpui::NoAction),
+                    // Settings → Machines shows this device's code to compare while it waits.
+                    action: Box::new(super::OpenSettingsSection {
+                        section: crate::settings::Section::Machines,
+                    }),
                     status: None,
                     updated_ms: None,
                     account: None,

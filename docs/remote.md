@@ -61,7 +61,9 @@ the app only edits the list.
   reading closes when that write times out.
 - The client maps the codes to `DisconnectKind::NotApproved` / `Denied` (additive kinds; match with `_`) and, while
   not approved, retries at least every 3 s, so an Allow takes effect within seconds. Desktop shows "Waiting for
-  approval … (code …)" or "That machine denied this device"; mobile shows the client's message.
+  approval … (code …)" or "That machine denied this device"; mobile shows the client's message. A linked machine
+  still waiting shows this device's code in its sidebar row's hover card and under Settings → Machines → Waiting for
+  approval (the row opens that page).
 - A `settings.toml` that can't be read approves nobody. A client older than 1.2 sends no key, so it is always
   refused `not_approved` (and never listed: there is nothing to approve).
 

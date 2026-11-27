@@ -299,7 +299,7 @@ fn hello_checked(
             eprintln!("skyelab-daemon: {:?} isn't approved yet", who.device);
             Step::SendAndClose(error(
                 ErrorCode::NotApproved,
-                "this device isn't approved on this machine yet: allow it in SkyeLab's Remote tab there",
+                "this device isn't approved here yet: allow it in Settings → Sharing & access there",
             ))
         }
         Verdict::Denied => Step::SendAndClose(error(
