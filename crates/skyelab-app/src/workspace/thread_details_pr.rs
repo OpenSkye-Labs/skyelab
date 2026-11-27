@@ -124,6 +124,7 @@ impl ThreadView {
                     };
                     rows.push(
                         tinted_row("details-pr-checks", icon, color, text, theme)
+                            .role(gpui::accesskit::Role::Status)
                             .cursor_default()
                             .into_any_element(),
                     );
@@ -142,7 +143,9 @@ impl ThreadView {
                         .when(url.is_some(), |r| {
                             r.child(chevron(SkyeIcon::ExternalLink, theme))
                         })
-                        .when(url.is_none(), |r| r.cursor_default())
+                        .when(url.is_none(), |r| {
+                            r.role(gpui::accesskit::Role::Status).cursor_default()
+                        })
                         .on_click(move |_, _, cx| {
                             if let Some(url) = &url
                                 && super::super::thread_render::opens_in_browser(url)
@@ -156,6 +159,7 @@ impl ThreadView {
                 let review = super::super::pr_watch::review_look(s.review, theme);
                 rows.extend(review.map(|(icon, color, text)| {
                     tinted_row("details-pr-review", icon, color, text, theme)
+                        .role(gpui::accesskit::Role::Status)
                         .cursor_default()
                         .into_any_element()
                 }));

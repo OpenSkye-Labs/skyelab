@@ -46,6 +46,12 @@ fn header<V: ItemsView>(
     let key = id.to_owned();
     h_flex()
         .id(SharedString::from(format!("row-{id}")))
+        .role(gpui::accesskit::Role::Button)
+        .aria_label(if preview.is_empty() {
+            label.to_string()
+        } else {
+            format!("{label}: {preview}")
+        })
         .min_h(px(28.))
         .gap_1p5()
         .px_1()
@@ -221,6 +227,8 @@ pub(super) fn render_edit<V: ItemsView + 'static>(
         .child(
             div()
                 .id(SharedString::from(format!("path-{}", tool.id)))
+                .role(gpui::accesskit::Role::Button)
+                .aria_label(format!("Open {}", name))
                 .debug_selector(|| "card-path".into())
                 .min_w_0()
                 .overflow_hidden()
@@ -331,6 +339,13 @@ pub(super) fn render_output<V: ItemsView>(
     let key = id.to_owned();
     let header = h_flex()
         .id(SharedString::from(id.to_owned()))
+        .role(gpui::accesskit::Role::Button)
+        .aria_label(if first.is_empty() {
+            "Agent output".to_owned()
+        } else {
+            format!("Agent output: {first}")
+        })
+        .aria_expanded(open)
         .min_h(px(28.))
         .gap_1p5()
         .px_1()

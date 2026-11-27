@@ -193,6 +193,9 @@ impl RenderOnce for SectionHeader {
             .gap_2()
             .child(
                 div()
+                    .id(SharedString::from(format!("section-header:{}", self.title)))
+                    .role(gpui::accesskit::Role::Heading)
+                    .aria_label(self.title.clone())
                     .flex_shrink_0()
                     .text_size(META)
                     .font_weight(FontWeight::MEDIUM)
@@ -242,7 +245,14 @@ impl RenderOnce for EmptyState {
         } else {
             (BODY, FontWeight::MEDIUM, META)
         };
+        let a11y_label = match &self.hint {
+            Some(hint) => format!("{}. {hint}", self.title),
+            None => self.title.to_string(),
+        };
         v_flex()
+            .id(SharedString::from(format!("empty-state:{}", self.title)))
+            .role(gpui::accesskit::Role::Status)
+            .aria_label(a11y_label)
             // In a row it shrinks to the row, so the hint wraps instead of running past the card.
             .min_w_0()
             .when(self.page, |this| this.max_w(px(384.)).gap_1())
@@ -351,6 +361,8 @@ pub fn row_surface(
 ) -> Stateful<Div> {
     let hover = theme.sidebar_accent.opacity(0.7);
     base.id(id)
+        .role(gpui::accesskit::Role::Button)
+        .aria_selected(selected)
         .w_full()
         .min_w_0()
         .px_2p5()
@@ -381,21 +393,35 @@ pub fn header(theme: &Theme) -> Div {
 
 /// A page's title (Settings, Devices, Remote): 20 px semibold.
 pub fn page_title(text: impl Into<SharedString>, theme: &Theme) -> Div {
+    let text: SharedString = text.into();
     div()
         .text_size(PAGE)
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(theme.foreground)
-        .child(text.into())
+        .child(
+            div()
+                .id(SharedString::from(format!("heading:{text}")))
+                .role(gpui::accesskit::Role::Heading)
+                .aria_label(text.clone())
+                .child(text),
+        )
 }
 
 /// A settings section's title: 16 px semibold.
 pub fn section_title(text: impl Into<SharedString>, theme: &Theme) -> Div {
+    let text: SharedString = text.into();
     div()
         .px_1()
         .text_size(SECTION)
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(theme.foreground)
-        .child(text.into())
+        .child(
+            div()
+                .id(SharedString::from(format!("heading:{text}")))
+                .role(gpui::accesskit::Role::Heading)
+                .aria_label(text.clone())
+                .child(text),
+        )
 }
 
 /// A group's title under a page's own heading (Machines' "Your machines"): body size, so it reads as part of the page.

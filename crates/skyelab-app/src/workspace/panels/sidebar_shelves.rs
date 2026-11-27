@@ -102,6 +102,8 @@ impl Sidebar {
         let theme = cx.theme();
         let t = title.clone();
         ui::row(SharedString::from(format!("fold-{title}")), false, theme)
+            .aria_label(format!("{title} ({count})"))
+            .aria_expanded(open)
             .debug_selector({
                 let s = format!("fold-{title}");
                 move || s.clone()

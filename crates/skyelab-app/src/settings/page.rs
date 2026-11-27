@@ -171,6 +171,9 @@ impl Settings {
             .border_color(theme.border)
             .child(
                 h_flex()
+                    .id("settings-header-title")
+                    .role(gpui::accesskit::Role::Heading)
+                    .aria_label(format!("Settings / {}", self.section.label()))
                     .flex_1()
                     .min_w_0()
                     .gap_2p5()
@@ -282,6 +285,9 @@ impl Render for Settings {
         let (bg, fg) = (cx.theme().background, cx.theme().foreground);
         div()
             .id("settings")
+            .role(gpui::accesskit::Role::Dialog)
+            .aria_label("Settings")
+            .accessibility_id("settings-modal")
             .key_context(CONTEXT)
             // The form's keys act only where the form shows.
             .when(self.section == Section::Accounts, |d| {

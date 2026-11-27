@@ -269,7 +269,10 @@ impl ChangesView {
                         path, label, open, ..
                     } => {
                         let path = path.clone();
-                        row.text_color(theme.muted_foreground)
+                        row.role(gpui::accesskit::Role::Button)
+                            .aria_label(label.clone())
+                            .aria_expanded(*open)
+                            .text_color(theme.muted_foreground)
                             .child(
                                 Icon::new(if *open {
                                     SkyeIcon::ChevronDown
@@ -297,6 +300,7 @@ impl ChangesView {
                             Checkbox::new(SharedString::from(format!("pick-{}", f.path.display())))
                                 .xsmall()
                                 .checked(ticked)
+                                .accessibility_label(format!("Stage {}", label))
                                 .on_click(cx.listener({
                                     let path = path.clone();
                                     move |this, _, _, cx| {
@@ -307,7 +311,10 @@ impl ChangesView {
                                     }
                                 }))
                         });
-                        row.when(active, |d| d.bg(theme.accent))
+                        row.role(gpui::accesskit::Role::Button)
+                            .aria_label(label.clone())
+                            .aria_selected(active)
+                            .when(active, |d| d.bg(theme.accent))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.scroll_to_row(row_ix);
                                 this.active_file = Some(path.clone());

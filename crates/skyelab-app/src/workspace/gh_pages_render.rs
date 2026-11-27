@@ -42,6 +42,7 @@ fn glyph(icon: SkyeIcon, color: Hsla, tip: &'static str) -> AnyElement {
 fn row(id: SharedString, theme: &Theme) -> gpui::Stateful<gpui::Div> {
     h_flex()
         .id(id)
+        .role(gpui::accesskit::Role::Button)
         .w_full()
         .gap_2()
         .px_3()
@@ -139,6 +140,7 @@ impl GhPage {
         let (number, url) = (pr.number, pr.url.clone());
         let done = pr.state.is_done();
         row(format!("pr-{project}-{number}").into(), theme)
+            .aria_label(format!("PR #{number}: {}, {label}", pr.title))
             .child(glyph(icon, color, label))
             .child(lines(number, &pr.title, signals, meta, r.updated_ms, theme))
             .child(
@@ -200,6 +202,8 @@ impl GhPage {
                     "label-{project}-{}-{l}",
                     issue.number
                 )))
+                .role(gpui::accesskit::Role::Button)
+                .aria_label(format!("Filter by label {l}"))
                 .flex_shrink_0()
                 .px_1()
                 .rounded(ui::RADIUS_SM)
@@ -230,12 +234,14 @@ impl GhPage {
             .collect();
         let (account, row_data) = (account.to_owned(), issue.clone());
         let number = issue.number;
+        let state_word = if issue.closed { "Closed" } else { "Open" };
         let state = if issue.closed {
             glyph(SkyeIcon::CircleCheck, theme.muted_foreground, "Closed")
         } else {
             glyph(SkyeIcon::CircleDot, ui::ink(theme, theme.success), "Open")
         };
         row(format!("issue-{project}-{number}").into(), theme)
+            .aria_label(format!("Issue #{number}: {}, {state_word}", issue.title))
             .child(state)
             .child(lines(
                 number,
@@ -397,6 +403,7 @@ impl Render for GhPage {
         };
         let filter = segments(
             "gh-filter",
+            "Filter",
             filters,
             self.filter,
             |this: &mut Self, f, cx| this.set_filter(f, cx),

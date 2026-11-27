@@ -108,10 +108,16 @@ impl TerminalPanel {
                 .key_context(RENAME)
                 .on_action(cx.listener(Self::cancel_rename))
                 .w(px(140.))
-                .child(TextField::new(input).xsmall())
+                .child(
+                    TextField::new(input)
+                        .xsmall()
+                        .accessibility_label("Rename terminal tab"),
+                )
                 .into_any_element(),
             None => div()
                 .id("terminal-title")
+                .role(gpui::accesskit::Role::Button)
+                .aria_label(format!("Rename terminal: {}", self.tab_label()))
                 .max_w(px(220.))
                 .truncate()
                 .child(self.tab_label())
@@ -120,6 +126,13 @@ impl TerminalPanel {
                         this.start_rename(window, cx);
                     }
                 }))
+                // An accessibility press arrives as a single click, which the double-click rule above ignores.
+                .on_a11y_action(gpui::accesskit::Action::Click, {
+                    let view = cx.entity().downgrade();
+                    move |_, window, cx| {
+                        let _ = view.update(cx, |this, cx| this.start_rename(window, cx));
+                    }
+                })
                 .into_any_element(),
         };
         h_flex()
@@ -133,6 +146,8 @@ impl TerminalPanel {
             .child(
                 div()
                     .id("close-terminal-tab")
+                    .role(gpui::accesskit::Role::Button)
+                    .aria_label("Close terminal tab")
                     .debug_selector(|| "close-terminal-tab".into())
                     .p_0p5()
                     .rounded(ui::RADIUS)

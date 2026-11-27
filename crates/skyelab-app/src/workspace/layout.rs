@@ -274,7 +274,7 @@ impl Workspace {
         });
     }
 
-    /// Whether `panel` is the tab on screen in the dock at `at`: the dock is open and the panel is its group's shown tab.
+    /// Whether `panel` is the shown tab of the dock at `at`, with that dock open.
     pub(super) fn dock_shows(
         &self,
         at: DockPlacement,
@@ -457,6 +457,8 @@ impl Workspace {
                 .child(
                     gpui::div()
                         .id("sidebar-restore")
+                        .role(gpui::accesskit::Role::Button)
+                        .aria_label("Show sidebar")
                         .group("sidebar-restore")
                         .debug_selector(|| "sidebar-restore".into())
                         .w(px(16.))

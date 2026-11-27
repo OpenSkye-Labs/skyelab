@@ -21,6 +21,9 @@ pub(crate) fn heading(title: &str, about: &str, cx: &App) -> gpui::Div {
         .px_1()
         .child(
             div()
+                .id(SharedString::from(format!("settings-heading:{title}")))
+                .role(gpui::accesskit::Role::Heading)
+                .aria_label(title.to_string())
                 .text_size(ui::SECTION)
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .child(title.to_string()),
@@ -61,7 +64,13 @@ pub(super) fn setting(
     control: impl IntoElement,
     cx: &App,
 ) -> AnyElement {
+    // A named group, so a control whose own name is its value (a dropdown showing "Every 5 minutes") still reads
+    // as the setting it changes in the accessibility tree.
     row(first, cx)
+        .id(SharedString::from(format!("setting-{title}")))
+        .role(gpui::accesskit::Role::Group)
+        .aria_label(title.to_string())
+        .when(!about.is_empty(), |d| d.aria_description(about.to_string()))
         .gap_6()
         .child(label(title, about, cx))
         .child(div().flex_shrink_0().child(control))

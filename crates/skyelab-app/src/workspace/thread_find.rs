@@ -313,11 +313,12 @@ pub(super) fn find_bar<V: 'static>(
     let query = input.read(cx).value().to_string();
     let theme = cx.theme();
     let none = !query.trim().is_empty() && f.matches.is_empty();
-    let step_button = |id: &'static str, icon: SkyeIcon, forward: bool| {
+    let step_button = |id: &'static str, tip: &'static str, icon: SkyeIcon, forward: bool| {
         Button::new(id)
             .ghost()
             .xsmall()
             .icon(icon)
+            .tooltip(tip)
             .disabled(f.matches.is_empty())
             .on_click(cx.listener(move |this, _, _, cx| step(this, forward, cx)))
     };
@@ -332,6 +333,8 @@ pub(super) fn find_bar<V: 'static>(
                 div().w(px(360.)).max_w_full().child(
                     h_flex()
                         .id("find-bar")
+                        .role(gpui::accesskit::Role::Search)
+                        .aria_label("Find")
                         .debug_selector(|| "find-bar".into())
                         .key_context(FIND_CONTEXT)
                         .gap_1()
@@ -344,9 +347,12 @@ pub(super) fn find_bar<V: 'static>(
                         .border_color(theme.border)
                         .shadow_md()
                         .child(
-                            div()
-                                .flex_1()
-                                .child(Input::new(&input).appearance(false).small()),
+                            div().flex_1().child(
+                                Input::new(&input)
+                                    .appearance(false)
+                                    .small()
+                                    .aria_label("Find query"),
+                            ),
                         )
                         .child(
                             div()
@@ -360,13 +366,24 @@ pub(super) fn find_bar<V: 'static>(
                                 })
                                 .child(f.count(&query)),
                         )
-                        .child(step_button("find-prev", SkyeIcon::ChevronUp, false))
-                        .child(step_button("find-next", SkyeIcon::ChevronDown, true))
+                        .child(step_button(
+                            "find-prev",
+                            "Previous match",
+                            SkyeIcon::ChevronUp,
+                            false,
+                        ))
+                        .child(step_button(
+                            "find-next",
+                            "Next match",
+                            SkyeIcon::ChevronDown,
+                            true,
+                        ))
                         .child(
                             Button::new("find-close")
                                 .ghost()
                                 .xsmall()
                                 .icon(SkyeIcon::Close)
+                                .tooltip("Close find")
                                 .on_click(
                                     cx.listener(move |this, _, window, cx| close(this, window, cx)),
                                 ),

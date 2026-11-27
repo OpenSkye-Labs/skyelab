@@ -58,6 +58,8 @@ impl ScheduledPage {
         let link = row.thread.clone().map(|(thread, title)| {
             div()
                 .id(SharedString::from(format!("sched-thread-{id}")))
+                .role(gpui::accesskit::Role::Link)
+                .aria_label(format!("Open thread {title}"))
                 .debug_selector(move || format!("sched-thread-{id}"))
                 .max_w(gpui::px(240.))
                 .truncate()
@@ -230,17 +232,72 @@ impl ScheduledPage {
             .border_color(theme.border)
             .bg(theme.popover)
             .child(ui::section_title(if d.id == 0 { "New task" } else { "Edit task" }, theme))
-            .child(h_flex().gap_3().child(div().flex_1().child(field("Name", TextField::new(&e.title).small().into_any_element()))).child(field("Project", menu("sched-project", project_name, projects).into_any_element())))
-            .child(field("Prompt", Textarea::new(&e.prompt).into_any_element()))
+            .child(
+                h_flex()
+                    .gap_3()
+                    .child(
+                        div().flex_1().child(field(
+                            "Name",
+                            TextField::new(&e.title)
+                                .small()
+                                .accessibility_label("Task name")
+                                .into_any_element(),
+                        )),
+                    )
+                    .child(field(
+                        "Project",
+                        menu("sched-project", project_name, projects).into_any_element(),
+                    )),
+            )
+            .child(field(
+                "Prompt",
+                Textarea::new(&e.prompt)
+                    .aria_label("Task prompt")
+                    .into_any_element(),
+            ))
             .child(
                 h_flex()
                     .gap_3()
                     .items_end()
-                    .child(field("Schedule", menu("sched-kind", d.kind.label().to_owned(), kinds).into_any_element()))
-                    .child(div().w(gpui::px(160.)).child(field(if d.kind == Kind::Cron { "Expression" } else { "Value" }, TextField::new(&e.value).small().into_any_element())))
-                    .child(field("Runs in", menu("sched-where", where_label.to_owned(), places).into_any_element()))
-                    .child(field("Permissions", menu("sched-mode", ScheduledPage::mode_label(d.mode).to_owned(), modes).into_any_element()))
-                    .child(div().w(gpui::px(160.)).child(field("Model", TextField::new(&e.model).small().into_any_element()))),
+                    .child(field(
+                        "Schedule",
+                        menu("sched-kind", d.kind.label().to_owned(), kinds).into_any_element(),
+                    ))
+                    .child(
+                        div().w(gpui::px(160.)).child(field(
+                            if d.kind == Kind::Cron {
+                                "Expression"
+                            } else {
+                                "Value"
+                            },
+                            TextField::new(&e.value)
+                                .small()
+                                .accessibility_label(if d.kind == Kind::Cron {
+                                    "Cron expression"
+                                } else {
+                                    "Schedule value"
+                                })
+                                .into_any_element(),
+                        )),
+                    )
+                    .child(field(
+                        "Runs in",
+                        menu("sched-where", where_label.to_owned(), places).into_any_element(),
+                    ))
+                    .child(field(
+                        "Permissions",
+                        menu("sched-mode", ScheduledPage::mode_label(d.mode).to_owned(), modes)
+                            .into_any_element(),
+                    ))
+                    .child(
+                        div().w(gpui::px(160.)).child(field(
+                            "Model",
+                            TextField::new(&e.model)
+                                .small()
+                                .accessibility_label("Task model")
+                                .into_any_element(),
+                        )),
+                    ),
             )
             .when(d.mode == Mode::Bypass, |this| {
                 this.child(

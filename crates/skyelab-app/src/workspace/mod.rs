@@ -10,6 +10,7 @@ mod center;
 mod center_skin;
 mod changes;
 mod changes_generate;
+mod changes_hooks;
 mod changes_model;
 mod changes_open;
 mod changes_publish;

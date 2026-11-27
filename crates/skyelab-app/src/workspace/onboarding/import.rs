@@ -233,6 +233,13 @@ impl Onboarding {
         h_flex()
             .relative()
             .id(SharedString::from(format!("import-{}", path.display())))
+            .role(gpui::accesskit::Role::CheckBox)
+            .aria_label(name.clone())
+            .aria_toggled(if r.checked {
+                gpui::accesskit::Toggled::True
+            } else {
+                gpui::accesskit::Toggled::False
+            })
             .debug_selector(move || selector)
             .h(px(44.))
             .px_3()
@@ -246,6 +253,7 @@ impl Onboarding {
                     "import-check-{}",
                     path.display()
                 )))
+                .decorative()
                 .checked(r.checked),
             )
             .child(

@@ -206,6 +206,9 @@ impl Render for SurfacesPanel {
         let rows = rows.into_iter().map(|(icon, label, key, on, why, action)| {
             h_flex()
                 .id(label)
+                .role(gpui::accesskit::Role::Button)
+                .aria_label(label)
+                .when(!on, |row| row.aria_description(why))
                 .h(gpui::px(32.))
                 .px_2p5()
                 .gap_2p5()

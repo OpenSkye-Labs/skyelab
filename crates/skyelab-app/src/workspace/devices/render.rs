@@ -73,9 +73,11 @@ impl DevicesPanel {
             h_flex()
                 .gap_2()
                 .child(
-                    div()
-                        .flex_1()
-                        .child(TextField::new(&self.url_input).small()),
+                    div().flex_1().child(
+                        TextField::new(&self.url_input)
+                            .small()
+                            .accessibility_label("Deep link URL"),
+                    ),
                 )
                 .child(
                     Button::new(SharedString::from(format!("url-open-{}", device.id)))

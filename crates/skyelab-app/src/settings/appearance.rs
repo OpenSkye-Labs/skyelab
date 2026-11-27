@@ -40,37 +40,44 @@ impl Settings {
             .iter()
             .map(|f| self.theme_card(f, f.key == picked, cx))
             .collect();
-        let mode = self.segmented(
-            "mode",
-            &[
-                (ColorMode::System, "System", SkyeIcon::Monitor),
-                (ColorMode::Light, "Light", SkyeIcon::Sun),
-                (ColorMode::Dark, "Dark", SkyeIcon::Moon),
-            ],
-            s.mode,
-            |s, m| s.mode = m,
-            cx,
-        );
-        let density = self.segmented(
-            "density",
-            &[
-                (false, "Comfortable", SkyeIcon::Rows3),
-                (true, "Compact", SkyeIcon::Minus),
-            ],
-            s.compact,
-            |s, c| s.compact = c,
-            cx,
-        );
-        let motion = self.segmented(
-            "motion",
-            &[
-                (MotionMode::System, "System", SkyeIcon::Monitor),
-                (MotionMode::Reduced, "Reduced", SkyeIcon::Minus),
-            ],
-            s.motion,
-            |s, m| s.motion = m,
-            cx,
-        );
+        let mode = self
+            .segmented(
+                "mode",
+                &[
+                    (ColorMode::System, "System", SkyeIcon::Monitor),
+                    (ColorMode::Light, "Light", SkyeIcon::Sun),
+                    (ColorMode::Dark, "Dark", SkyeIcon::Moon),
+                ],
+                s.mode,
+                |s, m| s.mode = m,
+                cx,
+            )
+            .accessibility_label("Appearance mode")
+            .accessibility_id("appearance-mode");
+        let density = self
+            .segmented(
+                "density",
+                &[
+                    (false, "Comfortable", SkyeIcon::Rows3),
+                    (true, "Compact", SkyeIcon::Minus),
+                ],
+                s.compact,
+                |s, c| s.compact = c,
+                cx,
+            )
+            .accessibility_label("Density");
+        let motion = self
+            .segmented(
+                "motion",
+                &[
+                    (MotionMode::System, "System", SkyeIcon::Monitor),
+                    (MotionMode::Reduced, "Reduced", SkyeIcon::Minus),
+                ],
+                s.motion,
+                |s, m| s.motion = m,
+                cx,
+            )
+            .accessibility_label("Motion");
         let display = [
             setting(true, "Mode", "Light, dark, or follow the system.", mode, cx),
             setting(
@@ -139,6 +146,7 @@ impl Settings {
                         h_flex()
                             .id("theme-group")
                             .role(accesskit::Role::RadioGroup)
+                            .aria_label("Theme")
                             .flex_wrap()
                             .items_start()
                             .gap_2()
@@ -310,6 +318,7 @@ impl Settings {
         h_flex()
             .id("accent-group")
             .role(accesskit::Role::RadioGroup)
+            .aria_label("Accent color")
             .gap_1p5()
             .children(
                 std::iter::once(own)

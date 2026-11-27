@@ -418,6 +418,13 @@ fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> 
     // T3's work-log row: 24 px icon slot, the tool's name, its argument in mono, a chevron that turns when open.
     let header = h_flex()
         .id(SharedString::from(format!("tool-{}", tool.id)))
+        .role(gpui::accesskit::Role::Button)
+        .aria_label(if summary.is_empty() {
+            tool.name.clone()
+        } else {
+            format!("{}: {summary}", tool.name)
+        })
+        .aria_expanded(open)
         .min_h(px(28.))
         .gap_1p5()
         .px_1()

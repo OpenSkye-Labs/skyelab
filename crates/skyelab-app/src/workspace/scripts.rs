@@ -380,8 +380,16 @@ impl Render for ScriptMenu {
             })
             .children(rows)
             .child(caption("Add a script"))
-            .child(TextField::new(&self.name).small())
-            .child(TextField::new(&self.command).small())
+            .child(
+                TextField::new(&self.name)
+                    .small()
+                    .accessibility_label("Script name"),
+            )
+            .child(
+                TextField::new(&self.command)
+                    .small()
+                    .accessibility_label("Script command"),
+            )
             .child(
                 h_flex()
                     .gap_2()

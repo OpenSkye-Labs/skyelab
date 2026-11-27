@@ -425,7 +425,7 @@ impl Render for RemoteThreadView {
                             .flex_1()
                             // A submitting Enter propagates out of the textarea; stop it before it is typed as a new line.
                             .on_action(|_: &gpui_component::input::Enter, _, _| {})
-                            .child(Textarea::new(&self.prompt)),
+                            .child(Textarea::new(&self.prompt).aria_label("Remote prompt")),
                     )
                     // Interrupt sits with the composer, as on a local thread; the header has no stop.
                     .when(self.thread_id.is_some(), |this| {

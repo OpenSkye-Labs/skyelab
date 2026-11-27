@@ -70,8 +70,9 @@ fn rail_button(
         .medium()
         .square()
         .icon(icon)
+        .role(gpui::Role::Tab)
         .selected(selected)
-        .toggled(selected)
+        .aria_selected(selected)
         .tooltip(tip)
         .when(selected, |b| {
             b.bg(theme.sidebar_accent)
@@ -224,6 +225,9 @@ impl Workspace {
 
         v_flex()
             .id("rail")
+            .role(gpui::accesskit::Role::Navigation)
+            .aria_label("Primary navigation")
+            .accessibility_id("rail")
             .debug_selector(|| "rail".into())
             .flex_shrink_0()
             .w(ui::RAIL_W)

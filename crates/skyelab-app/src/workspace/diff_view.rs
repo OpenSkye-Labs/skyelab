@@ -284,8 +284,14 @@ pub(super) fn body<V: ItemsView + 'static>(
                         .into_any_element(),
                     Row::Gap { start, len } => {
                         let (view, key) = (view.clone(), gap_key(&key, start));
+                        let label = format!(
+                            "Show {len} unchanged line{}",
+                            if len == 1 { "" } else { "s" }
+                        );
                         h_flex()
                             .id(SharedString::from(key.clone()))
+                            .role(gpui::accesskit::Role::Button)
+                            .aria_label(label)
                             .debug_selector(|| "diff-gap".into())
                             .h(px(ROW_H))
                             .w_full()

@@ -173,6 +173,8 @@ pub(in crate::workspace) fn thumbnails(id: u64, images: &Sent) -> AnyElement {
             let (name, image) = (name.clone(), image.clone());
             div()
                 .id(SharedString::from(format!("sent-image-{id}-{i}")))
+                .role(gpui::accesskit::Role::Button)
+                .aria_label(format!("Open image {name}"))
                 .size(px(72.))
                 .rounded(ui::RADIUS)
                 .overflow_hidden()

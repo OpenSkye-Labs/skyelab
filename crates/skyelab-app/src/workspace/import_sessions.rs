@@ -242,6 +242,13 @@ impl Render for ImportPicker {
             }
             h_flex()
                 .id(SharedString::from(format!("import-{}", r.t.id)))
+                .role(gpui::accesskit::Role::CheckBox)
+                .aria_label(r.t.title.clone())
+                .aria_toggled(if r.checked || r.imported {
+                    gpui::accesskit::Toggled::True
+                } else {
+                    gpui::accesskit::Toggled::False
+                })
                 .min_h(ui::ROW_H + gpui::px(8.))
                 .px_2()
                 .gap_2p5()
@@ -253,6 +260,7 @@ impl Render for ImportPicker {
                 .child(
                     Checkbox::new(SharedString::from(format!("import-check-{}", r.t.id)))
                         .checked(r.checked || r.imported)
+                        .decorative()
                         // The row takes the click: a handler here too would toggle twice.
                         .disabled(r.imported),
                 )

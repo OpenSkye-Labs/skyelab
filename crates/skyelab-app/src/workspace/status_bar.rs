@@ -9,13 +9,19 @@ use gpui_component::{ActiveTheme as _, h_flex, status_bar::StatusBar};
 impl Workspace {
     pub(super) fn render_status(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let badge = match (&self.account_id, &self.account) {
-            (Some(id), Some(label)) => ui::AccountBadge::new(id.clone(), label.clone()),
-            _ => ui::AccountBadge::unbound(),
+        let (badge, account_a11y) = match (&self.account_id, &self.account) {
+            (Some(id), Some(label)) => (
+                ui::AccountBadge::new(id.clone(), label.clone()),
+                format!("Account: {label}"),
+            ),
+            _ => (ui::AccountBadge::unbound(), "Account: No account".into()),
         };
         let account = Button::new("status-account")
             .ghost()
             .xsmall()
+            .accessibility_label(account_a11y)
+            .aria_description("Opens accounts and folder bindings")
+            .accessibility_id("status-account")
             .tooltip("Accounts and folder bindings")
             .child(badge.chip())
             .on_click(|_, window, cx| {
@@ -34,50 +40,66 @@ impl Workspace {
                     crate::workspace::dispatch(Box::new(super::ToggleDebugOverlay), window, cx)
                 })
         });
-        StatusBar::new()
-            .left(
-                h_flex()
-                    .min_w_0()
-                    .gap_3()
-                    .text_size(ui::META)
-                    .children(self.render_env_badge(cx))
-                    .when(!remote, |el| {
-                        el.child(
-                            div()
-                                .min_w_0()
-                                .truncate()
-                                .text_color(theme.muted_foreground)
-                                .child(ui::short_path(&self.folder, dirs::home_dir().as_deref())),
-                        )
-                    })
-                    .children(self.store_error.clone().map(|e| {
-                        div()
-                            .text_color(crate::ui::ink(theme, theme.danger))
-                            .child(format!("Store error: {e}"))
-                    })),
-            )
-            .right(h_flex().children(debug))
-            .right(
-                Button::new("status-devices")
-                    .ghost()
-                    .xsmall()
-                    .label("Devices")
-                    .toggled(devices_shown)
-                    .selected(devices_shown)
-                    .tooltip_with_action(
-                        "iOS Simulators and Android emulators",
-                        &OpenDevices,
-                        Some(super::CONTEXT),
+        div()
+            .id("status-bar")
+            .role(gpui::accesskit::Role::Status)
+            .aria_label("Status bar")
+            .accessibility_id("status-bar")
+            .w_full()
+            .flex_shrink_0()
+            .child(
+                StatusBar::new()
+                    .left(
+                        h_flex()
+                            .min_w_0()
+                            .gap_3()
+                            .text_size(ui::META)
+                            .children(self.render_env_badge(cx))
+                            .when(!remote, |el| {
+                                el.child(
+                                    div()
+                                        .min_w_0()
+                                        .truncate()
+                                        .text_color(theme.muted_foreground)
+                                        .child(ui::short_path(
+                                            &self.folder,
+                                            dirs::home_dir().as_deref(),
+                                        )),
+                                )
+                            })
+                            .children(self.store_error.clone().map(|e| {
+                                let msg = format!("Store error: {e}");
+                                div()
+                                    .id("store-error")
+                                    .role(gpui::accesskit::Role::Alert)
+                                    .aria_label(msg.clone())
+                                    .text_color(crate::ui::ink(theme, theme.danger))
+                                    .child(msg)
+                            })),
                     )
-                    .on_click(|_, window, cx| {
-                        crate::workspace::dispatch(Box::new(OpenDevices), window, cx)
-                    }),
-            )
-            .right(
-                h_flex()
-                    .gap_2()
-                    .children(self.render_remote_status(cx))
-                    .when(!remote, |el| el.child(account)),
+                    .right(h_flex().children(debug))
+                    .right(
+                        Button::new("status-devices")
+                            .ghost()
+                            .xsmall()
+                            .label("Devices")
+                            .toggled(devices_shown)
+                            .selected(devices_shown)
+                            .tooltip_with_action(
+                                "iOS Simulators and Android emulators",
+                                &OpenDevices,
+                                Some(super::CONTEXT),
+                            )
+                            .on_click(|_, window, cx| {
+                                crate::workspace::dispatch(Box::new(OpenDevices), window, cx)
+                            }),
+                    )
+                    .right(
+                        h_flex()
+                            .gap_2()
+                            .children(self.render_remote_status(cx))
+                            .when(!remote, |el| el.child(account)),
+                    ),
             )
     }
 }

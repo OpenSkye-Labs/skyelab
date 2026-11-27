@@ -74,6 +74,8 @@ fn render_card(card: &RowCard, cx: &App) -> impl IntoElement + use<> {
         let shown: SharedString = url.trim_start_matches("https://").to_owned().into();
         line(SkyeIcon::GitPullRequest, shown)
             .id("card-pr")
+            .role(gpui::accesskit::Role::Link)
+            .aria_label("Open pull request")
             .cursor_pointer()
             .text_color(ui::ink(theme, theme.success))
             .on_click(move |_, _, cx| {

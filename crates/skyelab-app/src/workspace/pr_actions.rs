@@ -158,7 +158,11 @@ pub(crate) fn open(
             .title(title.clone())
             .child(view.clone())
             .footer(
-                ui::dialog_footer().child(ui::dialog_cancel("pr-actions-cancel").label("Close")),
+                ui::dialog_footer().child(
+                    ui::dialog_cancel("pr-actions-cancel")
+                        .label("Close")
+                        .accessibility_label("Close pull request actions"),
+                ),
             )
     });
     entity
@@ -339,6 +343,7 @@ impl PrActions {
                 h_flex()
                     .child(segments(
                         "pr-merge-method",
+                        "Merge method",
                         &items,
                         self.method,
                         |this: &mut Self, m, cx| this.pick_method(m, cx),
@@ -427,7 +432,12 @@ impl PrActions {
                         n => format!("{n} line comments go with this review."),
                     })
             }))
-            .child(TextField::new(&self.body).small().disabled(self.busy))
+            .child(
+                TextField::new(&self.body)
+                    .small()
+                    .disabled(self.busy)
+                    .accessibility_label("Review comment"),
+            )
             .child(
                 h_flex()
                     .gap_2()

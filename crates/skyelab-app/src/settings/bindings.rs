@@ -285,7 +285,9 @@ impl Settings {
                 .flex_col()
                 .items_start()
                 .gap_2()
-                .child(div().w_full().child(TextField::new(&self.test_input)))
+                .child(div().w_full().child(
+                    TextField::new(&self.test_input).accessibility_label("Folder path to test"),
+                ))
                 .children(result)
                 .into_any_element()],
             cx,

@@ -4,6 +4,10 @@
 //! Spacing stays on gpui's 4 px helpers (`1` = 4 px, `2p5` = 10 px, `6` = 24 px, …). Colors only ever come from the
 //! theme.
 
+#[cfg(test)]
+mod a11y_audit_test;
+#[cfg(test)]
+mod a11y_test;
 mod button;
 #[cfg(test)]
 mod button_test;
@@ -46,7 +50,7 @@ pub use components::{
     AccountBadge, EmptyState, KeyHint, Monogram, Pill, SectionHeader, StatusDot, group, group_row,
     header, mono, page_title, row, row_surface, section_title, subsection_title,
 };
-pub use dialog::{dialog_cancel, dialog_footer, open_dialog};
+pub use dialog::{dialog_cancel, dialog_footer, dialog_title, open_dialog};
 pub use kbd::{Kbd, keys};
 pub use surface::{Card, Divider};
 pub use text_field::TextField;

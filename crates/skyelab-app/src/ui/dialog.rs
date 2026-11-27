@@ -2,8 +2,8 @@
 //! border) is gpui-component's `Dialog`, opened with [`open_dialog`] and colored by the theme; what goes in it is
 //! ours: a title, the body, and [`dialog_footer`] with SkyeLab buttons, Cancel ([`dialog_cancel`]) before the action.
 
-use super::Button;
-use gpui::{App, Div, Styled as _, Window};
+use super::{BODY, Button};
+use gpui::{App, Div, FontWeight, SharedString, Styled as _, Window, div, prelude::*};
 use gpui_component::{WindowExt as _, dialog::Dialog, h_flex};
 
 /// Opens a dialog that fades in place ([`super::motion::DIALOG`]): every SkyeLab dialog goes through here, so they all
@@ -18,6 +18,18 @@ pub fn open_dialog(
     window.open_dialog(cx, move |dialog, window, cx| {
         build(dialog.entrance(super::motion::DIALOG), window, cx)
     });
+}
+
+/// Accessible dialog heading wrapper (`gpui_component::dialog::DialogTitle` omits `Role::Heading`).
+pub fn dialog_title(title: impl Into<SharedString>) -> impl IntoElement {
+    let title: SharedString = title.into();
+    div()
+        .id(SharedString::from(format!("dialog-title:{title}")))
+        .role(gpui::accesskit::Role::Heading)
+        .aria_label(title.clone())
+        .text_size(BODY)
+        .font_weight(FontWeight::SEMIBOLD)
+        .child(title)
 }
 
 /// A dialog footer's Cancel. Not gpui-component's `DialogClose`: it wraps its button in a `size_full` div, which

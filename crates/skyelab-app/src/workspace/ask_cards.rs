@@ -167,6 +167,21 @@ pub(super) fn render_questions<V: ItemsView>(
             rows.push(
                 h_flex()
                     .id(SharedString::from(format!("opt-{}-{qi}-{oi}", a.id)))
+                    .role(if q.multi {
+                        gpui::accesskit::Role::CheckBox
+                    } else {
+                        gpui::accesskit::Role::RadioButton
+                    })
+                    .aria_label(if description.is_empty() {
+                        label.clone()
+                    } else {
+                        format!("{label}, {description}")
+                    })
+                    .aria_toggled(if on {
+                        gpui::accesskit::Toggled::True
+                    } else {
+                        gpui::accesskit::Toggled::False
+                    })
                     .debug_selector(move || format!("question-option-{qi}-{oi}"))
                     .items_start()
                     .gap_2p5()
@@ -232,7 +247,13 @@ pub(super) fn render_questions<V: ItemsView>(
                         .child(q.question.clone()),
                 )
                 .children(rows)
-                .children(other.map(|input| div().pl_7().child(TextField::new(&input).small())))
+                .children(other.map(|input| {
+                    div().pl_7().child(
+                        TextField::new(&input)
+                            .small()
+                            .accessibility_label(format!("{} other answer", q.header)),
+                    )
+                }))
                 .children(attach),
         );
     }

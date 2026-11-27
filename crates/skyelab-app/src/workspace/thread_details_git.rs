@@ -43,6 +43,7 @@ impl ThreadView {
         let branch_row = match worktree_branch {
             // A worktree thread's branch is its own; it doesn't switch.
             Some(branch) => row("details-branch", SkyeIcon::GitBranch, branch, theme)
+                .role(gpui::accesskit::Role::Group)
                 .children(sync)
                 .cursor_default(),
             None => {
@@ -374,10 +375,11 @@ impl ThreadView {
                 .py_1()
                 .gap_2()
                 .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .child(TextField::new(input).small()),
+                    div().flex_1().min_w_0().child(
+                        TextField::new(input)
+                            .small()
+                            .accessibility_label("Pull request link"),
+                    ),
                 )
                 .child(
                     Button::new("details-link-pr-save")
@@ -417,6 +419,8 @@ impl ThreadView {
         let id = c.id;
         h_flex()
             .id(SharedString::from(format!("details-agent-{id}")))
+            .role(gpui::accesskit::Role::Button)
+            .aria_label(format!("{}, {trailing}", c.title))
             .h(ui::ROW_H)
             .px_2p5()
             .gap_2p5()

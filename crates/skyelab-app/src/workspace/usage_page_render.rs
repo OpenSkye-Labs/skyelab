@@ -39,6 +39,7 @@ fn turns(n: u64) -> String {
 /// A segmented toggle (T3's `ToggleGroup variant="segmented"`): thin typed adapter over [`ui::SegmentedControl`].
 pub(super) fn segments<T: Copy + PartialEq + 'static, V: 'static>(
     id: &'static str,
+    aria_label: &'static str,
     items: &[(T, &'static str)],
     on: T,
     pick: impl Fn(&mut V, T, &mut Context<V>) + Copy + 'static,
@@ -47,6 +48,7 @@ pub(super) fn segments<T: Copy + PartialEq + 'static, V: 'static>(
     let values: Vec<T> = items.iter().map(|&(v, _)| v).collect();
     let selected = values.iter().position(|&v| v == on);
     ui::SegmentedControl::new(id)
+        .accessibility_label(aria_label)
         .items(items.iter().map(|&(_, label)| label))
         .selected(selected)
         .on_click(cx.listener(move |this, &ix: &usize, _, cx| {
@@ -237,6 +239,7 @@ impl Render for UsagePage {
             .gap_2()
             .child(segments(
                 "usage-range",
+                "Usage time range",
                 &Range::ALL.map(|r| (r, r.label())),
                 range,
                 |this, r, cx| this.set_range(r, cx),
@@ -244,6 +247,7 @@ impl Render for UsagePage {
             ))
             .child(segments(
                 "usage-metric",
+                "Usage metric",
                 &[(Metric::Cost, "Cost"), (Metric::Tokens, "Tokens")],
                 metric,
                 |this, m, cx| this.set_metric(m, cx),

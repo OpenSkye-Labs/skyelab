@@ -95,9 +95,12 @@ fn header<V: ItemsView>(
         .rounded(ui::RADIUS_MD)
         .text_size(ui::BODY)
         .text_color(muted)
-        .child(label)
+        .child(label.clone())
         .when_some(fold, |el, (open, key)| {
-            el.debug_selector(|| "turn-fold".into())
+            el.role(gpui::accesskit::Role::Button)
+                .aria_label(label)
+                .aria_expanded(open)
+                .debug_selector(|| "turn-fold".into())
                 .cursor_pointer()
                 .hover(move |s| s.text_color(fg))
                 .child(

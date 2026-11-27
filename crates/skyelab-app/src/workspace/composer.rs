@@ -102,11 +102,8 @@ pub(in crate::workspace) use composer_state::{Composer, SteerPrompt, Submit, sho
 use crate::ui;
 use crate::ui::Button;
 use composer_keys::MENU_CONTEXT;
-use composer_menu::MenuKind;
-use composer_state::{AttachFiles, Menu};
-use gpui::{
-    AnyElement, Context, ExternalPaths, FontWeight, IntoElement, SharedString, div, prelude::*, px,
-};
+use composer_state::AttachFiles;
+use gpui::{AnyElement, Context, ExternalPaths, IntoElement, div, prelude::*, px};
 use gpui_component::{ActiveTheme as _, Icon, h_flex, input::Textarea, v_flex};
 use thread::{SendPrompt, ThreadView};
 
@@ -161,6 +158,8 @@ impl ThreadView {
             // Read-only while dictating. The element sets this on the state every render, so set_readonly wouldn't hold.
             Textarea::new(&self.prompt)
                 .appearance(false)
+                .aria_label("Message prompt")
+                .accessibility_id("composer-prompt")
                 .readonly(self.composer.dictation.active())
                 .token(|token, _, cx| composer_mentions::chip(token, cx))
                 .on_paste(move |item, _, cx| {
@@ -179,6 +178,9 @@ impl ThreadView {
         let theme = cx.theme();
         let card = v_flex()
             .id("composer-card")
+            .role(gpui::accesskit::Role::Region)
+            .aria_label("Composer")
+            .accessibility_id("composer")
             // A submitting Enter propagates out of the textarea; stopping it here keeps it from being typed as a new line.
             .on_action(|_: &gpui_component::input::Enter, _, _| {})
             .relative()
@@ -279,6 +281,8 @@ impl ThreadView {
                 Button::new("model-picker")
                     .ghost()
                     .small()
+                    .accessibility_label(format!("Model: {chip}"))
+                    .aria_expanded(self.composer.picker.is_some())
                     // The provider's logo is an image in its own colors, so it goes in as a child, not a tinted icon.
                     .map(|b| match self.composer_account() {
                         Some(a) => b.child(ui::provider_logo(a.provider, px(14.), cx)).child(
@@ -347,6 +351,9 @@ impl ThreadView {
             let danger = cx.theme().danger;
             div()
                 .id("interrupt")
+                .role(gpui::accesskit::Role::Button)
+                .aria_label("Interrupt")
+                .accessibility_id("interrupt")
                 .size(px(32.))
                 .flex_shrink_0()
                 .flex()
@@ -401,98 +408,5 @@ impl ThreadView {
         };
         out.push(button);
         out
-    }
-
-    /// The `@` / `/` / `$` / `#` menu, floating above the card.
-    fn render_menu(&self, menu: &Menu, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme();
-        let (title, empty) = match menu.kind {
-            MenuKind::Files => ("Files", "No file matches"),
-            MenuKind::Commands => ("Commands", "No command matches"),
-            MenuKind::Skills => ("Skills", "No skill in this account"),
-            // Only a thread's own linked pull request is offered, under the thread: the title says so.
-            MenuKind::Context => (
-                "Threads and their pull requests",
-                "No other thread of this account in this project",
-            ),
-        };
-        let rows = menu.items.as_ref().map(|items| {
-            menu.rows
-                .iter()
-                .enumerate()
-                .filter_map(|(pos, &i)| Some((pos, items.get(i)?.clone())))
-                .collect::<Vec<_>>()
-        });
-        let models_shown = rows
-            .as_ref()
-            .is_some_and(|r| r.iter().any(|(_, i)| i.model.is_some()));
-        let title = if models_shown {
-            "Models and files"
-        } else {
-            title
-        };
-        let body: Vec<AnyElement> = match rows {
-            None => vec![hint("Loading…", cx)],
-            Some(rows) if rows.is_empty() => vec![hint(empty, cx)],
-            Some(rows) => {
-                rows.into_iter()
-                    .map(|(pos, item)| {
-                        let selected = pos == menu.selected;
-                        h_flex()
-                            .id(SharedString::from(format!("menu-row-{pos}")))
-                            .h(px(28.))
-                            .px_2()
-                            .gap_2()
-                            .rounded(ui::RADIUS_SM)
-                            .text_size(ui::BODY)
-                            .when(selected, |this| this.bg(theme.foreground.opacity(0.09)))
-                            .hover(|this| this.bg(theme.accent))
-                            .when(item.model.is_some(), |this| {
-                                this.child(ui::provider_logo(
-                                    composer_mentions::provider_of(&item.insert),
-                                    px(12.),
-                                    cx,
-                                ))
-                            })
-                            .child(
-                                div()
-                                    .flex_shrink_0()
-                                    .max_w(px(420.))
-                                    .truncate()
-                                    .child(item.label),
-                            )
-                            .child(
-                                div()
-                                    .min_w_0()
-                                    .truncate()
-                                    .text_size(ui::META)
-                                    .text_color(theme.muted_foreground)
-                                    .child(item.detail),
-                            )
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.accept_row(pos, window, cx)
-                            }))
-                            .into_any_element()
-                    })
-                    .collect()
-            }
-        };
-        popover(cx)
-            .id("composer-menu")
-            .max_h(px(320.))
-            .overflow_y_scroll()
-            .left_0()
-            .right_0()
-            .child(
-                div()
-                    .px_2()
-                    .py_1()
-                    .text_size(ui::META)
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(theme.muted_foreground)
-                    .child(title),
-            )
-            .children(body)
-            .into_any_element()
     }
 }

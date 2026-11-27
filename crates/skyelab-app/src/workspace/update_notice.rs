@@ -355,6 +355,8 @@ impl RenderOnce for PillTrigger {
                 d.child(
                     div()
                         .id("update-pill-action")
+                        .role(gpui::accesskit::Role::Button)
+                        .aria_label("Retry update")
                         .flex_shrink_0()
                         .pl_1p5()
                         .pr_3()

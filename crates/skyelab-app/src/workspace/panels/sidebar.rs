@@ -305,6 +305,7 @@ impl Sidebar {
                 let more = (self.shelves[k].items.len() - self.shelf_shown(&self.shelves[k]))
                     .min(SETTLED_PAGE);
                 let row = ui::row("shelf-more", false, theme)
+                    .aria_label(format!("Show {more} more"))
                     .pl(gpui::px(THREAD_INDENT))
                     .text_size(ui::META)
                     .text_color(theme.muted_foreground)
@@ -373,6 +374,8 @@ impl Sidebar {
             (a.open, a.items.len(), Some(a.toggle.boxed_clone()))
         });
         ui::row("archived-toggle", false, theme)
+            .aria_label(format!("Archived ({count})"))
+            .aria_expanded(open)
             .pl(gpui::px(THREAD_INDENT))
             .text_size(ui::META)
             .text_color(theme.muted_foreground)
@@ -403,6 +406,9 @@ impl Render for Sidebar {
         let focus = self.focus.clone();
         v_flex()
             .id("sidebar")
+            .role(gpui::accesskit::Role::Complementary)
+            .aria_label("Sidebar")
+            .accessibility_id("sidebar")
             .track_focus(&self.focus)
             .capture_any_mouse_down(cx.listener(|this, _, _, cx| {
                 this.cards_held = true;
@@ -445,11 +451,16 @@ impl Render for Sidebar {
                         .gap_1()
                         .child(
                             div().flex_1().min_w_0().child(
-                                TextField::new(&self.search).small().cleanable(true).prefix(
-                                    Icon::new(SkyeIcon::Search)
-                                        .size_3p5()
-                                        .text_color(theme.muted_foreground),
-                                ),
+                                TextField::new(&self.search)
+                                    .small()
+                                    .cleanable(true)
+                                    .accessibility_label("Search threads")
+                                    .accessibility_id("sidebar-search")
+                                    .prefix(
+                                        Icon::new(SkyeIcon::Search)
+                                            .size_3p5()
+                                            .text_color(theme.muted_foreground),
+                                    ),
                             ),
                         )
                         .children(self.scope.clone().map(|scope| views_button(scope, &focus)))
@@ -467,13 +478,20 @@ impl Render for Sidebar {
                 )
             })
             .child(
-                list(
-                    self.list.clone(),
-                    cx.processor(|this, ix, _, cx| this.render_entry(ix, cx)),
-                )
-                .flex_1()
-                .min_h_0()
-                .w_full(),
+                div()
+                    .id("sidebar-threads")
+                    .role(gpui::accesskit::Role::List)
+                    .aria_label("Threads")
+                    .flex_1()
+                    .min_h_0()
+                    .w_full()
+                    .child(
+                        list(
+                            self.list.clone(),
+                            cx.processor(|this, ix, _, cx| this.render_entry(ix, cx)),
+                        )
+                        .size_full(),
+                    ),
             )
             // T3's footer: the last thread action's Undo, else the update pill.
             .child(footer(self.render_undo(cx).or(pill)))

@@ -4,6 +4,7 @@
 use super::sidebar::{
     Ask, RowAccount, RowMarks, ScopeMenu, SidebarItem, SidebarSection, SnoozeMenu,
 };
+use super::sidebar_a11y::{plain_label, thread_label};
 use super::sidebar_snooze::hover_actions;
 use super::*;
 use crate::ui::SkyeIcon;
@@ -206,7 +207,10 @@ fn thread_row(
                 .group_hover(group.clone(), |s| s.visible())
                 .child(a.pl_1().rounded(ui::RADIUS_MD).bg(fill))
         }));
+    let a11y_label = thread_label(item, &project, marks, unread);
     ui::row_surface(v_flex(), item.id.clone(), item.selected, theme)
+        .aria_label(a11y_label)
+        .accessibility_id(format!("thread-row-{}", item.id))
         .group(group.clone())
         .debug_selector(move || selector.clone())
         .py_1p5()
@@ -315,6 +319,9 @@ fn group_badge(
 ) -> impl IntoElement {
     h_flex()
         .id(SharedString::from(format!("compare-badge-{group}")))
+        .role(gpui::accesskit::Role::Button)
+        .aria_label(format!("Comparison group, {count} threads"))
+        .aria_expanded(open)
         .debug_selector(move || format!("compare-badge-{group}"))
         .flex_shrink_0()
         .h(gpui::px(18.))
@@ -362,9 +369,12 @@ fn plain_row(
     let (pinned, unread) = marks.map_or((false, false), |m| (m.pinned, m.unread));
     let scheduled = marks.is_some_and(|m| m.scheduled);
     // A project row is never lifted (T3 keeps project headers flat): a selected one is only set in medium weight.
+    let a11y_label = plain_label(item);
     ui::row(item.id.clone(), item.selected && !is_project, theme)
+        .aria_label(a11y_label)
         .when(item.selected && is_project, |this| {
-            this.font_weight(gpui::FontWeight::MEDIUM)
+            this.aria_selected(true)
+                .font_weight(gpui::FontWeight::MEDIUM)
         })
         .on_click(move |_, window, cx| dispatch(action.boxed_clone(), window, cx))
         .when(indent, |this| this.pl(gpui::px(THREAD_INDENT)))

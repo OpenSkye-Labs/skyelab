@@ -104,11 +104,15 @@ impl ThreadView {
         let model_rows = rows.iter().enumerate().map(|(i, (id, label))| {
             let on = pick.model == *id;
             let index = i;
+            let a11y_label = label.clone();
             h_flex()
                 .id(SharedString::from(format!(
                     "pick-model-{}",
                     id.as_deref().unwrap_or("default")
                 )))
+                .role(gpui::accesskit::Role::MenuItem)
+                .aria_label(a11y_label)
+                .aria_selected(on)
                 .h(px(30.))
                 .px_2()
                 .gap_2()
@@ -141,7 +145,13 @@ impl ThreadView {
             .min_w_0()
             .p_1()
             .gap_0p5()
-            .child(div().pb_1().child(TextField::new(&state.search).small()))
+            .child(
+                div().pb_1().child(
+                    TextField::new(&state.search)
+                        .small()
+                        .accessibility_label("Filter models"),
+                ),
+            )
             .children(model_rows)
             .children(empty)
             .children(self.picker_error().map(|e| hint(e, cx)));
@@ -157,6 +167,9 @@ impl ThreadView {
                             "pick-effort-{}",
                             e.as_deref().unwrap_or("default")
                         )))
+                        .role(gpui::accesskit::Role::MenuItem)
+                        .aria_label(format!("Effort: {label}"))
+                        .aria_selected(on)
                         .h(px(30.))
                         .px_2()
                         .gap_2()
@@ -198,6 +211,8 @@ impl ThreadView {
         let several = (self.thread.is_none() && self.picker_models("").len() > 2).then(|| {
             h_flex()
                 .id("compare-start")
+                .role(gpui::accesskit::Role::Button)
+                .aria_label("Send to several models…")
                 .h(px(28.))
                 .px_2()
                 .gap_2()
@@ -273,13 +288,24 @@ impl ThreadView {
                 .hover(|this| this.bg(theme.accent))
         };
         // The handler is on the row only: a click on the checkbox reaches the row too (docs/gpui.md).
-        let check =
-            |id: String, on: bool| Checkbox::new(SharedString::from(id)).xsmall().checked(on);
+        let check = |id: String, on: bool| {
+            Checkbox::new(SharedString::from(id))
+                .xsmall()
+                .decorative()
+                .checked(on)
+        };
         let full = c.models.len() >= crate::workspace::compare::MAX_MODELS;
         let model_rows = models.iter().map(|(id, label)| {
             let on = c.models.contains(id);
             let model = id.clone();
             row(format!("compare-model-{id}").into())
+                .role(gpui::accesskit::Role::CheckBox)
+                .aria_label(label.clone())
+                .aria_toggled(if on {
+                    gpui::accesskit::Toggled::True
+                } else {
+                    gpui::accesskit::Toggled::False
+                })
                 .child(check(format!("compare-check-{id}"), on))
                 .child(div().flex_1().child(label.clone()))
                 .when(full && !on, |this| this.opacity(0.5))
@@ -295,11 +321,19 @@ impl ThreadView {
         };
         popover(cx)
             .id("model-picker-menu")
+            .role(gpui::accesskit::Role::Menu)
+            .aria_label("Send to several models")
             .key_context(PICKER_CONTEXT)
             .right_0()
             .w(px(280.))
             .on_mouse_down_out(cx.listener(|this, _, _, cx| this.close_picker(cx)))
-            .children(search.map(|s| div().pb_1().child(TextField::new(&s).small())))
+            .children(search.map(|s| {
+                div().pb_1().child(
+                    TextField::new(&s)
+                        .small()
+                        .accessibility_label("Filter models"),
+                )
+            }))
             .child(
                 div()
                     .px_2()
@@ -319,6 +353,13 @@ impl ThreadView {
                     .border_color(theme.border)
                     .child(
                         row("compare-worktrees".into())
+                            .role(gpui::accesskit::Role::CheckBox)
+                            .aria_label("In worktrees")
+                            .aria_toggled(if c.worktrees {
+                                gpui::accesskit::Toggled::True
+                            } else {
+                                gpui::accesskit::Toggled::False
+                            })
                             .child(check("compare-worktrees-check".into(), c.worktrees))
                             .child(div().flex_1().child("In worktrees"))
                             .on_click(
@@ -327,6 +368,8 @@ impl ThreadView {
                     )
                     .child(
                         row("compare-stop".into())
+                            .role(gpui::accesskit::Role::Button)
+                            .aria_label("One model")
                             .child(
                                 Icon::new(SkyeIcon::Close)
                                     .xsmall()

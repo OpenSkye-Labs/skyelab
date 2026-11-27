@@ -97,7 +97,11 @@ impl Settings {
                     div()
                         .flex_1()
                         .debug_selector(|| "page-host-input".into())
-                        .child(TextField::new(&self.page_host_input).small()),
+                        .child(
+                            TextField::new(&self.page_host_input)
+                                .small()
+                                .accessibility_label("Allowed CDN host"),
+                        ),
                 )
                 .child(
                     Button::new("page-host-add")

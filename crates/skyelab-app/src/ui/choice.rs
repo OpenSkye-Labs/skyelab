@@ -19,6 +19,8 @@ struct Item {
 
 struct Choice {
     id: ElementId,
+    aria_label: Option<SharedString>,
+    aria_id: Option<SharedString>,
     items: Vec<Item>,
     selected: Option<usize>,
     size: Size,
@@ -31,11 +33,21 @@ macro_rules! choice_builders {
             pub fn new(id: impl Into<ElementId>) -> Self {
                 Self(Choice {
                     id: id.into(),
+                    aria_label: None,
+                    aria_id: None,
                     items: Vec::new(),
                     selected: None,
                     size: Size::Xs,
                     on_click: None,
                 })
+            }
+            pub fn accessibility_label(mut self, label: impl Into<SharedString>) -> Self {
+                self.0.aria_label = Some(label.into());
+                self
+            }
+            pub fn accessibility_id(mut self, id: impl Into<SharedString>) -> Self {
+                self.0.aria_id = Some(id.into());
+                self
             }
             pub fn item(mut self, label: impl Into<SharedString>) -> Self {
                 self.0.items.push(Item {
@@ -44,7 +56,7 @@ macro_rules! choice_builders {
                 });
                 self
             }
-            /// An item with an icon before its label (`label` empty: icon only).
+            /// An item with an icon before its label.
             pub fn icon_item(mut self, icon: SkyeIcon, label: impl Into<SharedString>) -> Self {
                 let label: SharedString = label.into();
                 self.0.items.push(Item {
@@ -107,6 +119,8 @@ impl RenderOnce for SegmentedControl {
         h_flex()
             .id(c.id)
             .role(accesskit::Role::RadioGroup)
+            .when_some(c.aria_label, |d, l| d.aria_label(l))
+            .when_some(c.aria_id, |d, id| d.accessibility_id(id))
             .flex_shrink_0()
             .gap_0p5()
             .p_0p5()
@@ -115,11 +129,17 @@ impl RenderOnce for SegmentedControl {
             .children(c.items.into_iter().enumerate().map(|(ix, item)| {
                 let on = c.selected == Some(ix);
                 let f = c.on_click.clone();
+                let a11y_label = item.label.clone();
+                debug_assert!(
+                    a11y_label.as_deref().is_some_and(|s| !s.trim().is_empty()),
+                    "ui::SegmentedControl item {ix} must have a non-empty label (docs/gpui/accessibility.md)"
+                );
                 // gpui-base's headless button: a tab stop that Space and Enter pick, a press that keeps focus put.
                 gpui_base::Button::new(ix)
                     .selected(on)
                     .on_any_mouse_down(|_, window, _| window.prevent_default())
                     .role(accesskit::Role::RadioButton)
+                    .when_some(a11y_label, |d, l| d.accessibility_label(l))
                     .aria_toggled(if on {
                         accesskit::Toggled::True
                     } else {
@@ -165,6 +185,8 @@ impl RenderOnce for Tabs {
         h_flex()
             .id(c.id)
             .role(accesskit::Role::TabList)
+            .when_some(c.aria_label, |d, l| d.aria_label(l))
+            .when_some(c.aria_id, |d, id| d.accessibility_id(id))
             .gap_4()
             .border_b_1()
             .border_color(theme.border)
@@ -172,11 +194,18 @@ impl RenderOnce for Tabs {
                 let on = c.selected == Some(ix);
                 let f = c.on_click.clone();
                 let (fg, ring) = (theme.foreground, theme.ring);
+                let a11y_label = item.label.clone();
+                debug_assert!(
+                    a11y_label.as_deref().is_some_and(|s| !s.trim().is_empty()),
+                    "ui::Tabs item {ix} must have a non-empty label (docs/gpui/accessibility.md)"
+                );
                 // gpui-base's headless button: a tab stop that Space and Enter pick, a press that keeps focus put.
                 gpui_base::Button::new(ix)
                     .selected(on)
                     .on_any_mouse_down(|_, window, _| window.prevent_default())
                     .role(accesskit::Role::Tab)
+                    .when_some(a11y_label, |d, l| d.accessibility_label(l))
+                    .aria_selected(on)
                     .h(c.size.height() + px(4.))
                     .gap_1p5()
                     // The underline sits on the row's hairline.

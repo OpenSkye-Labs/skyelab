@@ -112,7 +112,7 @@ fn commit_hooks_get_the_accounts_git_credential_binding(cx: &mut TestAppContext)
 
 #[test]
 fn the_note_says_why_hooks_were_skipped() {
-    use super::changes_publish::hooks_note;
+    use super::changes_hooks::hooks_note;
     assert_eq!(hooks_note("Pushed".into(), Some(true)), "Pushed");
     assert_eq!(
         hooks_note("Pushed".into(), Some(false)),
