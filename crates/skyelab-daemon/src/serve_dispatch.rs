@@ -6,7 +6,11 @@ use crate::Backend;
 
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 #[tracing::instrument(name = "daemon.dispatch", skip_all)]
-pub(super) fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
+pub(super) fn dispatch(
+    backend: &dyn Backend,
+    call: Call,
+    ctx: &crate::serve_delegate::Ctx,
+) -> Result<Reply, RpcError> {
     match call {
         Call::Hello { .. } => Err(RpcError::new(ErrorCode::BadRequest, "already said hello")),
         Call::ListProjects => backend.list_projects().map(Reply::Projects),
@@ -40,6 +44,7 @@ pub(super) fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcEr
         } => backend
             .answer_questions(thread_id, &request_id, &answers)
             .map(|()| Reply::Ok),
+        Call::Delegate { caller, op } => ctx.run(backend, caller, op).map(Reply::Delegated),
         Call::ShelveThread {
             thread_id,
             settled,

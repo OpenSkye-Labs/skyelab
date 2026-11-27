@@ -11,7 +11,10 @@ use skyelab_protocol::{
 };
 use skyelab_store::{RowChange, Store};
 
+use crate::Origin;
 use crate::shell::{Hub, ShellFeed};
+use serde_json::Value;
+use skyelab_protocol::{DelegateOp, Delegator};
 
 /// Answers RPC calls. Called from a blocking thread, so implementations may block.
 pub trait Backend: Send + Sync + 'static {
@@ -36,6 +39,10 @@ pub trait Backend: Send + Sync + 'static {
     fn subscribe_shell(&self) -> Result<ShellFeed, RpcError> {
         NotWired::err()
     }
+    /// A `delegate` call (1.8) from `origin`, the calling machine as the connection proved it.
+    fn delegate(&self, _: &Origin, _: Delegator, _: DelegateOp) -> Result<Value, RpcError> {
+        NotWired::err()
+    }
 }
 
 /// Runs agents for remote requests. The daemon never launches anything itself. An implementation resolves the
@@ -55,6 +62,10 @@ pub trait Agents: Send + Sync + 'static {
     }
     /// Puts the thread on a shelf through the app, so its sidebar changes with its store.
     fn shelve_thread(&self, _: i64, _: bool, _: Option<i64>) -> Result<(), RpcError> {
+        NotWired::err()
+    }
+    /// Runs a `delegate` call; this machine checks its own links, logins, binding and caps.
+    fn delegate(&self, _: &Origin, _: Delegator, _: DelegateOp) -> Result<Value, RpcError> {
         NotWired::err()
     }
 }
@@ -142,18 +153,19 @@ impl<A: Agents> Backend for StoreBackend<A> {
     }
 
     fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>, RpcError> {
-        let (threads, mut previews) = self.with_store(|s| {
+        let (threads, mut previews, mut from) = self.with_store(|s| {
             Ok((
                 s.list_threads(project_id)?,
                 s.last_replies(Some(project_id))?,
+                s.all_delegated_from()?,
             ))
         })?;
         let accounts = self.accounts();
         Ok(threads
             .into_iter()
             .map(|t| {
-                let preview = previews.remove(&t.id);
-                wire_thread(t, preview, &accounts)
+                let (preview, from) = (previews.remove(&t.id), from.remove(&t.id));
+                wire_thread(t, preview, &accounts, from)
             })
             .collect())
     }
@@ -217,6 +229,15 @@ impl<A: Agents> Backend for StoreBackend<A> {
         self.agents.shelve_thread(thread_id, settled, snoozed_until)
     }
 
+    fn delegate(
+        &self,
+        origin: &Origin,
+        caller: Delegator,
+        op: DelegateOp,
+    ) -> Result<Value, RpcError> {
+        self.agents.delegate(origin, caller, op)
+    }
+
     fn subscribe_shell(&self) -> Result<ShellFeed, RpcError> {
         let hub = match self.hub.get() {
             Some(hub) => hub,
@@ -240,11 +261,12 @@ impl<A: Agents> Backend for StoreBackend<A> {
             }
         };
         hub.subscribe(|| {
-            let (projects, threads, mut previews) = self.with_store(|s| {
+            let (projects, threads, mut previews, mut from) = self.with_store(|s| {
                 Ok((
                     s.list_projects()?,
                     s.list_all_threads()?,
                     s.last_replies(None)?,
+                    s.all_delegated_from()?,
                 ))
             })?;
             let accounts = self.accounts();
@@ -254,8 +276,8 @@ impl<A: Agents> Backend for StoreBackend<A> {
                 threads: threads
                     .into_iter()
                     .map(|t| {
-                        let preview = previews.remove(&t.id);
-                        wire_thread(t, preview, &accounts)
+                        let (preview, from) = (previews.remove(&t.id), from.remove(&t.id));
+                        wire_thread(t, preview, &accounts, from)
                     })
                     .collect(),
                 truncated: false,
@@ -291,6 +313,7 @@ fn wire_thread(
     t: skyelab_store::Thread,
     preview: Option<String>,
     accounts: &AccountsConfig,
+    from: Option<skyelab_store::DelegatedOrigin>,
 ) -> Thread {
     let path = |p: Option<PathBuf>| p.map(|p| p.to_string_lossy().into_owned());
     Thread {
@@ -328,6 +351,11 @@ fn wire_thread(
             compare_group: t.compare_group,
             scheduled_task_id: t.scheduled_task_id,
             limit_resume_at: t.limit_resume_at,
+            delegated_from: from.map(|o| skyelab_protocol::DelegatedFrom {
+                machine: o.origin_machine,
+                parent_thread_id: o.parent_thread_id,
+                parent_title: o.parent_title,
+            }),
         },
     }
 }
@@ -342,8 +370,9 @@ fn read_rows(
     // A preview that can't be read fails the batch too: an update without it would blank the row's last reply.
     let thread = |t: skyelab_store::Thread| {
         let preview = store.last_reply(t.id, PREVIEW_CHARS)?;
+        let from = store.delegated_from(t.id)?;
         anyhow::Ok(ShellDelta::ThreadUpdated(Box::new(wire_thread(
-            t, preview, accounts,
+            t, preview, accounts, from,
         ))))
     };
     let mut out = Vec::new();

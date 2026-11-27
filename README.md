@@ -57,7 +57,8 @@ that impossible: **every folder is bound to exactly one account (Claude, Codex, 
   Simulators and Android emulators.
 - **Many threads at once**: one list across projects, scheduled tasks, side chats, sending one prompt to several
   models, and agents that start and drive other threads (on the same account only).
-- **Your machines**: share a machine over your Tailscale tailnet and run threads on it from another one. A mobile
+- **Your machines**: share a machine over your Tailscale tailnet and run threads on it from another one; agents can
+  delegate there too, under that machine's own account for each folder. A mobile
   client is in progress.
 - **Onboarding, themes and updates**: a first-run guide that imports your existing agent folders, five themes with
   light and dark sides, and in-app updates (a Stable or Nightly channel) checked against the release's SHA-256 list.

@@ -14,8 +14,6 @@ use gpui::{
     AppContext as _, Context, Entity, IntoElement, Subscription, Task, Window, div, prelude::*, px,
 };
 use gpui_component::{ActiveTheme as _, h_flex};
-use skyelab_protocol::{ErrorCode, RpcError};
-use std::time::Duration;
 
 pub(super) struct RemoteHook {
     remote: Entity<Remote>,
@@ -25,47 +23,8 @@ pub(super) struct RemoteHook {
     _observe: Subscription,
 }
 
-/// How long a remote follow-up or interrupt waits to reach the agent; under the daemon's own 30 s wait, so the
-/// client hears this answer rather than a timeout.
-const DELIVERY_WAIT: Duration = Duration::from_secs(20);
-
-/// Sends `delivered`'s result to `reply`, or a timeout error once [`DELIVERY_WAIT`] passes.
-fn answer_within(
-    delivered: impl std::future::Future<Output = Result<(), RpcError>> + 'static,
-    reply: Reply<()>,
-    cx: &mut Context<Workspace>,
-) {
-    use futures::FutureExt as _;
-    let timer = cx.background_executor().timer(DELIVERY_WAIT);
-    cx.spawn(async move |_, _| {
-        let answer = futures::select! {
-            r = delivered.fuse() => r,
-            () = timer.fuse() => Err(crate::remote::internal("the agent didn't take it in time")),
-        };
-        let _ = reply.send(answer);
-    })
-    .detach();
-}
-
-pub(super) fn refused(message: impl Into<String>) -> RpcError {
-    RpcError::new(ErrorCode::BadRequest, message.into())
-}
-
-pub(super) fn decision_of(a: skyelab_protocol::PermissionAnswer) -> skyelab_agent::Decision {
-    use skyelab_protocol::PermissionAnswer as A;
-    match a {
-        A::AllowOnce => skyelab_agent::Decision::AllowOnce,
-        A::AllowThread => skyelab_agent::Decision::AllowThread,
-        A::Deny => skyelab_agent::Decision::Deny,
-    }
-}
-
-pub(super) fn not_open(thread_id: i64) -> RpcError {
-    RpcError::new(
-        ErrorCode::NotFound,
-        format!("thread {thread_id} isn't running here (it ended, or it was closed)"),
-    )
-}
+pub(super) use super::remote_reply::{answer_within, decision_of, not_open, refused};
+use skyelab_protocol::{ErrorCode, RpcError};
 
 impl Workspace {
     /// Hooks up sharing: the status bar follows `remote`, and every call on `calls` runs on this window.
@@ -77,7 +36,10 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.remote = Some(RemoteHook {
-            _observe: cx.observe(&remote, |_, _, cx| cx.notify()),
+            _observe: cx.observe(&remote, |this, _, cx| {
+                this.match_delegation_requests(cx);
+                cx.notify()
+            }),
             remote,
             panel: None,
             _calls: None,
@@ -192,7 +154,7 @@ impl Workspace {
         Some(self.remote.as_ref()?.remote.read(cx).enabled)
     }
 
-    fn sharing_session(&self, cx: &Context<Self>) -> Option<u64> {
+    pub(super) fn sharing_session(&self, cx: &Context<Self>) -> Option<u64> {
         self.remote.as_ref()?.remote.read(cx).sharing_session()
     }
 
@@ -241,6 +203,10 @@ impl Workspace {
                 reply,
                 ..
             } => self.remote_questions(thread_id, &request_id, answers, reply, cx),
+            RemoteCall::Delegate { call, reply, gate } => {
+                let (origin, caller, op) = *call;
+                self.remote_delegate(origin, caller, op, (reply, gate), window, cx)
+            }
             RemoteCall::Shelve {
                 thread_id,
                 settled,
@@ -298,7 +264,12 @@ impl Workspace {
     }
 
     /// Answers once the interrupt is in the agent's input, or with why it couldn't be.
-    fn remote_interrupt(&mut self, thread_id: i64, reply: Reply<()>, cx: &mut Context<Self>) {
+    pub(super) fn remote_interrupt(
+        &mut self,
+        thread_id: i64,
+        reply: Reply<()>,
+        cx: &mut Context<Self>,
+    ) {
         let session = match self.open_view(thread_id, cx) {
             Some(view) => view.read(cx).session.clone(),
             None => {

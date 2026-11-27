@@ -1,6 +1,7 @@
 //! Sharing this machine on the user's tailnet. The daemon does all the gating; this only turns it on and off.
 
 mod agents;
+pub mod delegation_panel;
 mod panel;
 
 pub(crate) use agents::internal;
@@ -127,6 +128,16 @@ pub struct Remote {
     pub requests: Vec<AccessRequest>,
     /// The devices allowed in settings.toml.
     pub approved: Vec<ApprovedDevice>,
+    /// Callers on other machines refused for want of a delegation link, as the daemon lists them.
+    pub delegation_requests: Vec<skyelab_daemon::DelegationRequest>,
+    /// The local account (id, label) signed in to each request's login: `None` when none is, absent until checked.
+    pub delegation_matches:
+        std::collections::HashMap<delegation_panel::CallerKey, Option<(String, String)>>,
+    /// When each request was last matched: one matched to no account is checked again after a while.
+    pub delegation_checked:
+        std::collections::HashMap<delegation_panel::CallerKey, std::time::Instant>,
+    /// The delegation links in settings.toml.
+    pub delegation_links: Vec<skyelab_core::delegation_remote::DelegationLink>,
     /// Why the last Allow or Revoke couldn't be saved.
     pub approval_error: Option<String>,
     /// Revokes whose save failed: kept out of every later save, so a later Allow can't bring them back.
@@ -154,6 +165,10 @@ impl Remote {
             peers: Vec::new(),
             requests: Vec::new(),
             approved: Vec::new(),
+            delegation_requests: Vec::new(),
+            delegation_matches: Default::default(),
+            delegation_checked: Default::default(),
+            delegation_links: Vec::new(),
             approval_error: None,
             unsaved_revokes: Vec::new(),
             generation: Arc::default(),
@@ -164,6 +179,7 @@ impl Remote {
         };
         if let Some(Ok(s)) = &loaded {
             this.approved = s.approved_devices.clone();
+            this.delegation_links = s.delegation.links.clone();
         }
         match loaded {
             Some(Ok(s)) if s.share_on_tailnet => {
@@ -175,6 +191,16 @@ impl Remote {
             _ => {}
         }
         this
+    }
+
+    /// This machine's settings.toml, where the delegation links live.
+    pub fn settings_path(&self) -> Option<&std::path::Path> {
+        self.host.settings_path.as_deref()
+    }
+
+    /// The running daemon, for what it lists (delegation requests) and forgets.
+    pub fn with_daemon<T>(&self, f: impl FnOnce(&Daemon) -> T) -> Option<T> {
+        lock_slot(&self.host.slot).as_ref().map(f)
     }
 
     pub fn toggle(&mut self, cx: &mut Context<Self>) {
@@ -279,6 +305,7 @@ impl Remote {
         self._poll = None;
         self.peers.clear();
         self.requests.clear();
+        self.delegation_requests.clear();
         self.status = Status::Off;
         cx.notify();
     }
@@ -309,6 +336,25 @@ impl Remote {
         if peers != self.peers || requests != self.requests {
             self.peers = peers;
             self.requests = requests;
+            cx.notify();
+        }
+        // A request no account matched is matched again (its Workspace observes this), so a sign-in shows Allow.
+        let checked = &self.delegation_checked;
+        let before = self.delegation_matches.len();
+        self.delegation_matches.retain(|k, m| {
+            m.is_some()
+                || checked
+                    .get(k)
+                    .is_some_and(|at| at.elapsed() < Duration::from_secs(15))
+        });
+        if self.delegation_matches.len() != before {
+            cx.notify();
+        }
+        let delegation = self
+            .with_daemon(|d| d.delegation_requests())
+            .unwrap_or_default();
+        if delegation != self.delegation_requests {
+            self.delegation_requests = delegation;
             cx.notify();
         }
         if let (Status::Sharing { cert_until, .. }, Some(cert)) = (&mut self.status, cert) {

@@ -146,13 +146,21 @@ pub(super) fn save(
     new: &skyelab_store::NewThread,
     worktree: Option<Created>,
     parent: Option<i64>,
+    remote: Option<&skyelab_store::DelegatedOrigin>,
 ) -> Result<skyelab_store::Thread> {
     let path = worktree.as_ref().map(|w| w.path.clone());
     let saved = super::lock(store).and_then(|store| {
         if let Some(parent) = parent {
             super::child_slots::claim(&store, parent, None)?;
         }
-        let mut thread = store.create_thread(new)?;
+        if let Some(o) = remote {
+            super::child_slots::claim_for(&store, &super::child_slots::remote_key(o), None)?;
+        }
+        // With its origin and request id before the agent spawns, so a retried start finds this row.
+        let mut thread = match remote {
+            Some(o) => store.create_thread_from(new, o)?,
+            None => store.create_thread(new)?,
+        };
         if let Some(parent) = parent {
             let linked = store.set_thread_parent(thread.id, Some(parent));
             if let Err(e) = linked {

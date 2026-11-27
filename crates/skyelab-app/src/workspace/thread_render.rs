@@ -89,6 +89,15 @@ impl ThreadView {
                             .text_color(theme.muted_foreground.opacity(0.6))
                             .child("/"),
                     )
+                    .children(self.delegated_label().map(|label| {
+                        h_flex()
+                            .debug_selector(|| "thread-header-delegated".into())
+                            .flex_shrink_0()
+                            .gap_2()
+                            .text_color(theme.muted_foreground)
+                            .child(label)
+                            .child(div().opacity(0.6).child("/"))
+                    }))
                     .children(self.parent.clone().map(|(id, title)| {
                         h_flex()
                             .flex_shrink_0()

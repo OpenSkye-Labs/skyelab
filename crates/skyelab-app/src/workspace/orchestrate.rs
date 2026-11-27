@@ -69,7 +69,16 @@ pub enum OrchCall {
         tool: HtmlTool,
         reply: Reply<Value>,
     },
+    /// A delegation call to another machine (`delegate_out.rs`), sent on its linked connection.
+    Remote(Box<delegate_out::RemoteCall>),
+    /// A thread recorded a child it started on another machine: its details card lists it now.
+    ChildRecorded { parent: i64 },
+    /// The machines this agent may delegate to.
+    Machines { reply: Reply<Vec<Value>> },
 }
+
+#[path = "delegate_out.rs"]
+pub(super) mod delegate_out;
 
 /// Present when orchestration is on (the socket or pipe could be bound).
 pub struct Orchestration {
@@ -93,6 +102,7 @@ pub fn install(
         store,
         config: Mutex::new(config),
         calls,
+        not_linked: Mutex::default(),
     });
     let server = Arc::new(Server::start(run_dir, host.clone())?);
     cx.set_global(Orchestration {
@@ -116,6 +126,8 @@ pub struct AppHost {
     store: SharedStore,
     config: Mutex<AccountsConfig>,
     calls: flume::Sender<OrchCall>,
+    /// (machine, account) pairs refused for want of a delegation link there, until a call passes.
+    not_linked: Mutex<std::collections::HashSet<(String, String)>>,
 }
 
 fn ask<T>(
@@ -190,34 +202,56 @@ impl AppHost {
         Ok(false)
     }
 
-    /// How many delegations deep `thread` is: 0 for a user's own thread.
+    /// How many delegations deep `thread` is: 0 for a user's own thread. A chain that another machine's agent
+    /// started counts from the depth stored with its first thread here.
     fn depth(&self, thread: &Thread) -> Result<u32, String> {
         let mut depth = 0;
+        let mut top = thread.id;
         let mut parent = thread.parent_thread_id;
         while let Some(id) = parent {
             depth += 1;
             if depth > MAX_CHAIN {
-                break;
+                return Ok(depth);
             }
+            top = id;
             parent = self
                 .store(|s| s.thread(id))?
                 .and_then(|t| t.parent_thread_id);
         }
-        Ok(depth)
+        let origin = self.store(|s| s.delegated_from(top))?;
+        Ok(depth + origin.map_or(0, |o| o.depth))
     }
 
-    /// The thread's last finished turn as data: what `wait_thread` adds once the thread is done.
     fn last_turn(&self, id: i64) -> Result<Option<skyelab_agent::turn_result::TurnResult>, String> {
-        let rows = self.store(|s| s.events_since(id, 0))?;
-        let records: Vec<Record> = rows
-            .iter()
-            .filter_map(|r| Record::from_row(&r.kind, &r.payload_json).ok())
-            .collect();
-        Ok(skyelab_agent::turn_result::last_turn(&records))
+        last_turn(&self.store, id)
     }
 
     fn read(&self, thread: &Thread, since_seq: i64) -> Result<Value, String> {
-        let rows = self.store(|s| s.events_since(thread.id, since_seq))?;
+        read(&self.store, thread, since_seq)
+    }
+}
+
+/// The thread's last finished turn as data: what `wait_thread` adds once the thread is done.
+pub(super) fn last_turn(
+    store: &SharedStore,
+    id: i64,
+) -> Result<Option<skyelab_agent::turn_result::TurnResult>, String> {
+    let rows = lock(store)
+        .and_then(|s| s.events_since(id, 0))
+        .map_err(|e| format!("{e:#}"))?;
+    let records: Vec<Record> = rows
+        .iter()
+        .filter_map(|r| Record::from_row(&r.kind, &r.payload_json).ok())
+        .collect();
+    Ok(skyelab_agent::turn_result::last_turn(&records))
+}
+
+/// `read_thread`'s answer: the thread's text since `since_seq` (the end of it, at most [`MAX_READ`]).
+pub(super) fn read(store: &SharedStore, thread: &Thread, since_seq: i64) -> Result<Value, String> {
+    {
+        let rows = lock(store)
+            .and_then(|s| s.events_since(thread.id, since_seq))
+            .map_err(|e| format!("{e:#}"))?;
         let last_seq = rows.last().map_or(since_seq, |e| e.seq);
         let mut text = Vec::new();
         let mut result = Value::Null;
@@ -354,6 +388,8 @@ impl Host for AppHost {
                 tool,
                 reply,
             }),
+            Tool::ListMachines => self.machines(caller),
+            Tool::Remote { machine, tool } => self.remote(caller, &me, &machine, *tool, granted),
             Tool::WaitThread {
                 thread_id,
                 timeout_s,

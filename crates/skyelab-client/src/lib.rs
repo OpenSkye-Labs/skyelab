@@ -372,6 +372,24 @@ impl Client {
         Pending(rx)
     }
 
+    /// Delegates to the environment (protocol 1.8): `caller` is the local thread whose agent asks. An environment
+    /// older than 1.8 is never asked: it fails here with a `NotWired` error that says to update SkyeLab there.
+    pub fn delegate(
+        &self,
+        caller: skyelab_protocol::Delegator,
+        op: skyelab_protocol::DelegateOp,
+    ) -> Pending<serde_json::Value> {
+        if let Some(refused) =
+            self.older_than(skyelab_protocol::DELEGATION_SINCE_MINOR, "delegation")
+        {
+            return refused;
+        }
+        self.call(Call::Delegate { caller, op }, |r| match r {
+            Reply::Delegated(v) => Some(v),
+            _ => None,
+        })
+    }
+
     /// A `NotWired` answer for a call the connected environment is older than `minor` for, naming what it lacks.
     fn older_than<T>(&self, minor: u32, lacks: &str) -> Option<Pending<T>> {
         if !self.hello().is_some_and(|h| h.protocol.minor < minor) {

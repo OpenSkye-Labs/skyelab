@@ -338,3 +338,5 @@ mod resume_after_restart_test;
 mod tab_context_menu_test;
 #[cfg(all(test, unix))]
 mod timeline_menu_test;
+#[cfg(all(test, unix))]
+mod remote_delegation_tests;

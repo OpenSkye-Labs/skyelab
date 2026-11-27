@@ -2,13 +2,15 @@
 # `--version` prints a fixed version (the Welcome page's agent list).
 [ "$1" = --version ] && { echo '2.1.0 (Claude Code)'; exit 0; }
 # `auth login` signs the account in: it writes fake-login (fake@example.com) in its config dir. `auth status` answers
-# like Claude Code's pretty-printed JSON: signed in, as fake-login's content, while that file is there.
+# like Claude Code's pretty-printed JSON: signed in, as fake-login's content, while that file is there,
+# with fake-org's content as its orgId when that file is there too.
 [ "$1 $2" = "auth login" ] && { echo "fake claude auth login for $CLAUDE_CONFIG_DIR"; mkdir -p "$CLAUDE_CONFIG_DIR" && echo fake@example.com > "$CLAUDE_CONFIG_DIR/fake-login"; exit 0; }
 # `mcp login -- <name>` writes the name and its folder to fake-mcp-login in its config dir and exits 0.
 [ "$1 $2 $3" = "mcp login --" ] && { echo "fake claude mcp login $4 for $CLAUDE_CONFIG_DIR"; mkdir -p "$CLAUDE_CONFIG_DIR" && printf '%s\n%s\n' "$4" "$(pwd -P)" > "$CLAUDE_CONFIG_DIR/fake-mcp-login"; exit 0; }
 if [ "$1 $2" = "auth status" ]; then
   if [ -f "$CLAUDE_CONFIG_DIR/fake-login" ]; then
-    printf '{\n  "loggedIn": true,\n  "authMethod": "claude.ai",\n  "email": "%s"\n}\n' "$(cat "$CLAUDE_CONFIG_DIR/fake-login")"
+    org=""; [ -f "$CLAUDE_CONFIG_DIR/fake-org" ] && org=$(printf ',\n  "orgId": "%s"' "$(cat "$CLAUDE_CONFIG_DIR/fake-org")")
+    printf '{\n  "loggedIn": true,\n  "authMethod": "claude.ai",\n  "email": "%s"%s\n}\n' "$(cat "$CLAUDE_CONFIG_DIR/fake-login")" "$org"
     exit 0
   fi
   printf '{\n  "loggedIn": false,\n  "authMethod": "none"\n}\n'

@@ -117,5 +117,6 @@ emulators with `device_list`, `device_open`, `device_screenshot`, `device_tap`, 
 - **Codex** sessions get the same tools and grant; see [codex.md](codex.md).
 - **Windows:** the same tools over the named pipe, compile-checked only (`scripts/check-windows.sh`), not yet run on
   Windows. Screenshots there answer "not supported yet".
-- **Not yet:** delegation to other machines.
+- **Other machines:** an agent may delegate to the user's linked tailnet machines (`list_machines`, a `machine`
+  argument; protocol 1.8 `delegate`), with a link approved there and the same Claude login on both: [remote-delegation.md](remote-delegation.md).
 

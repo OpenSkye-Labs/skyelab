@@ -9,6 +9,8 @@ mod app_settings;
 pub mod context;
 pub mod debug;
 pub mod delegation;
+pub mod delegation_remote;
+pub mod delegation_settings;
 pub mod dictation;
 mod editor;
 pub mod schedule;

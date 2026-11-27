@@ -163,6 +163,23 @@ impl RemoteThreadView {
         self.listed_account(cx).or_else(|| self.account.clone())
     }
 
+    /// "Delegated by <title> on <machine>" when another machine's agent started this thread there.
+    pub(super) fn delegated_label(&self, cx: &App) -> Option<SharedString> {
+        let id = self.thread_id?;
+        let env = self.env.read(cx);
+        let from = env
+            .threads
+            .iter()
+            .find(|t| t.id == id)?
+            .row
+            .delegated_from
+            .as_ref()?;
+        Some(super::delegated_label::delegated_by(
+            &from.parent_title,
+            &from.machine,
+        ))
+    }
+
     /// The account in the environment's list.
     fn listed_account(&self, cx: &App) -> Option<String> {
         let id = self.thread_id?;
@@ -317,6 +334,13 @@ impl RemoteThreadView {
                     .truncate()
                     .child(self.title.clone()),
             )
+            .children(self.delegated_label(cx).map(|l| {
+                div()
+                    .flex_shrink_0()
+                    .text_xs()
+                    .text_color(theme.muted_foreground)
+                    .child(l)
+            }))
             .child(pill(self.env_badge().into(), state.color(theme)))
             .children(account.map(|a| pill(a.into(), theme.success)))
             .child(super::layout::panel_toggles(window, cx))

@@ -226,6 +226,13 @@ impl RemoteEnv {
         self.client.clone()
     }
 
+    /// The node the current connection presented and this machine trusts, `None` while disconnected.
+    pub fn node(&self) -> Option<&str> {
+        self.node
+            .as_deref()
+            .filter(|_| self.state == ConnState::Connected)
+    }
+
     fn on_update(&mut self, update: Update, cx: &mut Context<Self>) {
         match update {
             // The client delivers events only once `up` approved the connection; this guards the

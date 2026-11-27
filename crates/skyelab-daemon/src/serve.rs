@@ -173,7 +173,7 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
             break;
         }
     }
-    // Dropping `running` drops pending replies; a backend call already running still finishes on its thread.
+    // Dropping `running` drops pending replies; a running backend call still finishes on its thread.
 }
 
 fn on_text(
@@ -389,6 +389,7 @@ fn on_call(
                 let replies = replies.tx.clone();
                 let gate = who.gate.clone();
                 let timed = timed.take();
+                let ctx = crate::serve_delegate::Ctx::new(shared, who);
                 running.spawn(async move {
                     // The call can wait for a blocking thread while its device is revoked.
                     let run = move || match gate.cancelled() {
@@ -404,7 +405,7 @@ fn on_call(
                                 )
                             })
                         }),
-                        false => gate.run(|| dispatch(&*backend, call).map(|r| (r, None))),
+                        false => gate.run(|| dispatch(&*backend, call, &ctx).map(|r| (r, None))),
                     };
                     let (reply, changes) = match tokio::task::spawn_blocking(run).await {
                         Ok(Ok((result, changes))) => {

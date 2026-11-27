@@ -32,3 +32,9 @@ the bottom.
   with JSON-RPC error -32000, saying the tools are gone for this session and to start the thread again from SkyeLab.
   The proxy also no longer needs a half-close (pipes have none): it returns once its input ended and every request
   it forwarded has an answer.
+- **Delegation across machines proves the account twice (2026-11-27).** Account ids are local names, so the
+  serving machine accepts a delegated call only with a link its user approved for the caller's (node, device key,
+  account) and, on every call, the same Claude login (provider, email, org id) on both machines, each read by that
+  machine's own CLI. The serving machine's folder binding picks the account; Codex and Cursor are refused (no org in
+  their status). A link alone would miss a rebind on either side; a login alone would skip the user's consent, and one
+  email can hold a personal and a team plan (the org id tells them apart). See [remote-delegation.md](../remote-delegation.md).

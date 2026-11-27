@@ -125,6 +125,19 @@ impl Workspace {
                     }
                 }
             }
+            OrchCall::Remote(call) => {
+                if !call.is_abandoned() {
+                    self.remote_out(*call, window, cx);
+                }
+            }
+            OrchCall::ChildRecorded { parent } => {
+                if let Some(view) = self.open_view(parent, cx) {
+                    view.update(cx, |v, cx| v.load_details(cx));
+                }
+            }
+            OrchCall::Machines { reply } => {
+                let _ = reply.send(Ok(self.delegation_machines(cx)));
+            }
             OrchCall::Html {
                 caller,
                 tool,
@@ -150,7 +163,7 @@ impl Workspace {
         }
     }
 
-    fn caller_live(&self, caller: &Caller, cx: &App) -> Result<(), String> {
+    pub(super) fn caller_live(&self, caller: &Caller, cx: &App) -> Result<(), String> {
         match self.open_view(caller.thread_id, cx) {
             Some(view) if view.read(cx).is_live() => Ok(()),
             _ => Err(super::orchestrate::CALLER_GONE.into()),
@@ -329,11 +342,13 @@ impl Workspace {
 
 /// `Some` once `view`'s start has an answer: its row's id, or why it got none. Only a limit's reason goes to the
 /// agent; other details (paths, store errors) stay in the tab.
-fn row_result(view: &ThreadView) -> Option<Result<i64, String>> {
+pub(super) fn row_result(view: &ThreadView) -> Option<Result<i64, String>> {
     match (&view.thread, view.starting) {
         (Some(t), _) => Some(Ok(t.id)),
         (None, false) => Some(Err(match &view.error {
-            Some(e) if e.contains("running children") => e.to_string(),
+            Some(e) if e.contains("running children") || e.contains("working here") => {
+                e.to_string()
+            }
             _ => "the thread couldn't be created; its tab says why".to_owned(),
         })),
         (None, true) => None,
@@ -343,7 +358,7 @@ fn row_result(view: &ThreadView) -> Option<Result<i64, String>> {
 /// Answers with the thread's id once its row exists, before its agent is up, so a slow start can't outlast the
 /// agent's wait and leave a child it never heard of. Or with why the row was never made. The wait is app-wide, so the
 /// window that took the call may close meanwhile.
-fn reply_when_row(
+pub(super) fn reply_when_row(
     view: &Entity<ThreadView>,
     key: Option<StartKey>,
     reply: Reply<i64>,

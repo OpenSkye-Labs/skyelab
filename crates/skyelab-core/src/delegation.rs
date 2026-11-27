@@ -54,6 +54,11 @@ pub fn is_busy(status: &str) -> bool {
     matches!(status, "starting" | "running")
 }
 
+/// A child on another machine holds a slot while busy there, or while its status couldn't be read (empty).
+pub fn is_remote_busy(status: &str) -> bool {
+    status.is_empty() || is_busy(status)
+}
+
 /// A thread with this store status still has its agent process (between turns, or working on one).
 pub fn is_live(status: &str) -> bool {
     status == "idle" || is_busy(status)

@@ -85,21 +85,7 @@ pub fn login_status(bin: &Path, account: &Account) -> Result<Login> {
 /// `claude auth status` prints JSON (`loggedIn`, `email`, `orgName`, …) whether or not it is signed in. Claude Code
 /// 2.1.331 pretty-prints it over many lines; older ones printed one line.
 fn parse_claude(stdout: &str, stderr: &str) -> Result<Login> {
-    // The JSON starts at the last line that opens an object in column 0: a notice may come before it, and a nested
-    // object's lines are indented.
-    let start = stdout
-        .match_indices('\n')
-        .map(|(i, _)| i + 1)
-        .chain([0])
-        .filter(|&i| stdout[i..].starts_with('{'))
-        .max();
-    let json = start.and_then(|i| {
-        serde_json::Deserializer::from_str(&stdout[i..])
-            .into_iter::<serde_json::Value>()
-            .next()?
-            .ok()
-    });
-    let Some(json) = json else {
+    let Some(json) = claude_json(stdout) else {
         bail!("claude auth status: {}", first_line(stderr, stdout));
     };
     match json["loggedIn"].as_bool() {
@@ -112,6 +98,46 @@ fn parse_claude(stdout: &str, stderr: &str) -> Result<Login> {
         Some(false) => Ok(Login::SignedOut),
         None => bail!("claude auth status: no loggedIn in its answer"),
     }
+}
+
+/// The JSON in `claude auth status`'s output. It starts at the last line that opens an object in column 0: a notice
+/// may come before it, and a nested object's lines are indented.
+pub(crate) fn claude_json(stdout: &str) -> Option<serde_json::Value> {
+    let start = stdout
+        .match_indices('\n')
+        .map(|(i, _)| i + 1)
+        .chain([0])
+        .filter(|&i| stdout[i..].starts_with('{'))
+        .max()?;
+    serde_json::Deserializer::from_str(&stdout[start..])
+        .into_iter::<serde_json::Value>()
+        .next()?
+        .ok()
+}
+
+/// `claude auth status`'s JSON for a Claude `account`, asked with that account's launch env only.
+pub(crate) fn claude_status(bin: &Path, account: &Account) -> Result<serde_json::Value> {
+    skyelab_core::login_shell::wait();
+    let resolved = crate::launch::resolve_bin(bin)?;
+    let mut cmd = Command::new(&resolved);
+    cmd.args(["auth", "status"])
+        .current_dir(std::env::temp_dir()) // never an untrusted project folder
+        .env_clear()
+        .envs(skyelab_core::env::inherited_agent_env(false))
+        .envs(account.launch_env()?)
+        .env(
+            crate::launch::NO_CLAUDEAI_MCP.0,
+            crate::launch::NO_CLAUDEAI_MCP.1,
+        );
+    let out = skyelab_core::process::output_within(&mut cmd, None, DEADLINE)
+        .with_context(|| format!("running {} auth status", resolved.display()))?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    claude_json(&stdout).with_context(|| {
+        format!(
+            "claude auth status: {}",
+            first_line(&String::from_utf8_lossy(&out.stderr), &stdout)
+        )
+    })
 }
 
 /// `codex login status` says "Logged in using ChatGPT" (exit 0) or "Not logged in" (exit 1), on stderr. An API key

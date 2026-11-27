@@ -86,10 +86,11 @@ impl ThreadView {
                         if !skyelab_core::delegation::is_live(&was) {
                             anyhow::bail!("the agent has ended; send again to resume it");
                         }
-                        if let Some(parent) = parent
-                            && !skyelab_core::delegation::is_busy(&was)
+                        use crate::workspace::child_slots::{claim_for, delegated_parent};
+                        if !skyelab_core::delegation::is_busy(&was)
+                            && let Some(key) = delegated_parent(&store, id, parent)?
                         {
-                            crate::workspace::child_slots::claim(&store, parent, Some(id))?;
+                            claim_for(&store, &key, Some(id))?;
                         }
                         store.set_thread_status(id, "running")?;
                         // Counted before it is sent, so a quick result can't find zero and mark the row idle early,
