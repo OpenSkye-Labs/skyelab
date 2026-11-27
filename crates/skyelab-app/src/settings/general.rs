@@ -258,6 +258,8 @@ impl Settings {
             Section::Chat => {
                 let save = prefs::clear_server_dictation(cx);
                 self.report(save, "the dictation permissions", cx);
+                let save = prefs::save_html_width(skyelab_core::HtmlWidth::default(), cx);
+                self.report(save, "the visual reply width", cx);
                 self.set_threads(
                     move |t| {
                         t.permission_mode = fresh.permission_mode.clone();

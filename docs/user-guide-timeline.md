@@ -29,7 +29,9 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
   Diagrams never load images or links.
 - **Visual replies.** Ask for a chart, diagram or mockup ("show this as a chart") and the agent can answer with a page
   of its own (SkyeLab's `html_render` tool). It shows in the thread as a card with the page's title and a picture of
-  the page, in your theme's colors; it is drawn again when you switch light and dark. Click the picture or the expand
+  the page, in your theme's colors; it is drawn again when you switch light and dark or change **Card width** in
+  **Settings → Chat → Visual replies** (**Standard** 728 px, **Wide** 960 px, or **Full** up to 1280 px or the
+  available width, clamped to 240–1600 px). Click the picture or the expand
   button to open the live page over the window (scripts run in it); **×** or a click outside closes it. The page is
   sandboxed: it can't reach your files, SkyeLab or your browser's cookies, can't send requests, and its links don't
   open. It may load scripts, styles and fonts only from the `https` hosts in **Settings → Chat → Visual replies**
@@ -92,10 +94,19 @@ Stopping a turn yourself (Stop, Interrupt) shows no banner.
 
 ## Minimap
 
-A thread with two or more of your messages gets a thin rail at the left edge of the timeline: one short line per
-message, top to bottom. The line of the turn you are reading is brighter. Hover the rail to see that message and the
-turn's last reply (as plain text); click a line to scroll its message to the top. When the timeline is too narrow to leave a margin left of
-the chat (side panels open), the rail stays hidden until the pointer finds it, so it never sits over the text.
+A thread with two or more of your messages gets a thin rail at the left edge of the timeline: one horizontal tick per
+prompt, top to bottom.
+
+- **Where you are:** The tick for the turn at the top of the timeline stays brighter than the rest and updates as you
+  scroll.
+- **Hover preview:** Moving the pointer over the rail widens the hovered tick and its neighbours (a subtle fisheye) and
+  shows a floating card with that turn's prompt and a plain-text excerpt of its last reply.
+- **Smooth jump:** Click any tick to smoothly scroll that prompt to the top of the timeline. Scrolling manually cancels
+  an in-flight jump immediately.
+- **Long threads:** Threads with more than 64 prompts sample up to 64 evenly spaced ticks along the rail while always
+  keeping the current and hovered turns represented, so scrolling and streaming stay fast.
+- **Narrow windows:** When the timeline is too narrow to leave a gutter left of the chat column (for example, with side
+  panels open), the rail stays hidden until the pointer moves over the left edge, so ticks never sit over text.
 
 ## Find in thread
 

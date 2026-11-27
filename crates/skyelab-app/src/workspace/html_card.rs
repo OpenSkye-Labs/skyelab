@@ -17,8 +17,9 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme as _, Icon, Theme, WindowExt as _, h_flex, v_flex};
 use serde_json::{Value, json};
-use skyelab_agent::mcp::{HTML_COLUMN_WIDTH, HTML_MAX_CHARS};
+use skyelab_agent::mcp::HTML_MAX_CHARS;
 use skyelab_browser::page::{self, MAX_SHOT_HEIGHT, Page, PageTheme};
+use skyelab_core::HtmlWidth;
 use std::collections::{HashMap, VecDeque};
 use std::hash::{Hash as _, Hasher as _};
 use std::sync::Arc;
@@ -134,10 +135,11 @@ struct Job {
     html: String,
     theme: PageTheme,
     hosts: Vec<String>,
+    width: u32,
     window: AnyWindowHandle,
 }
 
-/// Snapshots by tool call, theme and allowed hosts, rendered one at a time (each is a webview of its own).
+/// Snapshots by tool call, theme, width and allowed hosts, rendered one at a time (each is a webview of its own).
 #[derive(Default)]
 struct Shots {
     done: HashMap<(String, u64), Shot>,
@@ -150,16 +152,48 @@ impl Global for Shots {}
 // shortcut: past this many the whole cache is dropped and visible cards render again; an LRU if that shows.
 const MAX_SHOTS: usize = 64;
 
-/// The snapshot of `tool_id`'s page in `theme`, queuing it the first time it's asked for. The key holds the page
-/// too: a tool id is only unique within its own thread (Codex), and a remote machine names its own.
-fn shot(tool_id: &str, html: &str, theme: PageTheme, window: &Window, cx: &mut App) -> Shot {
-    let hosts = prefs::page_hosts(cx);
+/// Resolves the CSS width a visual reply card renders at for `pref` in `window`.
+pub(super) fn target_width(pref: HtmlWidth, window: &Window) -> u32 {
+    let available = match pref {
+        HtmlWidth::Full => {
+            let vp = f32::from(window.viewport_size().width).round() as u32;
+            // Quantize to 64 px steps so live window-resize drags don't re-shoot a webview on every pixel.
+            (vp > 0).then(|| (vp.saturating_sub(48) / 64) * 64)
+        }
+        HtmlWidth::Standard | HtmlWidth::Wide => None,
+    };
+    pref.resolve_px(available)
+}
+
+/// Cache key for a rendered visual reply snapshot (includes theme, allowed hosts, width, and page HTML).
+pub(super) fn shot_key(
+    tool_id: &str,
+    html: &str,
+    theme: &PageTheme,
+    hosts: &[String],
+    width: u32,
+) -> (String, u64) {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     theme.dark.hash(&mut h);
     theme.vars.hash(&mut h);
     hosts.hash(&mut h);
+    width.hash(&mut h);
     html.hash(&mut h);
-    let key = (tool_id.to_owned(), h.finish());
+    (tool_id.to_owned(), h.finish())
+}
+
+/// The snapshot of `tool_id`'s page in `theme` at `width`, queuing it the first time it's asked for. The key holds
+/// the page too: a tool id is only unique within its own thread (Codex), and a remote machine names its own.
+fn shot(
+    tool_id: &str,
+    html: &str,
+    theme: PageTheme,
+    width: u32,
+    window: &Window,
+    cx: &mut App,
+) -> Shot {
+    let hosts = prefs::page_hosts(cx);
+    let key = shot_key(tool_id, html, &theme, &hosts, width);
     if let Some(s) = cx.default_global::<Shots>().done.get(&key) {
         return s.clone();
     }
@@ -185,6 +219,7 @@ fn shot(tool_id: &str, html: &str, theme: PageTheme, window: &Window, cx: &mut A
         html: html.to_owned(),
         theme,
         hosts,
+        width,
         window: window.window_handle(),
     });
     // Never from inside a frame: the next one builds the webview.
@@ -202,14 +237,7 @@ fn pump(cx: &mut App) {
     };
     shots.busy = true;
     let task = job.window.update(cx, |_, window, cx| {
-        page::shoot(
-            &job.html,
-            &job.theme,
-            &job.hosts,
-            HTML_COLUMN_WIDTH,
-            window,
-            cx,
-        )
+        page::shoot(&job.html, &job.theme, &job.hosts, job.width, window, cx)
     });
     let background = cx.background_executor().clone();
     cx.spawn(async move |cx| {
@@ -259,7 +287,8 @@ pub(super) fn render<V: ItemsView>(
     cx: &mut Context<V>,
 ) -> AnyElement {
     let dark = cx.theme().is_dark();
-    let shot = shot(&tool.id, html, page_theme(dark, cx), window, cx);
+    let width = target_width(prefs::html_width(cx), window);
+    let shot = shot(&tool.id, html, page_theme(dark, cx), width, window, cx);
     let id = tool.id.clone();
     // Looked up on click, so a frame never copies the page.
     let open = cx.listener(move |this: &mut V, _: &gpui::ClickEvent, window, cx| {
@@ -301,9 +330,9 @@ pub(super) fn render<V: ItemsView>(
             .justify_center()
             .child(
                 div()
-                    .w(px(HTML_COLUMN_WIDTH as f32))
+                    .w(px(width as f32))
                     .max_w_full()
-                    .aspect_ratio(HTML_COLUMN_WIDTH as f32 / h.max(1) as f32)
+                    .aspect_ratio(width as f32 / h.max(1) as f32)
                     .child(img(image).size_full()),
             )
             .into_any_element(),

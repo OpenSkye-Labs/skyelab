@@ -166,7 +166,7 @@ impl Settings {
         f: &'static themes::Family,
         on: bool,
         cx: &mut Context<Self>,
-    ) -> gpui_base::Button {
+    ) -> super::scroll::TrackedButton {
         let theme = cx.theme();
         let side = if theme.is_dark() { "Dark" } else { "Light" };
         let registry = gpui_component::ThemeRegistry::global(cx);
@@ -187,109 +187,110 @@ impl Settings {
         let accent_hover = theme.accent;
         let bar = |w: f32, c: Hsla| div().h(gpui::px(4.)).w(gpui::px(w)).rounded_full().bg(c);
         let key = f.key;
-        gpui_base::Button::new(SharedString::from(format!("theme-{key}")))
-            .debug_selector(move || format!("theme-{key}"))
-            .role(accesskit::Role::RadioButton)
-            .selected(on)
-            .aria_toggled(if on {
-                accesskit::Toggled::True
-            } else {
-                accesskit::Toggled::False
-            })
-            .accessibility_label(f.label)
-            .on_any_mouse_down(|_, window, _| window.prevent_default())
-            .flex_col()
-            .items_stretch()
-            // A fixed width so the families wrap into rows instead of squeezing into one.
-            .w(gpui::px(THEME_CARD_W))
-            .gap_2()
-            .p_1p5()
-            .rounded(ui::RADIUS_LG)
-            .border_1()
-            .border_color(if on {
-                theme.primary
-            } else {
-                gpui::transparent_black()
-            })
-            .when(on, |d| d.bg(theme.primary.opacity(0.06)))
-            .cursor_pointer()
-            .hover(move |s| s.bg(accent_hover))
-            .focus_visible(move |s| s.border_2().border_color(ring))
-            .child(
-                h_flex()
-                    .h(gpui::px(88.))
-                    .rounded(ui::RADIUS)
-                    .border_1()
-                    .border_color(border)
-                    .bg(bg)
-                    .overflow_hidden()
-                    .child(
-                        v_flex()
-                            .w(gpui::px(44.))
-                            .h_full()
-                            .p_2()
-                            .gap_1p5()
-                            .bg(side_bg)
-                            .child(bar(24., muted.opacity(0.7)))
-                            .child(bar(30., fg.opacity(0.8)))
-                            .child(bar(20., muted.opacity(0.7))),
-                    )
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .overflow_hidden()
-                            .h_full()
-                            .p_2p5()
-                            .gap_1p5()
-                            .child(bar(48., fg))
-                            .child(bar(64., muted))
-                            .child(bar(40., muted))
-                            .child(div().flex_1())
-                            .child(
-                                h_flex().justify_end().child(
-                                    div()
-                                        .h(gpui::px(12.))
-                                        .w(gpui::px(28.))
-                                        .rounded(ui::RADIUS_SM)
-                                        .bg(primary),
+        let id = SharedString::from(format!("theme-{key}"));
+        let button =
+            gpui_base::Button::new(id.clone())
+                .debug_selector(move || format!("theme-{key}"))
+                .role(accesskit::Role::RadioButton)
+                .selected(on)
+                .aria_toggled(if on {
+                    accesskit::Toggled::True
+                } else {
+                    accesskit::Toggled::False
+                })
+                .accessibility_label(f.label)
+                .on_any_mouse_down(|_, window, _| window.prevent_default())
+                .flex_col()
+                .items_stretch()
+                // A fixed width so the families wrap into rows instead of squeezing into one.
+                .w(gpui::px(THEME_CARD_W))
+                .gap_2()
+                .p_1p5()
+                .rounded(ui::RADIUS_LG)
+                .border_1()
+                .border_color(if on {
+                    theme.primary
+                } else {
+                    gpui::transparent_black()
+                })
+                .when(on, |d| d.bg(theme.primary.opacity(0.06)))
+                .cursor_pointer()
+                .hover(move |s| s.bg(accent_hover))
+                .focus_visible(move |s| s.border_2().border_color(ring))
+                .child(
+                    h_flex()
+                        .h(gpui::px(88.))
+                        .rounded(ui::RADIUS)
+                        .border_1()
+                        .border_color(border)
+                        .bg(bg)
+                        .overflow_hidden()
+                        .child(
+                            v_flex()
+                                .w(gpui::px(44.))
+                                .h_full()
+                                .p_2()
+                                .gap_1p5()
+                                .bg(side_bg)
+                                .child(bar(24., muted.opacity(0.7)))
+                                .child(bar(30., fg.opacity(0.8)))
+                                .child(bar(20., muted.opacity(0.7))),
+                        )
+                        .child(
+                            v_flex()
+                                .flex_1()
+                                .min_w_0()
+                                .overflow_hidden()
+                                .h_full()
+                                .p_2p5()
+                                .gap_1p5()
+                                .child(bar(48., fg))
+                                .child(bar(64., muted))
+                                .child(bar(40., muted))
+                                .child(div().flex_1())
+                                .child(
+                                    h_flex().justify_end().child(
+                                        div()
+                                            .h(gpui::px(12.))
+                                            .w(gpui::px(28.))
+                                            .rounded(ui::RADIUS_SM)
+                                            .bg(primary),
+                                    ),
                                 ),
-                            ),
-                    ),
-            )
-            .child(
-                v_flex()
-                    // gpui_base::Button sets a line height of 1 for one-line labels; the name and blurb wrap.
-                    .line_height(gpui::phi())
-                    .px_1()
-                    .pb_0p5()
-                    .child(
-                        h_flex()
-                            .gap_1p5()
-                            .text_size(ui::BODY)
-                            .font_weight(gpui::FontWeight::MEDIUM)
-                            .child(f.label)
-                            .when(on, |d| {
-                                d.child(
-                                    Icon::new(SkyeIcon::Check)
-                                        .size_3p5()
-                                        .text_color(theme.primary),
-                                )
-                            }),
-                    )
-                    .child(
-                        div()
-                            .text_size(ui::META)
-                            .text_color(theme.muted_foreground)
-                            .line_clamp(2)
-                            .child(f.about),
-                    ),
-            )
-            .on_click(
-                cx.listener(move |this, _, _, cx| {
+                        ),
+                )
+                .child(
+                    v_flex()
+                        // gpui_base::Button sets a line height of 1 for one-line labels; the name and blurb wrap.
+                        .line_height(gpui::phi())
+                        .px_1()
+                        .pb_0p5()
+                        .child(
+                            h_flex()
+                                .gap_1p5()
+                                .text_size(ui::BODY)
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .child(f.label)
+                                .when(on, |d| {
+                                    d.child(
+                                        Icon::new(SkyeIcon::Check)
+                                            .size_3p5()
+                                            .text_color(theme.primary),
+                                    )
+                                }),
+                        )
+                        .child(
+                            div()
+                                .text_size(ui::META)
+                                .text_color(theme.muted_foreground)
+                                .line_clamp(2)
+                                .child(f.about),
+                        ),
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
                     this.set_appearance(|s| s.theme = key.into(), cx)
-                }),
-            )
+                }));
+        super::scroll::track_button(id, button)
     }
 
     /// The accent swatches: the theme's own, then each preset; the picked one is ringed.
@@ -333,31 +334,32 @@ impl Settings {
                                         .bg(theme.primary.opacity(0.35)),
                                 ),
                         };
-                        gpui_base::Button::new(SharedString::from(format!(
-                            "accent-{}",
-                            key.unwrap_or("theme")
-                        )))
-                        .role(accesskit::Role::RadioButton)
-                        .selected(on)
-                        .aria_toggled(if on {
-                            accesskit::Toggled::True
-                        } else {
-                            accesskit::Toggled::False
-                        })
-                        .accessibility_label(format!("{label} accent"))
-                        .on_any_mouse_down(|_, window, _| window.prevent_default())
-                        .size(gpui::px(24.))
-                        .p(gpui::px(3.))
-                        .rounded_full()
-                        .border_1()
-                        .border_color(if on { ring } else { gpui::transparent_black() })
-                        .focus_visible(move |s| s.border_2().border_color(focus_ring))
-                        .cursor_pointer()
-                        .child(swatch)
-                        .tooltip(move |window, cx| crate::ui::Tooltip::new(label).build(window, cx))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.set_appearance(|s| s.accent = key.map(str::to_owned), cx)
-                        }))
+                        let id = SharedString::from(format!("accent-{}", key.unwrap_or("theme")));
+                        let button = gpui_base::Button::new(id.clone())
+                            .role(accesskit::Role::RadioButton)
+                            .selected(on)
+                            .aria_toggled(if on {
+                                accesskit::Toggled::True
+                            } else {
+                                accesskit::Toggled::False
+                            })
+                            .accessibility_label(format!("{label} accent"))
+                            .on_any_mouse_down(|_, window, _| window.prevent_default())
+                            .size(gpui::px(24.))
+                            .p(gpui::px(3.))
+                            .rounded_full()
+                            .border_1()
+                            .border_color(if on { ring } else { gpui::transparent_black() })
+                            .focus_visible(move |s| s.border_2().border_color(focus_ring))
+                            .cursor_pointer()
+                            .child(swatch)
+                            .tooltip(move |window, cx| {
+                                crate::ui::Tooltip::new(label).build(window, cx)
+                            })
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.set_appearance(|s| s.accent = key.map(str::to_owned), cx)
+                            }));
+                        super::scroll::track_button(id, button)
                     }),
             )
     }

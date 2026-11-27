@@ -124,8 +124,12 @@ what new threads start in). Approvals and the agent's questions dock on top of t
 
 ### What the timeline shows
 
-Streaming text and thinking, tool calls and edits, subagent cards, the files each turn changed, a banner when a turn
-fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-timeline.md).
+Streaming text and thinking, tool calls and edits, subagent cards, visual replies (`html_render` charts, diagrams and
+mockups), the files each turn changed, a banner when a turn fails, the left-edge timeline minimap (for jumping across
+turns in threads with two or more messages), and find in thread (⌘F / Ctrl+F):
+[user-guide-timeline.md](user-guide-timeline.md). To give inline visual replies more horizontal room, change **Card
+width** in **Settings → Chat → Visual replies** (**Standard** 728 px, **Wide** 960 px, or **Full** up to 1280 px or the
+available viewport width, capped at 240–1600 px); **Restore defaults** in Settings → Chat resets it to **Standard**.
 
 ### Finding and managing threads
 

@@ -2,7 +2,7 @@
 
 use gpui::{App, AppContext as _, Global, Task};
 use skyelab_core::{
-    AppSettings, DiffSettings, TerminalSettings, ThreadSettings, VisualReplySettings,
+    AppSettings, DiffSettings, HtmlWidth, TerminalSettings, ThreadSettings, VisualReplySettings,
 };
 use std::path::PathBuf;
 
@@ -84,9 +84,7 @@ pub(crate) fn edit(
         settings: next,
         diff: get_diff(cx),
         terminal: get_terminal(cx),
-        visual: VisualReplySettings {
-            allowed_hosts: page_hosts(cx),
-        },
+        visual: visual_replies(cx),
         dictation_locales: cx
             .try_global::<ThreadPrefs>()
             .map(|p| p.dictation_locales.clone())
@@ -116,9 +114,7 @@ pub(crate) fn save_diff(diff: DiffSettings, cx: &mut App) -> Task<anyhow::Result
                 settings: get(cx),
                 diff,
                 terminal: get_terminal(cx),
-                visual: VisualReplySettings {
-                    allowed_hosts: page_hosts(cx),
-                },
+                visual: visual_replies(cx),
                 dictation_locales: Vec::new(),
             });
             return Task::ready(Ok(()));
@@ -154,13 +150,39 @@ pub(crate) fn save_terminal(terminal: TerminalSettings, cx: &mut App) -> Task<an
     })
 }
 
+/// Settings → Chat → Visual replies (the defaults with none installed).
+pub(crate) fn visual_replies(cx: &App) -> VisualReplySettings {
+    cx.try_global::<ThreadPrefs>()
+        .map_or_else(VisualReplySettings::default, |p| p.visual.clone())
+}
+
 /// The hosts a visual reply's page may load scripts, styles and fonts from (the defaults with none installed). The
 /// page checks each again.
 pub(crate) fn page_hosts(cx: &App) -> Vec<String> {
-    cx.try_global::<ThreadPrefs>().map_or_else(
-        || VisualReplySettings::default().allowed_hosts,
-        |p| p.visual.allowed_hosts.clone(),
-    )
+    visual_replies(cx).allowed_hosts
+}
+
+/// Preferred layout width for inline visual reply cards (defaults to [`HtmlWidth::Standard`]).
+pub(crate) fn html_width(cx: &App) -> HtmlWidth {
+    cx.try_global::<ThreadPrefs>()
+        .map_or_else(HtmlWidth::default, |p| p.visual.width)
+}
+
+/// Uses `width` from now on and saves it into the file as it is on disk. Every window redraws so open visual reply
+/// cards re-render at the new width.
+pub(crate) fn save_html_width(width: HtmlWidth, cx: &mut App) -> Task<anyhow::Result<()>> {
+    let path = path(cx);
+    if cx.try_global::<ThreadPrefs>().is_none() {
+        install(None, cx);
+    }
+    cx.global_mut::<ThreadPrefs>().visual.width = width;
+    cx.refresh_windows();
+    cx.background_spawn(async move {
+        match path {
+            Some(p) => AppSettings::update(&p, |s| s.visual_replies.width = width).map(drop),
+            None => Ok(()),
+        }
+    })
 }
 
 /// Uses `hosts` from now on (only a user's action calls this: Settings or a card's Allow) and saves it into the file

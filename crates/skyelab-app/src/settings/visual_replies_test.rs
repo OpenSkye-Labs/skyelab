@@ -4,7 +4,7 @@
 use super::*;
 use crate::workspace::thread_extras::prefs;
 use gpui::TestAppContext;
-use skyelab_core::{AppSettings, VisualReplySettings};
+use skyelab_core::{AppSettings, HtmlWidth, VisualReplySettings};
 
 #[gpui::test]
 fn hosts_are_validated_saved_and_reset(cx: &mut TestAppContext) {
@@ -55,4 +55,44 @@ fn hosts_are_validated_saved_and_reset(cx: &mut TestAppContext) {
     cx.run_until_parked();
     let saved = AppSettings::load(&file).expect("load");
     assert_eq!(saved.visual_replies.allowed_hosts, defaults);
+}
+
+#[gpui::test]
+fn html_width_setting_saves_and_restores_to_standard(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        gpui_component::init(cx);
+        init(cx);
+    });
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let file = tmp.path().join("settings.toml");
+    cx.update(|cx| prefs::install(Some(file.clone()), cx));
+    let path = tmp.path().join("accounts.toml");
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        Settings::new(Some(path), AccountsConfig::default(), None, window, cx)
+    });
+    assert_eq!(
+        cx.update(|_, cx| prefs::html_width(cx)),
+        HtmlWidth::Standard
+    );
+
+    for width in [HtmlWidth::Wide, HtmlWidth::Full] {
+        view.update(cx, |v, cx| v.set_html_width(width, cx));
+        cx.run_until_parked();
+        assert_eq!(cx.update(|_, cx| prefs::html_width(cx)), width);
+        let saved = AppSettings::load(&file).expect("load");
+        assert_eq!(saved.visual_replies.width, width);
+    }
+
+    // Restore defaults on Settings → Chat resets visual reply width to Standard (728 px).
+    view.update_in(cx, |v, window, cx| {
+        v.section = Section::Chat;
+        v.restore_defaults(window, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        cx.update(|_, cx| prefs::html_width(cx)),
+        HtmlWidth::Standard
+    );
+    let saved = AppSettings::load(&file).expect("load");
+    assert_eq!(saved.visual_replies.width, HtmlWidth::Standard);
 }

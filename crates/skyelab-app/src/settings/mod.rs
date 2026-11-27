@@ -155,6 +155,7 @@ pub struct Settings {
     /// Settings → Chat's permission rules for the picked project, set by the workspace like `usage`.
     pub rules: Option<Entity<crate::workspace::ProjectRulesPage>>,
     pub(super) focus: FocusHandle,
+    pub(crate) body_scroll: scroll::BodyScroll,
     pub(super) _pick: Option<Task<()>>,
     /// Whether each account is signed in to its agent CLI (shared with the setup page).
     pub(super) login: Entity<crate::workspace::login_status::LoginStatus>,
@@ -313,6 +314,7 @@ impl Settings {
             scheduled: None,
             rules: None,
             focus,
+            body_scroll: scroll::BodyScroll::new(),
             _pick: None,
             login,
             _subs: subs,
@@ -492,6 +494,7 @@ mod nav;
 mod page;
 mod project_scope;
 pub use page::Section;
+pub(crate) mod scroll;
 mod source_control;
 mod threads;
 mod visual_replies;

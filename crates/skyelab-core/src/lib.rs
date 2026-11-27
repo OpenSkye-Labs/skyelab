@@ -34,8 +34,10 @@ pub mod snooze;
 pub use app_settings::{
     AppSettings, AppearanceSettings, ApprovedDevice, ColorMode, DiffSettings,
     MAX_RECENT_ENVIRONMENTS, MotionMode, ScheduledSettings, SendShortcut, SidebarView,
-    TerminalSettings, ThreadSettings, VisualReplySettings, WindowLayout, same_locale,
+    TerminalSettings, ThreadSettings, WindowLayout, same_locale,
 };
+pub mod visual_replies;
+pub use visual_replies::{HtmlWidth, MAX_HTML_WIDTH, MIN_HTML_WIDTH, VisualReplySettings};
 mod repo_hooks;
 pub mod terminal_context;
 pub mod terminal_layout;

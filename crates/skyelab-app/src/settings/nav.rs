@@ -76,7 +76,7 @@ const INDEX: &[(Section, &str, &str)] = &[
     (
         Section::Chat,
         "Visual replies",
-        "html render page chart cdn host allow script style font https",
+        "html render page chart cdn host allow script style font https width standard wide full",
     ),
     (
         Section::Chat,

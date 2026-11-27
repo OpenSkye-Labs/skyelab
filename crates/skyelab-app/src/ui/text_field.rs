@@ -102,7 +102,7 @@ impl RenderOnce for TextField {
             .h_full()
             // The Input sets its own text size; ours goes on top, so `Size::text` sizes the field too.
             .text_size(size.text());
-        h_flex()
+        let field = h_flex()
             .w_full()
             .min_w_0()
             .h(size.height())
@@ -117,6 +117,7 @@ impl RenderOnce for TextField {
             })
             .text_size(size.text())
             .when(self.disabled, |d| d.opacity(super::DISABLED_OPACITY))
-            .child(input)
+            .child(input);
+        crate::settings::scroll::track_focused(focused, field)
     }
 }

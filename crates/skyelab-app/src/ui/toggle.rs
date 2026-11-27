@@ -51,7 +51,8 @@ impl Toggle {
         let interactive = !self.disabled;
         let theme = cx.theme();
         let ring = theme.ring;
-        gpui_base::Button::new(self.id)
+        let id = self.id.clone();
+        let button = gpui_base::Button::new(self.id)
             .role(role)
             .disabled(self.disabled)
             .flex_shrink_0()
@@ -87,7 +88,8 @@ impl Toggle {
             })
             .when_some(self.on_click.filter(|_| interactive), |d, f| {
                 d.on_click(move |_: &ClickEvent, window, cx| f(&!checked, window, cx))
-            })
+            });
+        crate::settings::scroll::track_button(id, button)
     }
 }
 
