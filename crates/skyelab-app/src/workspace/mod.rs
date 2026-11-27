@@ -77,6 +77,7 @@ mod delegated_label;
 mod delegation_actions;
 pub(crate) mod github;
 mod machines_delegation;
+mod machines_waiting;
 pub(crate) mod orchestrate;
 mod orchestrate_ui;
 mod palette_forwards;

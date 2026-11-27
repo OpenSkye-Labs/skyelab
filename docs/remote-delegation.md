@@ -11,7 +11,9 @@ refuses. The wire call is `delegate` (protocol 1.8); the local tools are in [orc
   **Let my agents delegate here** switch per linked machine, off by default (`delegation.targets` in A's
   `settings.toml`).
 - **On B**, the first call from A is refused and listed in Settings → Sharing & access → **Delegation requests**:
-  "Agents on `a-mac` under `work` (me@acme.com · org) want to start threads in folders bound to *Work* here". **Allow**
+  "Agents on `a-mac` under `Work` (me@acme.com · org) want to start threads in folders bound to *Work* here", naming
+  A's account by its label there (`Delegator.account_label`, optional in 1.8: B strips control and bidi characters and
+  bounds it like a title; a peer that sends none is named by its account id). **Allow**
   saves a link once per (A's node, A's device key, A's account) → B's account (`delegation.links` in B's
   `settings.toml`); **Deny** refuses that caller, unlisted, until sharing restarts. **Allowed delegation** lists the
   links, each with **Revoke**. A request whose login matches no Claude account on B says so and has no Allow. Device
@@ -31,7 +33,7 @@ launch (re-read before spawn); if that isn't Y, it is refused. There is never a 
 accounts are refused across machines: their status names no org.
 
 B takes A's node and device-key hash from the connection itself (whois and the approved hello), never from the
-message. The caller's thread id, title, account, login and depth are A's word, trusted because A's device key was
+message. The caller's thread id, title, account (and its label), login and depth are A's word, trusted because A's device key was
 approved; the link adds the user's intent and the login check catches a rebind on either side.
 
 ## Limits

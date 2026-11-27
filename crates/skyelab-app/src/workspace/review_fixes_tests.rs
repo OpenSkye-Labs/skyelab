@@ -37,6 +37,8 @@ mod launch_rebind_test;
 #[path = "review_second_row_test.rs"]
 mod review_second_row_test;
 
+#[path = "env_linked_code_test.rs"]
+mod env_linked_code_test;
 #[path = "env_linked_test.rs"]
 mod env_linked_test;
 

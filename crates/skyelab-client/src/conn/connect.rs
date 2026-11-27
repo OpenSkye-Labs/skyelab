@@ -156,7 +156,7 @@ pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
                 // The code is worked out here from our own key, so it is this device's whatever the server says.
                 let why = match cx.device_key.as_deref() {
                     Some(key) => format!(
-                        "{host} hasn't approved this device yet: allow it in SkyeLab's Remote tab there (code {})",
+                        "{host} hasn't approved this device yet: allow it in Settings → Sharing & access there (code {})",
                         crate::device_key::code(key)
                     ),
                     None => format!("this app has no device key, so {host} can't approve it"),
