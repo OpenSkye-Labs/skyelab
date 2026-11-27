@@ -3,14 +3,13 @@
 use super::ask_cards::{self, QuestionDraft};
 use super::thread_model::{Item, Items, ToolItem};
 use super::timeline_fold;
-use super::timeline_text::{divider_text, limited_text, markdown};
+use super::timeline_text::{divider_text, limited_text};
 use super::tool_cards;
 pub(super) use super::tool_cards::tool_summary;
 use crate::ui;
 use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
-    relative,
 };
 use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 use skyelab_agent::{Decision, DeltaKind};
@@ -159,6 +158,15 @@ pub(super) trait ItemsView: Sized + 'static {
         };
         self.answer(id, d, window, cx)
     }
+    fn message_menu(
+        &mut self,
+        _is_markdown: bool,
+        _text: String,
+        _at: gpui::Point<gpui::Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+    }
 }
 
 /// One row of a thread's item list, folded into its finished turn's header when the turn folds it.
@@ -196,7 +204,6 @@ fn render_row<V: ItemsView>(
     let root = this.files_root().map(std::path::Path::to_path_buf);
     let files = super::turn_files::render(this, ix, cx);
     let theme = cx.theme();
-    let muted = theme.muted_foreground;
     // T3's chat column: 736 wide, centered; rows 16 apart.
     let column = |child: AnyElement| {
         h_flex()
@@ -227,61 +234,18 @@ fn render_row<V: ItemsView>(
         return div().into_any_element();
     };
     match item {
-        Item::Prompt(text) | Item::Steer(text) => column(
-            v_flex()
-                .w_full()
-                .items_end()
-                .gap_1p5()
-                .children(
-                    this.sent_images(text)
-                        .map(|images| super::image_viewer::thumbnails(key, images)),
-                )
-                .child(
-                    div()
-                        .max_w(relative(0.8))
-                        .p_3()
-                        .rounded(ui::RADIUS_XL)
-                        .bg(theme.secondary)
-                        .text_size(ui::BODY)
-                        .child(super::find_marks::prompt_text(
-                            text,
-                            this.find_words(ix),
-                            theme.warning,
-                        )),
-                )
-                .into_any_element(),
-        ),
-        Item::Text(text) => column(
-            v_flex()
-                .debug_selector(|| "reply-text".into())
-                .px_1()
-                .gap_1()
-                .text_size(ui::BODY)
-                .child(markdown(
-                    ("md", key),
-                    text,
-                    false,
-                    root.as_deref(),
-                    this.find_words(ix),
-                    window,
-                    cx,
-                ))
-                .child(
-                    h_flex()
-                        .debug_selector(|| "message-copy".into())
-                        .gap_1()
-                        .text_size(ui::META)
-                        .text_color(muted)
-                        .child(
-                            div()
-                                .opacity(0.6)
-                                .child(tool_cards::copy_reply(("copy-msg", key), text)),
-                        )
-                        .children(reply_at.map(ui::clock))
-                        .children(this.fork(ix).map(super::thread_extras::fork::button)),
-                )
-                .into_any_element(),
-        ),
+        Item::Prompt(text) | Item::Steer(text) => {
+            column(super::timeline_menu::prompt_row(this, ix, key, text, cx))
+        }
+        Item::Text(text) => column(super::timeline_menu::reply_row(
+            this,
+            ix,
+            text,
+            root.as_deref(),
+            reply_at,
+            window,
+            cx,
+        )),
         Item::Live {
             kind: DeltaKind::Text,
             text,

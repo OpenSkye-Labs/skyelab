@@ -57,6 +57,21 @@ impl ThreadView {
         }
     }
 
+    /// Adds `text` as a Quote chip to the composer and focuses the prompt. Blank text adds nothing.
+    pub(in crate::workspace) fn quote_text(
+        &mut self,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.read_only || text.trim().is_empty() {
+            return;
+        }
+        let text = skyelab_core::terminal_context::clip(text);
+        self.push_context(ChipKind::Quote, label(&text).into(), text, None, cx);
+        self.focus_prompt(window, cx);
+    }
+
     /// Adds the selection as a Quote chip and clears it.
     fn quote_selection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some((_, text)) = self.composer.quote.take() else {
@@ -67,9 +82,7 @@ impl ThreadView {
             return cx.notify();
         }
         TextSelection::clear(window, cx);
-        let text = skyelab_core::terminal_context::clip(&text);
-        self.push_context(ChipKind::Quote, label(&text).into(), text, None, cx);
-        self.focus_prompt(window, cx);
+        self.quote_text(&text, window, cx);
     }
 
     /// The floating button, just above where the selection ended.

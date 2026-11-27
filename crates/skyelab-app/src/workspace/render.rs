@@ -110,6 +110,7 @@ impl Render for Workspace {
             )
             .child(self.render_status(cx))
             .children(self.env_menu(window, cx))
+            .children(self.render_tab_menu(cx))
             .children(settings)
             .children(self.debug_overlay())
             .children(crate::ui::toast::layer(window, cx))

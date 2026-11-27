@@ -124,6 +124,7 @@ mod find_marks;
 mod limit_banner;
 mod saved_views;
 mod subagent;
+mod tab_context_menu;
 mod table_copy;
 mod thread_failure;
 mod thread_find;
@@ -133,6 +134,7 @@ mod thread_render;
 mod thread_rows;
 mod thread_worktree;
 mod timeline_fold;
+mod timeline_menu;
 mod timeline_text;
 mod timeline_view;
 mod tool_cards;
@@ -241,6 +243,7 @@ pub struct Workspace {
     _details_obs: Subscription,
     terminals: Vec<Entity<TerminalPanel>>,
     terms: terminal_close::Terms,
+    tab_menu: tab_context_menu::TabContextMenu,
     browsers: Vec<WeakEntity<BrowserPanel>>,
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
     #[cfg(test)]
@@ -457,6 +460,7 @@ impl Workspace {
             _details_obs,
             terminals: Vec::new(),
             terms: Default::default(),
+            tab_menu: Default::default(),
             browsers: Vec::new(),
             #[cfg(test)]
             browser_engine: None,

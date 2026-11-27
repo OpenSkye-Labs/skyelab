@@ -300,6 +300,7 @@ impl DockAreaRenderer for CenterSkin {
         Rc::new(CenterTabs {
             tabs: self.skin.tab_group_renderer(),
             center: self.center,
+            workspace: self.workspace.clone(),
         })
     }
 }
@@ -307,6 +308,7 @@ impl DockAreaRenderer for CenterSkin {
 struct CenterTabs {
     tabs: Rc<dyn TabGroupRenderer>,
     center: EntityId,
+    workspace: WeakEntity<super::Workspace>,
 }
 
 impl TabGroupRenderer for CenterTabs {
@@ -380,20 +382,24 @@ impl TabGroupRenderer for CenterTabs {
         // changes: a click on the tab already shown left the keys (mod+F, Esc) outside the panel. The bar's toolbar
         // occludes, so its menu keeps the focus it takes.
         let panels = group.panels().to_vec();
-        div()
-            .w_full()
-            .flex_shrink_0()
-            .child(bar)
-            .on_mouse_up(MouseButton::Left, move |_, window, cx| {
-                let held = panels.iter().any(|p| {
-                    let h = p.focus_handle(cx);
-                    h.is_focused(window) || h.contains_focused(window, cx)
-                });
-                if !held {
-                    active.focus_handle(cx).focus(window, cx);
-                }
-            })
-            .into_any_element()
+        super::tab_context_menu::attach_tab_bar(
+            div().w_full().flex_shrink_0().child(bar).on_mouse_up(
+                MouseButton::Left,
+                move |_, window, cx| {
+                    let held = panels.iter().any(|p| {
+                        let h = p.focus_handle(cx);
+                        h.is_focused(window) || h.contains_focused(window, cx)
+                    });
+                    if !held {
+                        active.focus_handle(cx).focus(window, cx);
+                    }
+                },
+            ),
+            group,
+            &self.workspace,
+            cx,
+        )
+        .into_any_element()
     }
     fn render_active_panel(
         &self,
