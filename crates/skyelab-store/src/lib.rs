@@ -29,6 +29,8 @@ pub use model::ModelChoice;
 pub(crate) use thread_row::{THREAD_COLS, thread_from_row};
 mod migrations;
 mod recover;
+mod remote_delegation;
+pub use remote_delegation::{DelegatedOrigin, RemoteChild};
 mod rows;
 pub use rows::RowChange;
 mod settle;

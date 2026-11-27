@@ -384,6 +384,7 @@ ALTER TABLE threads ADD COLUMN scroll_mark TEXT;
 ALTER TABLE threads ADD COLUMN limit_resume_at INTEGER;
 ",
     crate::events::MIGRATION_V28,
+    crate::remote_delegation::MIGRATION_V29,
 ];
 
 // After the macros: the migration builds its trigger with `turn_cost!` and `fork_copy!`.
