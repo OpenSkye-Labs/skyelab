@@ -4,7 +4,8 @@ use std::os::unix::fs::PermissionsExt;
 
 use skyelab_tailnet::{Tailnet, TailscaleCli};
 
-/// The CLI starts from the shared allowlist, not SkyeLab's whole env: DO_NOT_TRACK=1, no stray vars, PATH kept.
+/// The CLI starts from the shared allowlist, not SkyeLab's whole env: DO_NOT_TRACK=1, TAILSCALE_BE_CLI=1, no stray
+/// vars, PATH kept.
 #[test]
 fn cli_gets_the_allowlisted_env() {
     let dir = tempfile::tempdir().expect("test setup");
@@ -28,6 +29,8 @@ fn cli_gets_the_allowlisted_env() {
 
     let env = std::fs::read_to_string(&env_out).expect("the fake CLI wrote its env");
     assert!(env.lines().any(|l| l == "DO_NOT_TRACK=1"), "{env}");
+    // Without TERM (a Dock-launched app has none), Tailscale.app's binary opens its GUI instead of answering.
+    assert!(env.lines().any(|l| l == "TAILSCALE_BE_CLI=1"), "{env}");
     // Cargo sets this for the test process; it is not on the allowlist.
     assert!(std::env::var_os("CARGO_MANIFEST_DIR").is_some());
     assert!(!env.contains("CARGO_MANIFEST_DIR="), "{env}");
