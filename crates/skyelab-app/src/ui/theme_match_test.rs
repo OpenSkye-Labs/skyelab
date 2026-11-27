@@ -66,8 +66,8 @@ fn our_theme_matches_gpui_components_for_every_choice(cx: &mut TestAppContext) {
                         danger, danger_foreground, danger_hover, danger_active, warning, success, info,
                         input, popover, popover_foreground, ring, selection, overlay, link, tab_bar,
                         sidebar, sidebar_foreground, sidebar_accent, sidebar_accent_foreground, sidebar_border,
-                        red, green, blue, yellow, magenta, cyan,
-                        font_size, mono_font_size, radius_lg,
+                        red, green, blue, yellow, magenta, cyan, chart_1, chart_2, chart_3, chart_4, chart_5,
+                        font_size, mono_font_size, radius, radius_lg,
                     );
                     same!(ours, live, what, bad; font_family, mono_font_family);
                     if ours.is_dark() != theirs.is_dark() {

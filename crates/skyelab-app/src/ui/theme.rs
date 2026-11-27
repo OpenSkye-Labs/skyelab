@@ -26,7 +26,7 @@ impl From<WindowAppearance> for ThemeMode {
     }
 }
 
-/// Field names follow the theme files' keys (`primary.hover.background` is `primary_hover`).
+/// What views paint with; `theme_load::resolve` maps the theme files' keys onto it.
 #[derive(Debug, Clone)]
 pub struct Theme {
     pub mode: ThemeMode,
@@ -80,6 +80,8 @@ pub struct Theme {
     pub font_size: Pixels,
     pub mono_font_family: SharedString,
     pub mono_font_size: Pixels,
+    /// Cards and code blocks.
+    pub radius: Pixels,
     pub radius_lg: Pixels,
     /// gpui-component's highlighter still paints code, so its style travels with ours until the text stage.
     pub highlight_theme: Arc<gpui_component::highlighter::HighlightTheme>,

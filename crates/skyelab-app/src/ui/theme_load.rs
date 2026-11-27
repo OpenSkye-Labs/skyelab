@@ -66,6 +66,7 @@ fn from_value(t: &Value, dark: bool) -> anyhow::Result<Theme> {
     }
     let number = |key: &str| t[key].as_f64().map(|n| px(n as f32));
     let (background, danger) = (color("background")?, color("danger.background")?);
+    let blue = color("base.blue")?;
     // A selection stays see-through enough to read the text under it.
     let selection = color("selection.background")?;
     let selection = selection.alpha(selection.a.min(0.3));
@@ -120,19 +121,21 @@ fn from_value(t: &Value, dark: bool) -> anyhow::Result<Theme> {
         sidebar_border: color("sidebar.border")?,
         red: color("base.red")?,
         green: color("base.green")?,
-        blue: color("base.blue")?,
+        blue,
         yellow: color("base.yellow")?,
         magenta: color("base.magenta")?,
         cyan: color("base.cyan")?,
-        chart_1: color("chart.1")?,
-        chart_2: color("chart.2")?,
-        chart_3: color("chart.3")?,
-        chart_4: color("chart.4")?,
-        chart_5: color("chart.5")?,
+        // Shades of the family's blue, as gpui-component derives them for a file without chart keys.
+        chart_1: lighten(blue, 0.4),
+        chart_2: lighten(blue, 0.2),
+        chart_3: blue,
+        chart_4: darken(blue, 0.2),
+        chart_5: darken(blue, 0.4),
         font_family: SYSTEM_UI_FONT.into(),
         font_size: number("font.size").unwrap_or(px(16.)),
         mono_font_family: MONO.0.into(),
         mono_font_size: number("mono_font.size").unwrap_or(px(13.)),
+        radius: number("radius").unwrap_or(px(6.)),
         radius_lg: number("radius.lg").unwrap_or(px(8.)),
         highlight_theme: Arc::new(highlight_theme),
     })

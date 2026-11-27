@@ -28,7 +28,7 @@ pub(super) fn render(node: &MarkdownNode, window: &mut Window, cx: &mut App) -> 
         theme.border,
     );
     // The plain code block's own background and corner (gpui-component's text view style).
-    let radius = crate::ui::RADIUS_MD;
+    let radius = theme.radius;
     let (card, border, muted, mono) = (
         theme.muted,
         theme.border,

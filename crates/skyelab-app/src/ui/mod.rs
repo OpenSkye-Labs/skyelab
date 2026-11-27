@@ -118,9 +118,9 @@ use gpui::{Hsla, Pixels, Rems, px, rems};
 use std::path::Path;
 pub use theme::{ActiveTheme, Theme};
 
-/// Registers SkyeLab's theme families (T3 Code's zinc light and true-black dark tokens are the default, see
-/// docs/design/t3-reference.md) and applies the default appearance. Call once, after `gpui_component::init`; then
-/// [`themes::load`] applies the saved choice. Views read colors only from the active theme.
+/// Checks SkyeLab's theme families (T3 Code's zinc light and true-black dark tokens are the default, see
+/// docs/design/t3-reference.md) and applies the default appearance. Call once at start, after `gpui_component::init`
+/// (the bridge writes its theme too); then [`themes::load`] applies the saved choice. Views read colors only from the active theme.
 pub fn install_theme(cx: &mut gpui::App) -> anyhow::Result<()> {
     themes::register()?;
     themes::apply(cx);

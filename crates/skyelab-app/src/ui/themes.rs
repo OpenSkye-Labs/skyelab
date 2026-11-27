@@ -328,18 +328,16 @@ pub(crate) fn ansi(f: &Family) -> Option<skyelab_terminal::AnsiColors> {
             .iter()
             .find(|t| t["mode"] == mode)?;
         let list = t["terminal.ansi"].as_array()?;
-        let colors: Vec<Hsla> = list.iter().filter_map(|c| parse_hex(c.as_str()?)).collect();
+        let colors: Vec<Hsla> = list
+            .iter()
+            .filter_map(|c| parse_color(c.as_str()?))
+            .collect();
         colors.try_into().ok()
     };
     Some(skyelab_terminal::AnsiColors {
         light: theme("light")?,
         dark: theme("dark")?,
     })
-}
-
-pub(crate) fn parse_hex(s: &str) -> Option<Hsla> {
-    let v = u32::from_str_radix(s.trim_start_matches('#'), 16).ok()?;
-    Some(gpui::rgb(v).into())
 }
 
 /// One theme of family `key` as JSON, with the accent preset and text sizes of `s` written in.
@@ -365,7 +363,7 @@ pub(crate) fn adjust(theme: &mut Value, s: &AppearanceSettings, dark: bool) {
         return;
     };
     let (fill, text) = if dark { a.dark } else { a.light };
-    let Some(color) = parse_hex(fill) else {
+    let Some(color) = parse_color(fill) else {
         return;
     };
     let shade = |up: bool| {
@@ -382,7 +380,7 @@ pub(crate) fn adjust(theme: &mut Value, s: &AppearanceSettings, dark: bool) {
         .into_iter()
         .filter_map(|key| parse_color(k[key].as_str()?))
         .collect();
-    let link = parse_hex(if dark { a.dark_link } else { fill }).unwrap_or(color);
+    let link = parse_color(if dark { a.dark_link } else { fill }).unwrap_or(color);
     let alpha =
         |light: &str, on_dark: &str| format!("{fill}{}", if dark { on_dark } else { light });
     for (key, value) in [

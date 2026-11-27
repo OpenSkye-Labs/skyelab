@@ -164,9 +164,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - A `Dialog`'s `on_close` runs for Esc and the backdrop, not for `window.close_dialog`.
 - gpui-component ignores theme JSON keys it doesn't know, so per-theme data it has no field for (the terminal's
   `terminal.ansi`) lives in the same file and SkyeLab reads it itself (`ui::themes::ansi`) into a global.
-- To show a theme that isn't applied (onboarding's theme tiles, `ui::themes::swatch`), clone `Theme::global` and
-  `apply_config` the registry's `ThemeConfig` on it, then read the colors. Don't parse the config's strings yourself:
-  a key the theme leaves out has no string, and the accent preset is baked in by `themes::adjust`.
+- To show a theme that isn't applied (onboarding's theme tiles, `ui::themes::swatch`), resolve it with
+  `ui::theme_load::resolve`, which bakes in the accent preset (`themes::adjust`).
 - `apply_config` swaps any theme color it can't parse for the default, with no error. Theme files use hex or a
   color name gpui-component knows (0.11 has no `zinc`, `slate` or `stone`); `themes_test::every_theme_color_parses`
   runs every value through `try_parse_color`.
