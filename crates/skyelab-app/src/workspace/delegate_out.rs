@@ -102,7 +102,8 @@ impl AppHost {
             thread_id: me.id,
             title: clean_title(&me.title),
             account_id: caller.account_id.clone(),
-            login: Default::default(), // filled on the UI thread, which knows the agent binary
+            account_label: None, // filled on the UI thread, which knows the accounts
+            login: Default::default(), // and the agent binary
             depth: self.depth(me).map_err(refused)?,
         };
         let call = RemoteCall {

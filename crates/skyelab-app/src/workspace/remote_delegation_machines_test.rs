@@ -24,6 +24,9 @@ fn the_switch_on_lists_ready_then_offline(cx: &mut TestAppContext) {
     assert_eq!(listed.as_array().map(Vec::len), Some(1));
     assert!(on_b(&a, Tool::ListProjects, cx).is_ok());
     assert_eq!(delegate_calls(&a).len(), 1);
+    // The caller's account goes by its label too, so B's request can name it as the user does.
+    let callers = a.b.agents.callers.lock().expect("callers").clone();
+    assert_eq!(callers[0].account_label.as_deref(), Some("Work"));
     a.b.stop();
     wait_until(cx, "B offline", |cx| {
         a.ws.read_with(cx, |ws, cx| ws.linked_envs().iter().all(|e| e.read(cx).node().is_none()))

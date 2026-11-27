@@ -68,6 +68,7 @@ pub(super) fn caller() -> Delegator {
         thread_id: 7,
         title: "parent".into(),
         account_id: "x".into(),
+        account_label: None,
         login: skyelab_protocol::Login {
             provider: "claude".into(),
             email: EMAIL.into(),

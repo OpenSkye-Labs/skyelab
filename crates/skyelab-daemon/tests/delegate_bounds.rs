@@ -22,6 +22,7 @@ fn caller(title: &str) -> Delegator {
         thread_id: 7,
         title: title.into(),
         account_id: "x".into(),
+        account_label: None,
         login: Login {
             provider: "claude".into(),
             email: "me@acme.com".into(),
@@ -58,6 +59,13 @@ fn oversized_calls_never_reach_the_backend() {
         (caller("p"), start(long(100_001))),
         (caller(&long(201)), DelegateOp::ListProjects),
         (
+            Delegator {
+                account_label: Some(long(201)),
+                ..caller("p")
+            },
+            DelegateOp::ListProjects,
+        ),
+        (
             caller("p"),
             DelegateOp::Send {
                 thread_id: 1,
@@ -87,7 +95,15 @@ fn oversized_calls_never_reach_the_backend() {
     assert!(!env.asked().contains(&"delegate"), "{:?}", env.asked());
     // At the limits it reaches the backend (which refuses: no link).
     assert_eq!(
-        code(&mut ws, 30, caller(&long(200)), start(long(100_000))),
+        code(
+            &mut ws,
+            30,
+            Delegator {
+                account_label: Some(long(200)),
+                ..caller(&long(200))
+            },
+            start(long(100_000))
+        ),
         Some(ErrorCode::DelegationNotAllowed)
     );
     assert!(env.asked().contains(&"delegate"));
