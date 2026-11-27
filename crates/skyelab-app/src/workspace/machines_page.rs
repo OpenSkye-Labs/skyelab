@@ -17,6 +17,8 @@ pub struct MachinesPage {
     remote: Option<Entity<Remote>>,
     /// Linked machines and whether this machine's agents may delegate to each (`machines_delegation.rs`).
     delegation: Vec<(String, bool)>,
+    /// Linked machines waiting to approve this device, with this device's code (`machines_waiting.rs`).
+    pub(super) waiting: Vec<(String, String)>,
     _observe: Vec<Subscription>,
 }
 
@@ -33,6 +35,7 @@ impl MachinesPage {
             picker,
             remote,
             delegation: Vec::new(),
+            waiting: Vec::new(),
             _observe: observe,
         }
     }
@@ -40,6 +43,13 @@ impl MachinesPage {
     pub(super) fn set_delegation(&mut self, rows: Vec<(String, bool)>, cx: &mut Context<Self>) {
         if self.delegation != rows {
             self.delegation = rows;
+            cx.notify();
+        }
+    }
+
+    pub(super) fn set_waiting(&mut self, rows: Vec<(String, String)>, cx: &mut Context<Self>) {
+        if self.waiting != rows {
+            self.waiting = rows;
             cx.notify();
         }
     }
@@ -269,6 +279,7 @@ impl Render for MachinesPage {
                             .child(ui::group(theme).children(rows))
                             .children(peers_error.map(|e| muted(e).px_1())),
                     )
+                    .children(super::machines_waiting::section(&self.waiting, theme))
                     .children(super::machines_delegation::section(&self.delegation, theme))
                     .child(
                         v_flex()

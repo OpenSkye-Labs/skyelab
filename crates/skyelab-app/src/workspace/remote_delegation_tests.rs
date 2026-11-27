@@ -56,3 +56,6 @@ mod remote_delegation_local_cap_test;
 
 #[path = "remote_delegation_rematch_test.rs"]
 mod remote_delegation_rematch_test;
+
+#[path = "remote_delegation_redraw_test.rs"]
+mod remote_delegation_redraw_test;

@@ -204,8 +204,12 @@ impl Workspace {
             .env_picker()
             .map(|p| cx.new(|cx| machines_page::MachinesPage::new(p, sharing, cx)));
         let rows = self.delegation_rows();
+        let waiting = self.waiting_rows(cx);
         if let Some(page) = &machines {
-            page.update(cx, |p, cx| p.set_delegation(rows, cx));
+            page.update(cx, |p, cx| {
+                p.set_delegation(rows, cx);
+                p.set_waiting(waiting, cx);
+            });
         }
         let usage = cx.new(usage_page::UsagePage::new);
         let (store, accounts) = (self.backend.store.clone(), self.accounts_path.clone());

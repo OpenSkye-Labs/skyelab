@@ -29,6 +29,8 @@ pub(super) struct Setup {
     pub disk_store: bool,
     /// `work-a` is a git repo with one commit.
     pub repo: bool,
+    /// The window is built as every real one is (Root → cached workspace), not a bare workspace.
+    pub real_window: bool,
 }
 
 pub(super) struct B {
@@ -66,6 +68,7 @@ pub(super) fn caller() -> Delegator {
         thread_id: 7,
         title: "parent".into(),
         account_id: "x".into(),
+        account_label: None,
         login: skyelab_protocol::Login {
             provider: "claude".into(),
             email: EMAIL.into(),
@@ -183,11 +186,24 @@ pub(super) fn b_side(setup: Setup, cx: &mut TestAppContext) -> (B, &mut VisualTe
         claude_bin: Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh"),
     };
     let (remote2, folder) = (remote.clone(), root.clone());
-    let (ws, cx) = cx.add_window_view(|window, cx| {
+    let build = |window: &mut gpui::Window, cx: &mut Context<Workspace>| {
         let mut ws = Workspace::new(folder, Some(accounts), config, None, backend, window, cx);
         ws.set_remote(remote2, Some(calls), window, cx);
         ws
-    });
+    };
+    let (ws, cx) = if setup.real_window {
+        let mut made = None;
+        let window = cx.add_window(|window, cx| {
+            let ws = cx.new(|cx| build(window, cx));
+            made = Some(ws.clone());
+            let shell = cx.new(|_| super::cached_workspace::CachedWorkspace(ws.into(), false));
+            crate::ui::window_root(shell.into(), window, cx)
+        });
+        let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
+        (made.expect("the window was built"), cx)
+    } else {
+        cx.add_window_view(build)
+    };
     for name in names {
         let d = root.join(name);
         ws.update(cx, |ws, cx| ws.add_project(d, cx));

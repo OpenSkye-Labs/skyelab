@@ -53,6 +53,25 @@ fn short(name: &str) -> &str {
     name.split('.').next().unwrap_or(name)
 }
 
+/// "Agents on <machine> under <account> (<email> · <org>)": the caller's account by its label there, or by its id
+/// when an older peer sent no label.
+pub(crate) fn who(r: &DelegationRequest) -> String {
+    // Every field but the device name comes from the other machine's message.
+    let clean = skyelab_core::delegation_remote::clean_title;
+    let account = r
+        .account_label
+        .as_deref()
+        .map(clean)
+        .filter(|l| !l.is_empty());
+    format!(
+        "Agents on {} under {} ({} · {})",
+        short(&r.origin.device),
+        account.unwrap_or_else(|| clean(&r.account_id)),
+        clean(&r.email),
+        clean(&r.org_id)
+    )
+}
+
 fn button(id: String, label: &'static str, action: Box<dyn Action>) -> Button {
     Button::new(SharedString::from(id))
         .small()
@@ -69,15 +88,7 @@ fn requests(remote: &Remote, theme: &Theme) -> Vec<AnyElement> {
             let key = key_of(r);
             let id = format!("{}-{}-{}", key.0, key.1, key.2);
             let local = remote.delegation_matches.get(&key).cloned().flatten();
-            // Every field but the device name comes from the other machine's message.
-            let clean = skyelab_core::delegation_remote::clean_title;
-            let who = format!(
-                "Agents on {} under {} ({} · {})",
-                short(&r.origin.device),
-                clean(&r.account_id),
-                clean(&r.email),
-                clean(&r.org_id)
-            );
+            let who = who(r);
             let what: SharedString = match &local {
                 Some((_, label)) => {
                     format!("{who} want to start threads in folders bound to {label} here").into()
@@ -175,3 +186,7 @@ pub fn sections(remote: &Remote, theme: &Theme) -> Vec<AnyElement> {
     out.push(section("Allowed delegation", links(remote, theme)));
     out
 }
+
+#[cfg(test)]
+#[path = "delegation_panel_test.rs"]
+mod tests;

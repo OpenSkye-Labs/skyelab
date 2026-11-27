@@ -16,6 +16,9 @@ pub struct Delegator {
     pub title: String,
     /// The caller's account id on the calling machine (a local name there).
     pub account_id: String,
+    /// That account's label there, for the user's eyes only; an older 1.8 peer sends none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_label: Option<String>,
     /// That account's login, as the calling machine's CLI reports it.
     pub login: Login,
     /// How many delegations deep the caller is (0: a user's own thread).

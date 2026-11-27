@@ -17,6 +17,7 @@ fn caller(account: &str) -> Delegator {
         thread_id: 7,
         title: "parent".into(),
         account_id: account.into(),
+        account_label: None,
         login: Login {
             provider: "claude".into(),
             email: "me@acme.com".into(),
