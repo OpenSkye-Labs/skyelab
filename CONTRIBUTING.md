@@ -78,6 +78,8 @@ SKYELAB_VERIFY_THEME=dark \
   cargo run -p skyelab-app
 ```
 
+When driving or inspecting the UI with `agent-desktop` (`list-windows`, `snapshot`, `click`), keep a normal window like above and **do not** set `SKYELAB_VERIFY_TOPMOST=1` (topmost opens a non-activating panel invisible to Accessibility).
+
 Useful switches (debug builds only):
 
 | Variable | What it does |
@@ -110,6 +112,7 @@ A hand-written binding in the throwaway `accounts.toml` needs `resolved = "<same
   Don't add lint allows to get past clippy.
 - **UI uses SkyeLab's own components** in `crates/skyelab-app/src/ui/` ([docs/design/components.md](docs/design/components.md),
   and the UI Gallery in debug builds). Clippy bans gpui-component's button, switch, checkbox and tooltip in the app.
+- **UI accessibility stays intact.** Every interactive element, landmark, heading, status/alert, and input must expose a semantic AccessKit role, non-empty accessible name, state, and click handler per [docs/gpui/accessibility.md](docs/gpui/accessibility.md). Use `crate::ui` primitives (or `.decorative()` on a `Checkbox` inside a clickable row) so `a11y_test` and `a11y_audit_test` pass.
 - **GPUI lessons go in the docs.** When you hit a GPUI bug, redraw or performance trap, or find a pattern that
   works, add a short rule with the why to [docs/gpui.md](docs/gpui.md) or a file in [docs/gpui/](docs/gpui), in the
   same pull request.

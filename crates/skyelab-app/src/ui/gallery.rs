@@ -85,7 +85,7 @@ impl UiGallery {
         crate::ui::open_dialog(window, cx, |dialog, _, _| {
             dialog
                 .w(px(420.))
-                .title("Discard changes?")
+                .title(super::dialog_title("Discard changes?"))
                 .child("The 3 changed files go back to the last commit. This can't be undone.")
                 .footer(
                     dialog_footer()
@@ -125,6 +125,7 @@ impl Render for UiGallery {
             .child(
                 Switch::new("g-switch")
                     .label("Share on tailnet")
+                    .accessibility_id("g-switch")
                     .checked(self.switch_on)
                     .on_click(cx.listener(|this, on: &bool, _, cx| {
                         this.switch_on = *on;
@@ -146,6 +147,7 @@ impl Render for UiGallery {
             .child(
                 Checkbox::new("g-check")
                     .label("Delete branch after merge")
+                    .accessibility_id("g-check")
                     .checked(self.check_on)
                     .on_click(cx.listener(|this, on: &bool, _, cx| {
                         this.check_on = *on;
@@ -173,6 +175,7 @@ impl Render for UiGallery {
             .child(
                 h_flex().child(
                     SegmentedControl::new("g-seg")
+                        .accessibility_label("Merge strategy")
                         .items(["Squash", "Merge", "Rebase"])
                         .selected(Some(self.segment))
                         .on_click(cx.listener(|this, ix: &usize, _, cx| {
@@ -184,6 +187,7 @@ impl Render for UiGallery {
             .child(
                 h_flex().child(
                     SegmentedControl::new("g-seg-icons")
+                        .accessibility_label("Appearance")
                         .with_size(Size::Sm)
                         .icon_item(SkyeIcon::Sun, "Light")
                         .icon_item(SkyeIcon::Moon, "Dark")
@@ -193,6 +197,8 @@ impl Render for UiGallery {
             )
             .child(
                 Tabs::new("g-tabs")
+                    .accessibility_label("View sections")
+                    .accessibility_id("g-tabs")
                     .items(["Changes", "Files", "Checks"])
                     .with_size(Size::Sm)
                     .selected(Some(self.tab))
@@ -203,6 +209,7 @@ impl Render for UiGallery {
             )
             .child(
                 Tabs::new("g-tabs-icons")
+                    .accessibility_label("Repository views")
                     .icon_item(SkyeIcon::GitBranch, "Branches")
                     .icon_item(SkyeIcon::GitPullRequest, "Pull requests")
                     .selected(Some(1)),
@@ -210,21 +217,36 @@ impl Render for UiGallery {
         let fields = v_flex()
             .gap_3()
             .w(px(420.))
-            .child(TextField::new(&self.field))
+            .child(TextField::new(&self.field).accessibility_label("Sample field"))
             .child(
-                TextField::new(&self.search).small().cleanable(true).prefix(
-                    gpui_component::Icon::new(SkyeIcon::Search)
-                        .size_3p5()
-                        .text_color(theme.muted_foreground),
-                ),
+                TextField::new(&self.search)
+                    .accessibility_label("Sample search")
+                    .small()
+                    .cleanable(true)
+                    .prefix(
+                        gpui_component::Icon::new(SkyeIcon::Search)
+                            .size_3p5()
+                            .text_color(theme.muted_foreground),
+                    ),
             )
             .child(
                 TextField::new(&self.port)
+                    .accessibility_label("Sample port")
                     .xsmall()
                     .suffix(div().text_color(theme.muted_foreground).child("port")),
             )
-            .child(TextField::new(&self.invalid).small().invalid(true))
-            .child(TextField::new(&self.locked).small().disabled(true));
+            .child(
+                TextField::new(&self.invalid)
+                    .accessibility_label("Sample invalid field")
+                    .small()
+                    .invalid(true),
+            )
+            .child(
+                TextField::new(&self.locked)
+                    .accessibility_label("Sample disabled field")
+                    .small()
+                    .disabled(true),
+            );
         let surfaces = h_flex()
             .gap_4()
             .items_start()

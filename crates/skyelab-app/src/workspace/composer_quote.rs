@@ -81,6 +81,8 @@ impl ThreadView {
         let theme = cx.theme();
         let button = h_flex()
             .id("quote-selection")
+            .role(gpui::accesskit::Role::Button)
+            .aria_label("Quote selection")
             .debug_selector(|| "quote-selection".into())
             .keep_text_selection("quote-selection-keep")
             .h(px(26.))

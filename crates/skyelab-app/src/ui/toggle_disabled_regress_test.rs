@@ -23,10 +23,11 @@ impl Render for Row {
             .items_start()
             .on_click(move |_, _, _| p.set(p.get() + 1))
             .child(
-                div()
-                    .flex()
-                    .debug_selector(|| "off".into())
-                    .child(Switch::new("off").disabled(true)),
+                div().flex().debug_selector(|| "off".into()).child(
+                    Switch::new("off")
+                        .accessibility_label("Locked")
+                        .disabled(true),
+                ),
             )
     }
 }

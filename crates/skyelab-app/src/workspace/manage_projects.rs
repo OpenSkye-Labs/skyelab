@@ -177,8 +177,8 @@ impl Workspace {
             let submit = submit.clone();
             dialog
                 .w(gpui::px(420.))
-                .title(title)
-                .child(v_flex().child(TextField::new(&field)))
+                .title(crate::ui::dialog_title(title))
+                .child(v_flex().child(TextField::new(&field).accessibility_label(title)))
                 .footer(
                     ui::dialog_footer()
                         .child(ui::dialog_cancel("rename-cancel"))

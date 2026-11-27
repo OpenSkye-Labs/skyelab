@@ -26,6 +26,9 @@ impl ThreadView {
         let theme = cx.theme();
         let tab = h_flex()
             .id("stash-badge")
+            .role(gpui::accesskit::Role::Button)
+            .aria_label(format!("Stash ({count})"))
+            .aria_expanded(false)
             .debug_selector(|| "stash-badge".into())
             .h(px(24.))
             .px_2p5()
@@ -73,6 +76,9 @@ impl ThreadView {
         let now = ui::now_ms();
         let header = h_flex()
             .id("stash-header")
+            .role(gpui::accesskit::Role::Button)
+            .aria_label(format!("Close stash ({})", rows.len()))
+            .aria_expanded(true)
             .h(px(28.))
             .px_2()
             .gap_2()
@@ -117,8 +123,12 @@ impl ThreadView {
                 .enumerate()
                 .map(|(ix, row)| {
                     let (restore, delete) = (row.owner.clone(), row.owner.clone());
+                    let snippet = row.snippet.clone();
                     h_flex()
                         .id(("stash-row", ix))
+                        .role(gpui::accesskit::Role::Button)
+                        .aria_label(snippet.clone())
+                        .aria_selected(ix == selected)
                         .debug_selector(move || format!("stash-row-{ix}"))
                         .h(px(28.))
                         .px_2()
@@ -141,7 +151,7 @@ impl ThreadView {
                                 .min_w_0()
                                 .truncate()
                                 .text_color(theme.foreground.opacity(0.8))
-                                .child(row.snippet),
+                                .child(snippet),
                         )
                         .when(row.files > 0, |this| {
                             this.child(

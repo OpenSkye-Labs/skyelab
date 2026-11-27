@@ -296,6 +296,7 @@ impl Render for BranchPicker {
                 };
                 let picked = name.clone();
                 ui::row(("branch", i), selected, theme)
+                    .aria_label(name.clone())
                     .on_click(cx.listener(move |this, _, _, cx| this.pick(picked.clone(), cx)))
                     .child(div().flex_1().min_w_0().truncate().child(name))
                     .children(note.map(|n| {
@@ -358,7 +359,11 @@ impl Render for BranchPicker {
             .id("branch-picker")
             .w(px(280.))
             .gap_1()
-            .child(TextField::new(&self.query).small())
+            .child(
+                TextField::new(&self.query)
+                    .small()
+                    .accessibility_label("Filter branches"),
+            )
             .child(caption(if picks_base {
                 "Base for the new worktree"
             } else {

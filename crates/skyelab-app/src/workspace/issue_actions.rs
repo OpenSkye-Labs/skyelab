@@ -101,7 +101,11 @@ pub(crate) fn open(
             .title(title.clone())
             .child(view.clone())
             .footer(
-                ui::dialog_footer().child(ui::dialog_cancel("issue-actions-cancel").label("Close")),
+                ui::dialog_footer().child(
+                    ui::dialog_cancel("issue-actions-cancel")
+                        .label("Close")
+                        .accessibility_label("Close issue actions"),
+                ),
             )
     });
     entity
@@ -216,6 +220,7 @@ impl Render for IssueActions {
             buttons = buttons
                 .child(segments(
                     "issue-close-reason",
+                    "Close reason",
                     &reasons,
                     reason,
                     |this: &mut Self, r, cx| {
@@ -246,7 +251,12 @@ impl Render for IssueActions {
         v_flex()
             .gap_3()
             .child(link)
-            .child(Textarea::new(&self.body).small().disabled(busy))
+            .child(
+                Textarea::new(&self.body)
+                    .small()
+                    .disabled(busy)
+                    .aria_label("Issue comment"),
+            )
             .child(buttons)
             .children(error)
     }

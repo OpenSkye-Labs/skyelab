@@ -54,6 +54,9 @@ pub fn render<V: ItemsView>(this: &V, s: &SubagentItem, cx: &mut Context<V>) -> 
     let mono = theme.mono_font_family.clone();
     let header = h_flex()
         .id(SharedString::from(format!("subagent-{}", s.id)))
+        .role(gpui::accesskit::Role::Button)
+        .aria_label(format!("Subagent {}, {}", s.kind, s.description))
+        .aria_expanded(open)
         .min_h(px(32.))
         .gap_1p5()
         .px_1()

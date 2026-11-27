@@ -7,7 +7,7 @@
 use super::Size;
 use gpui::{
     AnyElement, App, Entity, Focusable as _, IntoElement, ParentElement as _, RenderOnce,
-    Styled as _, Window, prelude::*,
+    SharedString, Styled as _, Window, prelude::*,
 };
 use gpui_component::{
     ActiveTheme as _, h_flex,
@@ -20,6 +20,8 @@ pub struct TextField {
     size: Size,
     prefix: Option<AnyElement>,
     suffix: Option<AnyElement>,
+    aria_label: Option<SharedString>,
+    aria_id: Option<SharedString>,
     cleanable: bool,
     disabled: bool,
     invalid: bool,
@@ -32,6 +34,8 @@ impl TextField {
             size: Size::Md,
             prefix: None,
             suffix: None,
+            aria_label: None,
+            aria_id: None,
             cleanable: false,
             disabled: false,
             invalid: false,
@@ -58,6 +62,17 @@ impl TextField {
     /// Something after the text (a unit, a button).
     pub fn suffix(mut self, el: impl IntoElement) -> Self {
         self.suffix = Some(el.into_any_element());
+        self
+    }
+
+    /// Accessible name exposed for screen readers and `agent-desktop`.
+    pub fn accessibility_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
+    }
+
+    pub fn accessibility_id(mut self, id: impl Into<SharedString>) -> Self {
+        self.aria_id = Some(id.into());
         self
     }
 
@@ -95,6 +110,8 @@ impl RenderOnce for TextField {
             .appearance(false)
             .cleanable(self.cleanable)
             .disabled(self.disabled)
+            .when_some(self.aria_label, |i, l| i.aria_label(l))
+            .when_some(self.aria_id, |i, id| i.accessibility_id(id))
             .when_some(self.prefix, |i, p| i.prefix(p))
             .when_some(self.suffix, |i, s| i.suffix(s))
             .px_0()

@@ -235,6 +235,9 @@ pub(super) fn render<V: ItemsView>(
     let toggle = key.clone();
     let header = h_flex()
         .id(SharedString::from(key))
+        .role(gpui::accesskit::Role::Button)
+        .aria_label(count.clone())
+        .aria_expanded(open)
         .debug_selector(|| "turn-files".into())
         .gap_3()
         .px_3()
@@ -276,6 +279,8 @@ pub(super) fn render<V: ItemsView>(
         let path = f.path.clone();
         h_flex()
             .id(SharedString::from(format!("turn-file-{row}-{i}")))
+            .role(gpui::accesskit::Role::Button)
+            .aria_label(f.rel.clone())
             .debug_selector(|| "turn-file".into())
             .h(px(28.))
             .gap_2()

@@ -200,8 +200,20 @@ impl ThreadView {
         let theme = cx.theme();
         let chips = contexts.iter().zip(cards).map(|(c, card)| {
             let id = c.id;
+            let kind = match c.kind {
+                ChipKind::Terminal => "Terminal",
+                ChipKind::Thread => "Thread",
+                ChipKind::PullRequest => "Pull request",
+                ChipKind::Review => "Review",
+                ChipKind::SideChat => "Side chat",
+                ChipKind::Issue => "Issue",
+                ChipKind::Quote => "Quote",
+            };
             let chip = h_flex()
                 .id(("context-chip", id))
+                .role(gpui::accesskit::Role::Button)
+                .aria_label(format!("{kind} context: {}", c.label))
+                .aria_expanded(c.open)
                 .h(px(28.))
                 .max_w(px(260.))
                 .pl_2()

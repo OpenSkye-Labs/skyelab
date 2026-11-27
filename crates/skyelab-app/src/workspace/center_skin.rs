@@ -444,6 +444,9 @@ fn collapsed_drawer(window: &Window, cx: &App) -> AnyElement {
     let theme = cx.theme();
     h_flex()
         .id("drawer-collapsed")
+        .role(gpui::accesskit::Role::Button)
+        .aria_label("Show terminal")
+        .aria_expanded(false)
         .debug_selector(|| "drawer-collapsed".into())
         .w_full()
         .h(gpui::px(30.))

@@ -51,6 +51,7 @@ macro_rules! panel {
 panel!(super::center::Center, "Center", closable: false, title_bar: false, |_this| "Center");
 
 mod sidebar;
+mod sidebar_a11y;
 mod sidebar_card;
 mod sidebar_rows;
 mod sidebar_snooze;
@@ -117,6 +118,8 @@ impl Render for Welcome {
         let shortcut = |icon: ui::SkyeIcon, label: &'static str, action: Box<dyn Action>| {
             gpui_component::h_flex()
                 .id(label)
+                .role(gpui::accesskit::Role::Button)
+                .aria_label(label)
                 .gap_2p5()
                 .w_full()
                 .px_2p5()
@@ -391,6 +394,7 @@ impl Render for BrowserPanel {
                 .child(
                     Button::new("close-agent-tab")
                         .label("Close")
+                        .accessibility_label("Close browser tab")
                         .ghost()
                         .xsmall()
                         .on_click(cx.listener(|_, _, _, cx| cx.emit(CloseBrowser))),

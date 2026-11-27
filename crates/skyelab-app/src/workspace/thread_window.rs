@@ -5,8 +5,9 @@ use super::{SendPrompt, ThreadView};
 use crate::workspace::thread_extras::prefs;
 use gpui::{
     AnyElement, AnyWindowHandle, App, AppContext as _, Context, Entity, InteractiveElement as _,
-    IntoElement as _, ListAlignment, ListState, MouseButton, ParentElement as _, Styled as _,
-    Subscription, Window, div, prelude::FluentBuilder as _, px,
+    IntoElement as _, ListAlignment, ListState, MouseButton, ParentElement as _,
+    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div,
+    prelude::FluentBuilder as _, px,
 };
 use gpui_component::ActiveTheme as _;
 use gpui_component::input::{InputEvent, TextareaState};
@@ -209,6 +210,17 @@ impl ThreadView {
         let muted = cx.theme().muted_foreground;
         div()
             .id("composer-borrowed")
+            .role(gpui::accesskit::Role::Button)
+            .aria_label("Use the composer in this window")
+            .on_a11y_action(gpui::accesskit::Action::Click, {
+                let view = cx.entity().downgrade();
+                move |_, window, cx| {
+                    let _ = view.update(cx, |this, cx| {
+                        this.attach(window, cx);
+                        this.focus_prompt(window, cx);
+                    });
+                }
+            })
             .min_h(px(44.))
             .pb_2()
             .cursor_text()

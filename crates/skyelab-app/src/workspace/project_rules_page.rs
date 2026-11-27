@@ -146,10 +146,11 @@ impl Render for ProjectRulesPage {
                 Some((_, field)) => row
                     .child(div().flex_shrink_0().child(format!("{} ·", r.rule.tool)))
                     .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .child(TextField::new(field).small()),
+                        div().flex_1().min_w_0().child(
+                            TextField::new(field)
+                                .small()
+                                .accessibility_label("Permission rule pattern"),
+                        ),
                     )
                     .child(
                         Button::new(("rule-save", id as u64))

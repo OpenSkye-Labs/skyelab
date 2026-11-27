@@ -187,7 +187,9 @@ impl Render for MachinesPage {
                             .debug_selector(|| "machines-add".into())
                             .w_full()
                             .gap_2()
-                            .child(div().flex_1().min_w_0().child(TextField::new(&typed)))
+                            .child(div().flex_1().min_w_0().child(
+                                TextField::new(&typed).accessibility_label("Tailscale hostname"),
+                            ))
                             .child(
                                 Button::new("machines-connect-typed")
                                     .primary()

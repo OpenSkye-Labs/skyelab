@@ -63,10 +63,11 @@ impl Render for Harness {
             }
         }
         col.child(
-            div()
-                .flex()
-                .debug_selector(|| "square".into())
-                .child(icon_button("sq", super::SkyeIcon::Copy).with_size(Size::Sm)),
+            div().flex().debug_selector(|| "square".into()).child(
+                icon_button("sq", super::SkyeIcon::Copy)
+                    .with_size(Size::Sm)
+                    .tooltip("Copy"),
+            ),
         )
     }
 }

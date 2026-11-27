@@ -37,6 +37,7 @@ impl Render for Harness {
             .child(
                 div().flex().debug_selector(|| "switch".into()).child(
                     Switch::new("sw")
+                        .accessibility_label("Sync")
                         .checked(false)
                         .on_click(move |v, _, _| sw(v.to_string())),
                 ),
@@ -52,6 +53,7 @@ impl Render for Harness {
             .child(
                 div().flex().debug_selector(|| "off".into()).child(
                     Switch::new("off")
+                        .accessibility_label("Locked")
                         .disabled(true)
                         .on_click(move |v, _, _| off(v.to_string())),
                 ),

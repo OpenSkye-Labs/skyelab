@@ -361,6 +361,8 @@ pub(super) fn render<V: ItemsView>(
         .child(
             div()
                 .id(SharedString::from(format!("html-body-{}", tool.id)))
+                .role(gpui::accesskit::Role::Button)
+                .aria_label("Open interactive page")
                 .w_full()
                 .bg(theme.background)
                 .cursor_pointer()
@@ -437,6 +439,7 @@ impl Render for PageViewer {
                             .xsmall()
                             .icon(Icon::new(SkyeIcon::Close))
                             .tooltip("Close")
+                            .accessibility_label("Close page")
                             .on_click(|_, window, cx| window.close_dialog(cx)),
                     ),
             )

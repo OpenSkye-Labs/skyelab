@@ -54,6 +54,8 @@ impl Settings {
                             .child(
                                 div()
                                     .id(SharedString::from(format!("name-{}", a.id)))
+                                    .role(gpui::accesskit::Role::Button)
+                                    .aria_label(format!("Edit account {}", a.label))
                                     .truncate()
                                     .text_size(ui::BODY)
                                     .font_weight(gpui::FontWeight::SEMIBOLD)

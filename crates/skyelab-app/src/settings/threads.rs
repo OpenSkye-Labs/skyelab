@@ -202,9 +202,11 @@ impl Settings {
                 } else {
                     "A Cursor model id (empty: the account's default)."
                 },
-                div()
-                    .w(gpui::px(160.))
-                    .child(TextField::new(&self.cursor_model_input).small()),
+                div().w(gpui::px(160.)).child(
+                    TextField::new(&self.cursor_model_input)
+                        .small()
+                        .accessibility_label("Cursor model id"),
+                ),
                 cx,
             )),
             has(Provider::Antigravity).then(|| setting(
@@ -218,9 +220,11 @@ impl Settings {
                 h_flex()
                     .gap_2()
                     .child(
-                        div()
-                            .w(gpui::px(160.))
-                            .child(TextField::new(&self.antigravity_model_input).small()),
+                        div().w(gpui::px(160.)).child(
+                            TextField::new(&self.antigravity_model_input)
+                                .small()
+                                .accessibility_label("Antigravity model id"),
+                        ),
                     )
                     .child(self.field_choice(
                         "threads-antigravity-effort",

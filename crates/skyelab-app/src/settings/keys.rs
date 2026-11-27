@@ -115,10 +115,12 @@ impl Settings {
         let toolbar = widgets::row(true, cx)
             .flex_wrap()
             .child(
-                div()
-                    .flex_1()
-                    .min_w(gpui::px(200.))
-                    .child(TextField::new(&self.keys_search).small().cleanable(true)),
+                div().flex_1().min_w(gpui::px(200.)).child(
+                    TextField::new(&self.keys_search)
+                        .small()
+                        .cleanable(true)
+                        .accessibility_label("Filter shortcuts"),
+                ),
             )
             .child(
                 Button::new("open-keys-file")

@@ -419,6 +419,8 @@ impl Render for PreviewPanel {
                 let (shown, name) = (image.clone(), self.name());
                 div()
                     .id("preview-image")
+                    .role(gpui::accesskit::Role::Button)
+                    .aria_label(format!("Open image {name}"))
                     .size_full()
                     .p_4()
                     .cursor_pointer()

@@ -293,11 +293,13 @@ impl Render for EnvPicker {
                 Some(h) => format!("{h} · {}", m.status.1).into(),
                 None => format!("{} · this machine", m.label).into(),
             };
+            let row_label = format!("{} · {}", m.label, m.status.1);
             ui::row(
                 SharedString::from(format!("env-{}", m.label)),
                 m.current,
                 theme,
             )
+            .aria_label(row_label)
             .tooltip(move |window, cx| Tooltip::new(tip.clone()).build(window, cx))
             .on_click(move |_, window, cx| {
                 crate::workspace::dispatch(action.boxed_clone(), window, cx)
@@ -379,6 +381,7 @@ impl Render for EnvPicker {
             .child(div().my_1().h(px(1.)).bg(theme.border))
             .child(
                 ui::row("env-manage", false, theme)
+                    .aria_label("Manage machines…")
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.close(window, cx);
                         crate::workspace::dispatch(

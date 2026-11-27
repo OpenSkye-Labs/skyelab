@@ -253,6 +253,8 @@ impl ThreadView {
             };
             div()
                 .id(("minimap-tick", self.items.key(row)))
+                .role(gpui::accesskit::Role::Button)
+                .aria_label(format!("Jump to message {}", i + 1))
                 .debug_selector(move || format!("minimap-tick-{i}"))
                 .absolute()
                 .left_0()

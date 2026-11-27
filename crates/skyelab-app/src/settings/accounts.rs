@@ -242,6 +242,8 @@ impl Settings {
         let hover = theme.accent;
         h_flex()
             .id("add-account")
+            .role(gpui::accesskit::Role::Button)
+            .aria_label("Add account")
             .gap_3()
             .p_4()
             .rounded(ui::RADIUS_LG)
@@ -331,17 +333,25 @@ impl Settings {
             .child(
                 h_flex()
                     .gap_3()
-                    .child(div().flex_1().child(field(
-                        "Name",
-                        "e.g. Work, Personal",
-                        TextField::new(&self.label_input).into_any_element(),
-                    )))
+                    .child(
+                        div().flex_1().child(field(
+                            "Name",
+                            "e.g. Work, Personal",
+                            TextField::new(&self.label_input)
+                                .accessibility_label("Account name")
+                                .into_any_element(),
+                        )),
+                    )
                     .when(editing.is_none(), |d| {
-                        d.child(div().w(gpui::px(180.)).child(field(
-                            "Id",
-                            "optional",
-                            TextField::new(&self.id_input).into_any_element(),
-                        )))
+                        d.child(
+                            div().w(gpui::px(180.)).child(field(
+                                "Id",
+                                "optional",
+                                TextField::new(&self.id_input)
+                                    .accessibility_label("Account id")
+                                    .into_any_element(),
+                            )),
+                        )
                     }),
             )
             .child(field(
@@ -350,10 +360,10 @@ impl Settings {
                 h_flex()
                     .gap_2()
                     .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .child(TextField::new(&self.dir_input)),
+                        div().flex_1().min_w_0().child(
+                            TextField::new(&self.dir_input)
+                                .accessibility_label("Account config folder"),
+                        ),
                     )
                     .child(
                         Button::new("pick-config-dir")
@@ -369,7 +379,9 @@ impl Settings {
             .child(field(
                 "GitHub folder",
                 "optional: its own gh login for push and pull requests",
-                TextField::new(&self.gh_input).into_any_element(),
+                TextField::new(&self.gh_input)
+                    .accessibility_label("GitHub config folder")
+                    .into_any_element(),
             ))
             .child(
                 h_flex()
@@ -411,6 +423,13 @@ impl Settings {
         };
         h_flex()
             .id(SharedString::from(selector.clone()))
+            .role(gpui::accesskit::Role::RadioButton)
+            .aria_label(format!("{} — {about}", p.label()))
+            .aria_toggled(if on {
+                gpui::accesskit::Toggled::True
+            } else {
+                gpui::accesskit::Toggled::False
+            })
             .debug_selector(move || selector)
             .flex_1()
             .min_w_0()

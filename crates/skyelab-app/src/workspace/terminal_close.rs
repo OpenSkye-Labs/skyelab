@@ -107,6 +107,7 @@ impl Workspace {
                                 .danger()
                                 .small()
                                 .label("Close")
+                                .accessibility_label("Close terminal")
                                 .on_click(move |_, window, cx| {
                                     window.close_dialog(cx);
                                     let Some(then) = then.borrow_mut().take() else {

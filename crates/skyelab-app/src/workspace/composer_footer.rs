@@ -17,6 +17,8 @@ pub(in crate::workspace) fn machine_chip(
     let tip: SharedString = format!("Runs on {name}. Click to switch machine").into();
     h_flex()
         .id("composer-machine")
+        .role(gpui::accesskit::Role::Button)
+        .aria_label(format!("Switch machine ({name})"))
         .flex_shrink_0()
         .gap_1p5()
         .px_1p5()

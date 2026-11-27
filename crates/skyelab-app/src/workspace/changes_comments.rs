@@ -272,7 +272,21 @@ impl ChangesView {
             .h_full()
             .w(px(width))
             .when(self.commentable(), |d| {
-                d.cursor_pointer()
+                let view = cx.entity().downgrade();
+                d.role(gpui::accesskit::Role::Button)
+                    .aria_label(format!(
+                        "Comment on {} row {}",
+                        if left { "old" } else { "new" },
+                        row + 1
+                    ))
+                    // A press with no drag: the same draft a click without moving opens.
+                    .on_a11y_action(gpui::accesskit::Action::Click, move |_, window, cx| {
+                        let _ = view.update(cx, |this, cx| {
+                            this.gutter_down(row, left, cx);
+                            this.finish_drag(window, cx);
+                        });
+                    })
+                    .cursor_pointer()
                     .hover(move |s| s.bg(hover))
                     .on_mouse_down(
                         MouseButton::Left,
@@ -387,7 +401,11 @@ impl ChangesView {
                     .text_color(theme.muted_foreground)
                     .child(format!("Comment on {label}")),
             )
-            .child(Textarea::new(&input).small())
+            .child(
+                Textarea::new(&input)
+                    .small()
+                    .aria_label(format!("Comment on {label}")),
+            )
             .child(
                 h_flex()
                     .gap_1()

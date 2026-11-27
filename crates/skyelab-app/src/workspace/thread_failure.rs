@@ -269,6 +269,7 @@ impl ThreadView {
                         .ghost()
                         .xsmall()
                         .icon(SkyeIcon::Close)
+                        .tooltip("Dismiss")
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.timeline.dismissed_failure = Some(row);
                             cx.notify();

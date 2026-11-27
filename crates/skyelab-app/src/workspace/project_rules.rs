@@ -278,6 +278,7 @@ impl Render for RuleDialog {
         let body = match self.proposed.kind {
             Kind::Exact => {
                 let pick = SegmentedControl::new("project-rule-kind")
+                    .accessibility_label("Rule scope")
                     .item("This exact command")
                     .when(self.prefix_ok(), |s| s.item("Commands starting with"))
                     .selected(Some(usize::from(self.kind == Kind::Prefix)))
@@ -287,7 +288,10 @@ impl Render for RuleDialog {
                         cx.notify();
                     }));
                 let shown = if self.kind == Kind::Prefix {
-                    TextField::new(&self.field).small().into_any_element()
+                    TextField::new(&self.field)
+                        .small()
+                        .accessibility_label("Command prefix")
+                        .into_any_element()
                 } else {
                     code(self.proposed.pattern.clone()).into_any_element()
                 };
@@ -312,7 +316,11 @@ impl Render for RuleDialog {
                         .text_size(ui::META)
                         .child(format!("{} on files matching, inside the project:", rule.tool)),
                 )
-                .child(TextField::new(&self.field).small())
+                .child(
+                    TextField::new(&self.field)
+                        .small()
+                        .accessibility_label("Path pattern"),
+                )
                 .child(div().text_size(ui::META).text_color(muted).child(
                     "Relative to the thread's folder. * matches within one folder, ** across folders \
                      (src/** is everything under src).",

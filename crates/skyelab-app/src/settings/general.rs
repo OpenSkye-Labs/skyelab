@@ -71,7 +71,11 @@ impl Settings {
                     "Open in editor",
                     "The command \"Open in editor\" runs, with the folder added at the end. Empty tries $VISUAL, \
                      $EDITOR, then code or zed.",
-                    div().w(gpui::px(220.)).child(TextField::new(&self.editor_input).small()),
+                    div().w(gpui::px(220.)).child(
+                        TextField::new(&self.editor_input)
+                            .small()
+                            .accessibility_label("Open in editor command"),
+                    ),
                     cx,
                 )],
                 cx,
@@ -210,6 +214,7 @@ impl Settings {
                     "Stable offers releases only. Nightly also offers the nightly builds of the next version, \
                      and a newer stable release when one is out.",
                     ui::SegmentedControl::new("update-channel")
+                        .accessibility_label("Update channel")
                         .with_size(ui::Size::Sm)
                         .items(["Stable", "Nightly"])
                         .selected(Some(usize::from(channel == Channel::Nightly)))
@@ -324,9 +329,12 @@ impl Settings {
         let (danger, ink) = (theme.danger, ui::ink(theme, theme.danger));
         let short = super::widgets::short_error(&full);
         let open = self.error_open;
+        let banner_label = format!("Error: {short}");
         Some(
             v_flex()
                 .id("settings-error")
+                .role(gpui::accesskit::Role::Alert)
+                .aria_label(banner_label)
                 .gap_2()
                 .px_4()
                 .py_3()
@@ -354,6 +362,7 @@ impl Settings {
                             Button::new("settings-error-details")
                                 .ghost()
                                 .xsmall()
+                                .aria_expanded(open)
                                 .label(if open { "Hide details" } else { "Details" })
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.error_open = !this.error_open;

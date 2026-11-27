@@ -228,7 +228,11 @@ impl Onboarding {
             let name: AnyElement = match &f.label {
                 Some(input) => div()
                     .max_w(px(240.))
-                    .child(TextField::new(input).small())
+                    .child(
+                        TextField::new(input)
+                            .small()
+                            .accessibility_label("Account name"),
+                    )
                     .into_any_element(),
                 None => h_flex()
                     .gap_1()

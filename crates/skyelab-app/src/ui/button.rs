@@ -122,10 +122,17 @@ type ActionRef = (Rc<dyn Action>, Option<SharedString>);
 
 #[derive(IntoElement)]
 pub struct Button {
+    id: ElementId,
     base: gpui_base::Button,
     variant: Variant,
     size: Size,
     label: Option<SharedString>,
+    aria_label: Option<SharedString>,
+    aria_id: Option<SharedString>,
+    aria_description: Option<SharedString>,
+    aria_expanded: Option<bool>,
+    aria_selected: Option<bool>,
+    role: Option<gpui::Role>,
     icon: Option<Icon>,
     icon_end: Option<Icon>,
     children: Vec<AnyElement>,
@@ -138,19 +145,28 @@ pub struct Button {
     square: bool,
     toggled: Option<bool>,
     tooltip: Option<(SharedString, Option<ActionRef>)>,
-    /// Its menu or popover is open (`Selectable::open`): no tooltip then, as it would show late, over the menu.
-    menu_open: bool,
+    /// Popover / dropdown open state passed via [`Selectable::open`]: `Some(open)` means this button drives a
+    /// popover or menu (no tooltip while open; advertises `aria_expanded` and `Action::Click` for `Confirm`).
+    menu_open: Option<bool>,
     key_hint: Option<ActionRef>,
     on_click: Option<OnClick>,
 }
 
 impl Button {
     pub fn new(id: impl Into<ElementId>) -> Self {
+        let id = id.into();
         Self {
-            base: gpui_base::Button::new(id),
+            base: gpui_base::Button::new(id.clone()),
+            id,
             variant: Variant::default(),
             size: Size::default(),
             label: None,
+            aria_label: None,
+            aria_id: None,
+            aria_description: None,
+            aria_expanded: None,
+            aria_selected: None,
+            role: None,
             icon: None,
             icon_end: None,
             children: Vec::new(),
@@ -162,7 +178,7 @@ impl Button {
             square: false,
             toggled: None,
             tooltip: None,
-            menu_open: false,
+            menu_open: None,
             key_hint: None,
             on_click: None,
         }
@@ -207,6 +223,36 @@ impl Button {
 
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+
+    pub fn accessibility_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
+    }
+
+    pub fn accessibility_id(mut self, id: impl Into<SharedString>) -> Self {
+        self.aria_id = Some(id.into());
+        self
+    }
+
+    pub fn aria_description(mut self, description: impl Into<SharedString>) -> Self {
+        self.aria_description = Some(description.into());
+        self
+    }
+
+    pub fn aria_expanded(mut self, expanded: bool) -> Self {
+        self.aria_expanded = Some(expanded);
+        self
+    }
+
+    pub fn aria_selected(mut self, selected: bool) -> Self {
+        self.aria_selected = Some(selected);
+        self
+    }
+
+    pub fn role(mut self, role: gpui::Role) -> Self {
+        self.role = Some(role);
         self
     }
 
@@ -318,13 +364,13 @@ impl Selectable for Button {
     // The popover's open state, kept apart from `selected` (a filter that is on): a popover passes `is_open()` back
     // to `open` every frame, so deriving one from the other would mark a selected trigger open for good.
     fn open(mut self, open: bool) -> Self {
-        self.menu_open = open;
+        self.menu_open = Some(open);
         let selected = self.selected || open;
         Button::selected(self, selected)
     }
 
     fn is_open(&self) -> bool {
-        self.menu_open
+        self.menu_open.unwrap_or(false)
     }
 
     fn is_selected(&self) -> bool {
@@ -377,6 +423,23 @@ impl RenderOnce for Button {
             _ => theme.ring,
         };
 
+        let a11y_label = self
+            .aria_label
+            .or_else(|| self.label.clone())
+            .or_else(|| self.tooltip.as_ref().map(|(t, _)| t.clone()));
+        debug_assert!(
+            a11y_label.as_deref().is_some_and(|s| !s.trim().is_empty()),
+            "ui::Button({:?}) must have a non-empty label, tooltip, or accessibility_label (docs/gpui/accessibility.md)",
+            self.id
+        );
+        let dropdown_click = (self.menu_open.is_some() && interactive && self.on_click.is_none())
+            .then(|| {
+                window
+                    .use_keyed_state(self.id.clone(), cx, |_, cx| cx.focus_handle())
+                    .read(cx)
+                    .clone()
+            });
+
         let mut base = self.base;
         // The caller's own style (`.w_full()`, `.rounded(..)`) goes on last, so it wins over ours.
         let caller = std::mem::take(base.style());
@@ -409,19 +472,34 @@ impl RenderOnce for Button {
             .when(self.loading && !self.disabled, |b| b.opacity(0.8))
             .selected(self.selected)
             .disabled(self.disabled)
+            .when_some(self.role, |b, r| b.role(r))
             // An icon-only button is named by its tooltip.
-            .when_some(
-                self.label
-                    .clone()
-                    .or_else(|| self.tooltip.as_ref().map(|(t, _)| t.clone())),
-                |b, l| b.accessibility_label(l),
-            )
+            .when_some(a11y_label, |b, l| b.accessibility_label(l))
+            .when_some(self.aria_id, |b, id| b.accessibility_id(id))
+            .when_some(self.aria_description, |b, d| b.aria_description(d))
+            .when_some(self.aria_selected, |b, s| b.aria_selected(s))
+            .when_some(self.aria_expanded.or(self.menu_open), |b, e| {
+                b.aria_expanded(e)
+            })
             .when_some(self.toggled, |b, on| {
                 b.aria_toggled(if on {
                     gpui::accesskit::Toggled::True
                 } else {
                     gpui::accesskit::Toggled::False
                 })
+            })
+            .when_some(dropdown_click, |b, trigger_focus| {
+                let dispatch_focus = trigger_focus.clone();
+                b.track_focus(&trigger_focus).on_a11y_action(
+                    gpui::accesskit::Action::Click,
+                    move |_, window, cx| {
+                        dispatch_focus.dispatch_action(
+                            &gpui_base::actions::Confirm { secondary: false },
+                            window,
+                            cx,
+                        );
+                    },
+                )
             });
         base.style().refine(&caller);
 
@@ -485,7 +563,7 @@ impl RenderOnce for Button {
                 (false, None) => b,
             })
             .when_some(
-                self.tooltip.filter(|_| !self.menu_open),
+                self.tooltip.filter(|_| !self.menu_open.unwrap_or(false)),
                 |b, (text, action)| {
                     b.tooltip(move |window, cx| {
                         let t = Tooltip::new(text.clone());

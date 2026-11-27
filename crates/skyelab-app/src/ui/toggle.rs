@@ -22,8 +22,10 @@ struct Toggle {
     checked: bool,
     label: Option<SharedString>,
     aria: Option<SharedString>,
+    aria_id: Option<SharedString>,
     disabled: bool,
     small: bool,
+    decorative: bool,
     on_click: Option<OnToggle>,
 }
 
@@ -34,8 +36,10 @@ impl Toggle {
             checked: false,
             label: None,
             aria: None,
+            aria_id: None,
             disabled: false,
             small: false,
+            decorative: false,
             on_click: None,
         }
     }
@@ -46,11 +50,38 @@ impl Toggle {
         role: accesskit::Role,
         control: impl IntoElement,
         cx: &App,
-    ) -> impl IntoElement {
+    ) -> gpui::AnyElement {
         let checked = self.checked;
         let interactive = !self.disabled;
         let theme = cx.theme();
         let ring = theme.ring;
+        if self.decorative {
+            return gpui_component::h_flex()
+                .flex_shrink_0()
+                .justify_start()
+                .gap_2()
+                .p(px(1.))
+                .rounded(RADIUS_SM)
+                .border_1()
+                .border_color(gpui::transparent_black())
+                .when(self.disabled, |d| d.opacity(DISABLED_OPACITY))
+                .child(control)
+                .when_some(self.label, |d, l| {
+                    d.child(
+                        div()
+                            .text_size(if self.small { META } else { super::BODY })
+                            .text_color(theme.foreground)
+                            .child(l),
+                    )
+                })
+                .into_any_element();
+        }
+        let a11y_label = self.aria.or_else(|| self.label.clone());
+        debug_assert!(
+            a11y_label.as_deref().is_some_and(|s| !s.trim().is_empty()),
+            "ui::Switch/Checkbox({:?}) must have a non-empty label or accessibility_label, or use .decorative() inside a clickable row (docs/gpui/accessibility.md)",
+            self.id
+        );
         gpui_base::Button::new(self.id)
             .role(role)
             .disabled(self.disabled)
@@ -66,9 +97,8 @@ impl Toggle {
             } else {
                 accesskit::Toggled::False
             })
-            .when_some(self.aria.or_else(|| self.label.clone()), |d, l| {
-                d.accessibility_label(l)
-            })
+            .when_some(a11y_label, |d, l| d.accessibility_label(l))
+            .when_some(self.aria_id, |d, id| d.accessibility_id(id))
             .when(interactive, |d| {
                 d.cursor_pointer()
                     // Like a button press: the field being typed in keeps focus.
@@ -88,6 +118,7 @@ impl Toggle {
             .when_some(self.on_click.filter(|_| interactive), |d, f| {
                 d.on_click(move |_: &ClickEvent, window, cx| f(&!checked, window, cx))
             })
+            .into_any_element()
     }
 }
 
@@ -108,6 +139,10 @@ macro_rules! toggle_builders {
             /// The name a screen reader announces when there is no visible label.
             pub fn accessibility_label(mut self, label: impl Into<SharedString>) -> Self {
                 self.0.aria = Some(label.into());
+                self
+            }
+            pub fn accessibility_id(mut self, id: impl Into<SharedString>) -> Self {
+                self.0.aria_id = Some(id.into());
                 self
             }
             pub fn disabled(mut self, disabled: bool) -> Self {
@@ -179,6 +214,14 @@ impl RenderOnce for Switch {
 #[derive(IntoElement)]
 pub struct Checkbox(Toggle);
 toggle_builders!(Checkbox);
+
+impl Checkbox {
+    /// Visual-only indicator inside an enclosing clickable row (the row owns role, name, and click).
+    pub fn decorative(mut self) -> Self {
+        self.0.decorative = true;
+        self
+    }
+}
 
 impl RenderOnce for Checkbox {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {

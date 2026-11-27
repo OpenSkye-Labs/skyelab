@@ -108,6 +108,7 @@ impl ThreadView {
         v_flex()
             .child(
                 row("details-machine", SkyeIcon::Monitor, machine, theme)
+                    .role(gpui::accesskit::Role::Group)
                     .cursor_default()
                     .child(
                         Button::new("details-open-folder")
@@ -174,6 +175,8 @@ impl ThreadView {
                 s.name.clone(),
                 theme,
             )
+            .role(gpui::accesskit::Role::Status)
+            .aria_label(format!("{}: {state}", s.name))
             .cursor_default()
             .child(
                 div()
@@ -261,6 +264,7 @@ impl ThreadView {
             .when(can_choose, |r| {
                 r.child(chevron_button(
                     "details-editor-choices",
+                    "Choose editor",
                     SkyeIcon::ChevronDown,
                     on.click(|this, _, cx| this.details_page(Page::Editors, cx)),
                 ))
@@ -364,8 +368,11 @@ pub(super) fn tinted_row(
     label: impl Into<SharedString>,
     theme: &Theme,
 ) -> gpui::Stateful<gpui::Div> {
+    let label: SharedString = label.into();
     h_flex()
         .id(id)
+        .role(gpui::accesskit::Role::Button)
+        .aria_label(label.clone())
         .h(ui::ROW_H)
         .px_2p5()
         .gap_2p5()
@@ -376,7 +383,7 @@ pub(super) fn tinted_row(
         .font_weight(FontWeight::MEDIUM)
         .text_color(theme.foreground.opacity(0.8))
         .child(Icon::new(icon).size_4().flex_shrink_0().text_color(color))
-        .child(div().flex_1().min_w_0().truncate().child(label.into()))
+        .child(div().flex_1().min_w_0().truncate().child(label))
 }
 
 pub(super) fn chevron(icon: SkyeIcon, theme: &Theme) -> Icon {
@@ -385,6 +392,7 @@ pub(super) fn chevron(icon: SkyeIcon, theme: &Theme) -> Icon {
 
 fn chevron_button(
     id: &'static str,
+    tip: &'static str,
     icon: SkyeIcon,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut gpui::App) + 'static,
 ) -> Button {
@@ -392,6 +400,7 @@ fn chevron_button(
         .ghost()
         .xsmall()
         .icon(Icon::new(icon))
+        .tooltip(tip)
         .on_click(move |e, window, cx| {
             cx.stop_propagation();
             on_click(e, window, cx)

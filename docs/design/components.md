@@ -36,21 +36,27 @@ reaches for these.
   - `warning`: asks for a second look (Re-confirm).
 
   Builders: `label`, `icon` (leading), `icon_end`, `loading` (spinner, clicks swallowed), `disabled`, `selected` (a toggle
-  that is on or a trigger whose menu is open), `toggled` (screen-reader toggle state), `dropdown_caret`, `key_hint`
+  that is on or a trigger whose menu is open), `toggled` (screen-reader toggle state), `aria_expanded`, `aria_selected`,
+  `aria_description`, `accessibility_label`, `accessibility_id`, `role`, `dropdown_caret`, `key_hint`
   (the bound key inside the button), `tooltip` / `tooltip_with_action`, `on_click`. `.dropdown_menu(..)` opens the shared
-  popup menu. A press never takes focus from the field you were typing in.
-- **`icon_button(id, icon)`**: a ghost, square, icon-only `Button`. Always give it a tooltip.
+  popup menu (and dropdown/popover triggers using `selected(open)` + no `on_click` automatically expose expanded state
+  and handle `Action::Click`). A press never takes focus from the field you were typing in. Every interactive `Button`
+  must have an accessible name (`label`, `accessibility_label`, or `tooltip`).
+- **`icon_button(id, icon)`**: a ghost, square, icon-only `Button`. Always give it a tooltip (or `accessibility_label`).
 - **`Switch` / `Checkbox`** (`ui/toggle.rs`): `checked`, `label`, `accessibility_label` (when there is no visible
-  label), `disabled`, `xsmall`. `on_click` gets the value the control flips to. Each is a tab stop that Space and
-  Enter flip, and a press keeps the focused field focused. A row that is clickable itself takes
-  the handler, and the control inside it is only its picture (docs/gpui/elements.md).
-- **`SegmentedControl` / `Tabs`** (`ui/choice.rs`): `item`, `icon_item`, `items`, `selected(Some(ix))`, `with_size`.
-  `on_click` gets the clicked index. Use a segmented control to pick one setting from a few (merge method,
+  label), `accessibility_id`, `disabled`, `xsmall`. `on_click` gets the value the control flips to. Each is a tab stop that
+  Space and Enter flip, and a press keeps the focused field focused. When a row is clickable itself and renders a `Checkbox`
+  only as its visual indicator, call `.decorative()` on `Checkbox` so it does not emit a duplicate or unnamed interactive
+  control ([docs/gpui/accessibility.md](../gpui/accessibility.md)).
+- **`SegmentedControl` / `Tabs`** (`ui/choice.rs`): `item`, `icon_item`, `items`, `selected(Some(ix))`, `with_size`,
+  `accessibility_label`, `accessibility_id`. `on_click` gets the clicked index. Every item must have a label or `tooltip`,
+  which is forwarded as its button's accessible name. Use a segmented control to pick one setting from a few (merge method,
   appearance) and tabs to switch between sections of a page. Wrap a segmented control in an `h_flex` inside a
   `v_flex`, or it stretches.
 - **`TextField`** (`ui/text_field.rs`): a single-line field with our chrome around gpui-component's `Input`
-  (`small`, `xsmall`, `prefix`, `suffix`, `cleanable`, `disabled`, `invalid`). An input that sits inside a chrome of
-  its own (the composer, the settings search, find-in-thread) keeps the bare `Input` with `appearance(false)`.
+  (`small`, `xsmall`, `prefix`, `suffix`, `cleanable`, `disabled`, `invalid`, `accessibility_label`, `accessibility_id`).
+  An input that sits inside a chrome of its own (the composer, the settings search, find-in-thread) keeps the bare
+  `Input` with `appearance(false)` and `.accessibility_label(...)`.
 - **`Pill`**: T3's badge and SkyeLab's chip, neutral or tinted with `color`, with an optional `icon`.
   **`AccountBadge`**, **`StatusDot`**, **`SectionHeader`**, **`EmptyState`**, **`KeyHint`** are in `ui/components.rs`.
 - **`provider_logo(provider, size, cx)`** (`ui/provider_logo.rs`): a provider's own logo file drawn as an image in
@@ -68,8 +74,9 @@ reaches for these.
   for one floating over the page and `flush()` for one holding `group_row`s. A divider is a 1 px hairline, `vertical()`
   inside a row.
 - **Dialog shell** (`ui/dialog.rs`): the modal itself is gpui-component's `Dialog` (`window.open_dialog`: focus trap,
-  Esc, the dimmed `overlay` backdrop). Fill it with a title, the body and `dialog_footer()` holding `dialog_cancel(id)`
-  and the action button.
+  Esc, the dimmed `overlay` backdrop). Fill it with `dialog_title(title)` (which adds the semantic `Heading` role and
+  accessible label), the body and `dialog_footer()` holding `dialog_cancel(id)` and the action button. See
+  [docs/gpui/accessibility.md](../gpui/accessibility.md) for the full accessibility contract.
 - **`Toast`** (`ui/toast.rs`): `ui::toast::push(window, Toast::success(msg).title(..), cx)`. Kinds `new` (plain),
   `info`, `success`, `warning`, `error`; `action(label, f)` adds one button (and stops autohide unless
   `.autohide(true)`), `on_click`, and `key` (a newer toast with the same key replaces it). Fades in over 150 ms, leaves

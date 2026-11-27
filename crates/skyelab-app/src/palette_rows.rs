@@ -155,6 +155,8 @@ pub(super) fn back_row(
     let theme = cx.theme();
     h_flex()
         .id("palette-back")
+        .role(gpui::accesskit::Role::Button)
+        .aria_label(title.clone())
         .debug_selector(|| "palette-back".into())
         .mx_2()
         .mt_2()
@@ -196,7 +198,10 @@ pub(super) fn search_field(
         .child(
             div().flex_1().min_w_0().child(
                 gpui_component::Sizable::large(
-                    gpui_component::input::Input::new(field).appearance(false),
+                    gpui_component::input::Input::new(field)
+                        .appearance(false)
+                        .aria_label("Search commands")
+                        .accessibility_id("palette-search"),
                 )
                 .p_0(),
             ),

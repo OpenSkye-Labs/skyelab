@@ -230,6 +230,8 @@ impl SearchPanel {
                     ref text,
                 } => h_flex()
                     .id(("search-match", ix))
+                    .role(gpui::accesskit::Role::Button)
+                    .aria_label(format!("Line {line}: {text}"))
                     .h(ROW)
                     .px_3()
                     .gap_3()
@@ -308,11 +310,15 @@ impl Render for SearchPanel {
             .bg(theme.background)
             .child(
                 div().p_2().child(
-                    TextField::new(&self.input).small().cleanable(true).prefix(
-                        Icon::new(SkyeIcon::Search)
-                            .size_3p5()
-                            .text_color(theme.muted_foreground),
-                    ),
+                    TextField::new(&self.input)
+                        .small()
+                        .cleanable(true)
+                        .accessibility_label("Search files")
+                        .prefix(
+                            Icon::new(SkyeIcon::Search)
+                                .size_3p5()
+                                .text_color(theme.muted_foreground),
+                        ),
                 ),
             )
             .children(status.map(|s| {

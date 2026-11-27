@@ -73,6 +73,9 @@ impl Render for Center {
         let _render = crate::debug_renders::count("Center");
         div()
             .id("center")
+            .role(gpui::accesskit::Role::Main)
+            .aria_label("Workspace")
+            .accessibility_id("center")
             .size_full()
             // Mouse back/forward buttons, and the swipes macOS reports as those buttons.
             .on_mouse_down(

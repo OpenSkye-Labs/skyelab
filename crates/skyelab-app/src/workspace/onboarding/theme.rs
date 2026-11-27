@@ -41,6 +41,13 @@ impl Onboarding {
         for (ix, (label, art)) in modes.into_iter().enumerate() {
             mode_row = mode_row.child(
                 tile(("onboarding-mode-tile", ix), label, ix == mode, art, cx)
+                    .role(gpui::accesskit::Role::RadioButton)
+                    .aria_label(label)
+                    .aria_toggled(if ix == mode {
+                        gpui::accesskit::Toggled::True
+                    } else {
+                        gpui::accesskit::Toggled::False
+                    })
                     .on_click(cx.listener(move |this, _, _, cx| this.pick_mode(ix, cx))),
             );
         }
@@ -61,6 +68,13 @@ impl Onboarding {
                     mini(colors(key, dark, cx)).into_any_element(),
                     cx,
                 )
+                .role(gpui::accesskit::Role::RadioButton)
+                .aria_label(f.label)
+                .aria_toggled(if on {
+                    gpui::accesskit::Toggled::True
+                } else {
+                    gpui::accesskit::Toggled::False
+                })
                 .debug_selector(move || format!("onboarding-family-{key}"))
                 .on_click(cx.listener(move |this, _, _, cx| this.pick_family(key, cx))),
             );

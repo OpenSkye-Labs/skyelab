@@ -233,6 +233,9 @@ impl ThreadView {
         let fold_id = a.id.clone();
         let header = h_flex()
             .id("ask-dock-header")
+            .role(gpui::accesskit::Role::Button)
+            .aria_label(format!("{}: {}", q.header, q.question))
+            .aria_expanded(!collapsed)
             .gap_1()
             .cursor_pointer()
             .on_click(cx.listener(move |this, _, _, cx| {
@@ -309,6 +312,21 @@ impl ThreadView {
             rows.push(
                 h_flex()
                     .id(SharedString::from(format!("dock-opt-{step}-{oi}")))
+                    .role(if q.multi {
+                        gpui::accesskit::Role::CheckBox
+                    } else {
+                        gpui::accesskit::Role::RadioButton
+                    })
+                    .aria_label(if description.is_empty() {
+                        label.clone()
+                    } else {
+                        format!("{label}, {description}")
+                    })
+                    .aria_toggled(if on {
+                        gpui::accesskit::Toggled::True
+                    } else {
+                        gpui::accesskit::Toggled::False
+                    })
                     .debug_selector(move || format!("dock-option-{oi}"))
                     .items_start()
                     .gap_2p5()

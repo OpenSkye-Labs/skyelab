@@ -244,8 +244,22 @@ fn card_sized(
     let theme = cx.theme();
     let dark = theme.is_dark();
     let group = SharedString::from(format!("toast-{id}"));
+    let a11y_label = match &toast.title {
+        Some(t) => format!("{t}: {}", toast.message),
+        None => toast.message.to_string(),
+    };
+    let role = if toast.kind == Kind::Error {
+        gpui::accesskit::Role::Alert
+    } else if toast.on_click.is_some() {
+        gpui::accesskit::Role::Button
+    } else {
+        gpui::accesskit::Role::Status
+    };
     h_flex()
         .id(("toast", id))
+        .role(role)
+        .aria_label(a11y_label)
+        .accessibility_id(format!("toast-{id}"))
         .debug_selector(move || format!("toast-{id}"))
         .group(group.clone())
         .occlude()
@@ -309,6 +323,8 @@ fn card_sized(
                     icon_button(("toast-close", id), SkyeIcon::X)
                         .xsmall()
                         .tooltip("Close")
+                        // Not "Close": that is the window's own close button in the same tree.
+                        .accessibility_label("Dismiss notification")
                         .on_click(move |_, window, cx| {
                             cx.stop_propagation();
                             close(window, cx);

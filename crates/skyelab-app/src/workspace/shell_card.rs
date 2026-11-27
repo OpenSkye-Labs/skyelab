@@ -34,6 +34,9 @@ pub(super) fn render_bash<V: ItemsView>(
     let key = tool.id.clone();
     let line = h_flex()
         .id(SharedString::from(format!("bash-{}", tool.id)))
+        .role(gpui::accesskit::Role::Button)
+        .aria_label(format!("Shell command: {command}"))
+        .aria_expanded(open)
         .gap_2()
         .px_3()
         .py_2()

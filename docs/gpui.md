@@ -86,6 +86,10 @@ See [gpui/animation.md](gpui/animation.md).
 
 See [gpui/webview.md](gpui/webview.md).
 
+## Accessibility
+
+See [gpui/accessibility.md](gpui/accessibility.md).
+
 ## Testing
 
 - Logic goes in `skyelab-core` and gets plain `#[test]`s. Views stay thin.

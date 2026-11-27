@@ -174,6 +174,9 @@ impl Settings {
                 selected,
                 theme,
             )
+            .role(gpui::accesskit::Role::Tab)
+            .aria_label(section.label())
+            .accessibility_id(format!("settings-nav-{}", section.key()))
             .child(section.icon().size_4().text_color(theme.muted_foreground))
             .child(div().flex_1().min_w_0().truncate().child(section.label()))
             .on_click(cx.listener(move |this, _, window, cx| this.show(section, window, cx)))
@@ -200,6 +203,9 @@ impl Settings {
             let found = search(&query);
             let empty = found.is_empty().then(|| {
                 div()
+                    .id("settings-search-empty")
+                    .role(gpui::accesskit::Role::Status)
+                    .aria_label("No settings match.")
                     .px_2()
                     .py_6()
                     .text_center()
@@ -217,6 +223,8 @@ impl Settings {
                         false,
                         theme,
                     )
+                    .role(gpui::accesskit::Role::Button)
+                    .aria_label(format!("{title}, {}", section.label()))
                     .child(
                         div()
                             .truncate()
@@ -239,6 +247,10 @@ impl Settings {
         };
         let theme = cx.theme();
         v_flex()
+            .id("settings-nav-panel")
+            .role(gpui::accesskit::Role::Navigation)
+            .aria_label("Settings sections")
+            .accessibility_id("settings-nav")
             .flex_shrink_0()
             .w(gpui::px(248.))
             .h_full()
@@ -260,10 +272,13 @@ impl Settings {
                                 .text_color(theme.muted_foreground),
                         )
                         .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .child(Input::new(&self.search_input).appearance(false).small()),
+                            div().flex_1().min_w_0().child(
+                                Input::new(&self.search_input)
+                                    .appearance(false)
+                                    .small()
+                                    .aria_label("Search settings")
+                                    .accessibility_id("settings-search"),
+                            ),
                         )
                         .child(Kbd::new(
                             gpui::Keystroke::parse("/").expect("a plain key parses"),

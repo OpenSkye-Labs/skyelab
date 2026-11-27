@@ -103,9 +103,11 @@ impl Settings {
             ))
             .when(self.codex_custom, |d| {
                 d.child(
-                    div()
-                        .w(gpui::px(160.))
-                        .child(TextField::new(&self.codex_model_input).small()),
+                    div().w(gpui::px(160.)).child(
+                        TextField::new(&self.codex_model_input)
+                            .small()
+                            .accessibility_label("Custom Codex model id"),
+                    ),
                 )
             })
             .into_any_element()
