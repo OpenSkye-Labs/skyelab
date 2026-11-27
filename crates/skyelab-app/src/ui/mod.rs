@@ -37,7 +37,11 @@ mod dialog;
 #[cfg(test)]
 mod dialog_close_test;
 #[cfg(test)]
+mod dialog_fade_click_test;
+#[cfg(test)]
 mod dialog_focus_test;
+#[cfg(test)]
+mod dialog_keymap_reload_test;
 mod dialog_layer;
 #[cfg(test)]
 mod dialog_look_test;
@@ -47,6 +51,8 @@ mod dialog_selection_test;
 mod dialog_stack_test;
 #[cfg(test)]
 mod dialog_test;
+#[cfg(test)]
+mod dialog_title_strip_test;
 pub mod gallery;
 #[cfg(test)]
 mod gallery_test;
@@ -86,6 +92,7 @@ pub use components::{
 pub use dialog::{
     DialogEntrance, close_dialog, dialog_cancel, dialog_footer, has_active_dialog, open_dialog,
 };
+pub use dialog_layer::bind_keys;
 pub use kbd::{Kbd, keys};
 pub use surface::{Card, Divider};
 pub use text_field::TextField;

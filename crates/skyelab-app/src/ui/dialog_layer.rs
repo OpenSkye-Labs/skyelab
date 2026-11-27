@@ -25,6 +25,10 @@ const KEY_CONTEXT: &str = "SkyeDialog";
 /// Over SkyeLab's own overlays (settings, tab menus: 1 and 2), under popups and toasts (100), so a menu opened from a
 /// dialog paints over it.
 const PRIORITY: usize = 50;
+/// More than any window's tab stops: Tab walks them looking for the dialog's.
+const MAX_TAB_STEPS: usize = 4096;
+/// The window's top strip, where a press drags the window instead of closing the dialog.
+const TITLE_STRIP_H: Pixels = px(34.);
 /// How far each dialog over another sits lower.
 const STACK_STEP: f32 = 16.;
 
@@ -47,8 +51,15 @@ pub struct DialogLayer {
     next_key: u64,
 }
 
-struct KeysBound;
-impl gpui::Global for KeysBound {}
+/// The dialog's keys. Bound with the app's other defaults, before the keymap takes its snapshot of them, so a reloaded
+/// keybindings file keeps them.
+pub fn bind_keys(cx: &mut App) {
+    cx.bind_keys([
+        KeyBinding::new("escape", DismissDialog, Some(KEY_CONTEXT)),
+        KeyBinding::new("tab", FocusNextInDialog, Some(KEY_CONTEXT)),
+        KeyBinding::new("shift-tab", FocusPrevInDialog, Some(KEY_CONTEXT)),
+    ]);
+}
 
 impl DialogLayer {
     pub(super) fn new() -> Self {
@@ -70,14 +81,6 @@ impl DialogLayer {
     }
 
     pub(super) fn open(&mut self, build: Build, window: &mut Window, cx: &mut Context<Self>) {
-        if !cx.has_global::<KeysBound>() {
-            cx.set_global(KeysBound);
-            cx.bind_keys([
-                KeyBinding::new("escape", DismissDialog, Some(KEY_CONTEXT)),
-                KeyBinding::new("tab", FocusNextInDialog, Some(KEY_CONTEXT)),
-                KeyBinding::new("shift-tab", FocusPrevInDialog, Some(KEY_CONTEXT)),
-            ]);
-        }
         // What was selected behind the dialog must not be what cmd-c in the dialog copies.
         gpui_base::TextSelection::clear(window, cx);
         let focus = cx.focus_handle();
@@ -112,8 +115,9 @@ impl DialogLayer {
         } else if let Some(below) = self.stack.iter().rev().find(|open| !open.closing) {
             window.focus(&below.focus, cx);
         }
+        // After this update: an `on_close` may open, close or ask about dialogs, which needs this layer again.
         if let Some(on_close) = on_close {
-            on_close(&DialogClosed, window, cx);
+            window.defer(cx, move |window, cx| on_close(&DialogClosed, window, cx));
         }
         if entrance == DialogEntrance::None || cx.reduce_motion() {
             self.stack.retain(|open| open.key != key);
@@ -134,8 +138,8 @@ impl DialogLayer {
 
     /// Tab / Shift-Tab: the window's next tab stop, skipping every one outside the dialog.
     fn step(focus: &FocusHandle, forward: bool, window: &mut Window, cx: &mut App) {
-        // At most one pass over the window's tab stops; a dialog with none keeps the focus itself.
-        for _ in 0..4096 {
+        // Bounded for a dialog with no tab stops, which then keeps the focus itself.
+        for _ in 0..MAX_TAB_STEPS {
             if forward {
                 window.focus_next(cx);
             } else {
@@ -284,6 +288,11 @@ fn layer(
         .w(width)
         .max_h(max_height)
         .occlude()
+        // A dialog fading out is gone for input: a second click on its buttons must not run them again.
+        .when(at.closing, |s| {
+            s.capture_any_mouse_down(|_, _, cx| cx.stop_propagation())
+                .capture_any_mouse_up(|_, _, cx| cx.stop_propagation())
+        })
         .shadow(shadow(1.))
         .child(
             v_flex()
@@ -337,20 +346,23 @@ fn layer(
         });
 
     let still = dialog.entrance == DialogEntrance::None || cx.reduce_motion();
-    let layer = div()
-        .id(("dialog-layer", at.key))
-        .size_full()
-        .when(at.top && !at.closing, |l| {
-            l.occlude()
-                .child(div().absolute().inset_0().bg(overlay).on_any_mouse_down(
-                    move |e, window, cx| {
-                        if e.button == MouseButton::Left {
-                            close_backdrop(window, cx);
-                        }
-                    },
+    let layer =
+        div()
+            .id(("dialog-layer", at.key))
+            .size_full()
+            .when(at.top && !at.closing, |l| {
+                l.occlude().child(super::window_controls::drag_area(
+                    div().absolute().inset_0().bg(overlay).on_any_mouse_down(
+                        move |e, window, cx| {
+                            // The window's title strip still drags the window.
+                            if e.button == MouseButton::Left && e.position.y >= TITLE_STRIP_H {
+                                close_backdrop(window, cx);
+                            }
+                        },
+                    ),
                 ))
-        })
-        .child(surface);
+            })
+            .child(surface);
     let layer = match (still, at.closing) {
         (true, _) => layer.into_any_element(),
         (false, false) => layer

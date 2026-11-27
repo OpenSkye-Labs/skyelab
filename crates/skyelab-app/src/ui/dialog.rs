@@ -114,7 +114,7 @@ impl Styled for Dialog {
     }
 }
 
-/// Opens a dialog over `window`. `build` runs every frame while it is open.
+/// Opens a dialog over `window`. `build` runs every frame it is drawn, the fade out included.
 pub fn open_dialog(
     window: &mut Window,
     cx: &mut App,
@@ -144,7 +144,6 @@ pub fn has_active_dialog(window: &mut Window, cx: &mut App) -> bool {
     DialogLayer::of(window, cx).is_some_and(|layer| layer.read(cx).is_open())
 }
 
-/// A dialog's title: its heading, and the dialog's accessible name.
 pub(super) fn heading(title: SharedString) -> gpui::Stateful<Div> {
     div()
         .id(SharedString::from(format!("dialog-title:{title}")))

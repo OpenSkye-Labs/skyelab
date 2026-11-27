@@ -11,6 +11,7 @@ pub(super) fn setup(cx: &mut TestAppContext) {
     cx.update(|cx| {
         gpui_component::init(cx);
         super::install_theme(cx).expect("the bundled themes parse");
+        super::bind_keys(cx);
     });
 }
 
