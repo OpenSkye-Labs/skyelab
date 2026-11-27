@@ -85,7 +85,7 @@ fn system_mode_follows_the_window_appearance(cx: &mut TestAppContext) {
         vcx.run_until_parked();
         vcx.update(|_, cx| {
             let ours = super::theme::Theme::global(cx);
-            let theirs = crate::ui::Theme::global(cx);
+            let theirs = gpui_component::Theme::global(cx);
             assert_eq!(ours.is_dark(), dark, "ours follows {appearance:?}");
             assert_eq!(
                 theirs.is_dark(),
