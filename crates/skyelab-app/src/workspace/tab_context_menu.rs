@@ -151,7 +151,7 @@ pub(super) struct TabContextMenu {
 }
 
 impl TabContextMenu {
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(super) fn is_open(&self) -> bool {
         self.open.is_some()
     }

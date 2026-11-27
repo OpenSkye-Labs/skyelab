@@ -228,6 +228,17 @@ impl Workspace {
         {
             return;
         }
+        let sides: Vec<_> = self
+            .side_chats
+            .iter()
+            .map(|p| p.read(cx).view.clone())
+            .collect();
+        if sides
+            .into_iter()
+            .any(|v| v.update(cx, |v, cx| v.close_message_menu(window, cx)))
+        {
+            return;
+        }
         if self.unzoom(window, cx) {
             return;
         }

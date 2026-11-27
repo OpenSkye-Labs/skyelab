@@ -115,7 +115,7 @@ impl TimelineMenu {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(in crate::workspace) fn is_open(&self) -> bool {
         self.open.is_some()
     }
