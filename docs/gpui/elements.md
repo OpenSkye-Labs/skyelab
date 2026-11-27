@@ -24,7 +24,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   (`ui/button_test.rs`). Without that, clicking any composer button blurs the prompt.
 - gpui-component's `DropdownMenu` works for any `Styled + Selectable + InteractiveElement` trigger, so
   `impl DropdownMenu for ui::Button {}` keeps `.dropdown_menu(..)` on our own button.
-- Colors come from `cx.theme()` (`ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
+- Colors come from `cx.theme()` (`crate::ui::ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
 - gpui-component's `DialogClose` (0.10 and 0.11) wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
   stretches across the footer. Use `ui::dialog_cancel(id)` (a plain `Button` whose `on_click` calls
   `window.close_dialog(cx)`); `DialogClose` appears nowhere in the app.

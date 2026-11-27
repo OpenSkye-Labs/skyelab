@@ -29,6 +29,17 @@ patching around it.
   patterns to learn from, not to copy (GPL-3.0); T3 Code for the look (CLAUDE.md). gpui-component's source may be read
   for behavior details; nothing is pasted from it.
 
+## Theme (`ui/theme.rs`, `ui/theme_load.rs`, `ui/themes.rs`, `ui/theme_bridge.rs`)
+
+- Views read colors, fonts and sizes from `crate::ui::ActiveTheme` (`cx.theme()`), which is our `ui::Theme`. Never
+  import gpui-component's `ActiveTheme` or `Theme`: `theme_boundary_test` fails on it.
+- `theme_load::resolve(json, dark, settings)` builds a `Theme` from a family file with the accent and sizes written in
+  (`themes::adjust`). Colors are hex (`#rgb`, `#rrggbb`, `#rrggbbaa`); anything else is a load error naming the theme
+  and key, never a silent default. A field a view needs and the files lack goes into every family file first.
+- `theme_bridge.rs` is the only writer of gpui-component's theme, fed the same adjusted files, so that crate's widgets
+  still in use match ours (`theme_match_test` checks every family, mode and accent). It never reads that theme back.
+- Before `install_theme` (a test that doesn't need one), `Theme::global` is the default family's light theme.
+
 ## Windows
 
 Every window, test windows included, is built with `ui::window_root(content, window, cx)`: gpui-component's `Root`
