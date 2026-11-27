@@ -6,6 +6,8 @@
 
 #[cfg(test)]
 mod a11y_audit_test;
+mod a11y_scroll;
+pub(crate) use a11y_scroll::A11yScrollArea;
 #[cfg(test)]
 mod a11y_test;
 mod button;

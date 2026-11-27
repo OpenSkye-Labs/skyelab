@@ -5,6 +5,7 @@
 use super::thread_model::Record;
 use super::{Workspace, lock};
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::{Button, Checkbox};
 use anyhow::{Context as _, Result, bail};
 use gpui::{
@@ -244,11 +245,7 @@ impl Render for ImportPicker {
                 .id(SharedString::from(format!("import-{}", r.t.id)))
                 .role(gpui::accesskit::Role::CheckBox)
                 .aria_label(r.t.title.clone())
-                .aria_toggled(if r.checked || r.imported {
-                    gpui::accesskit::Toggled::True
-                } else {
-                    gpui::accesskit::Toggled::False
-                })
+                .aria_toggled((r.checked || r.imported).into())
                 .min_h(ui::ROW_H + gpui::px(8.))
                 .px_2()
                 .gap_2p5()
@@ -311,6 +308,7 @@ impl Render for ImportPicker {
                     .id("import-rows")
                     .max_h(gpui::px(360.))
                     .overflow_y_scroll()
+                    .a11y_scroll_area()
                     .children(rows),
             )
     }

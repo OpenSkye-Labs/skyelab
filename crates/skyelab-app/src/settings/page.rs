@@ -2,6 +2,7 @@
 //! and close, and the chosen section in a centered column.
 
 use super::*;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::SkyeIcon;
 use gpui_component::{FocusTrapElement as _, Icon, h_flex, v_flex};
 
@@ -245,6 +246,7 @@ impl Settings {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
+            .a11y_scroll_area()
             .child(
                 v_flex()
                     .w_full()

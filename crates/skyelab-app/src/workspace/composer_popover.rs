@@ -4,6 +4,7 @@ use super::composer_mentions;
 use super::composer_menu::MenuKind;
 use super::composer_state::Menu;
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use gpui::{AnyElement, Context, FontWeight, SharedString, div, prelude::*, px};
 use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 
@@ -122,6 +123,7 @@ impl super::ThreadView {
             .aria_label(title)
             .max_h(px(320.))
             .overflow_y_scroll()
+            .a11y_scroll_area()
             .left_0()
             .right_0()
             .child(

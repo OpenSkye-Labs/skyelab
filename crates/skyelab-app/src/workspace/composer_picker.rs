@@ -301,11 +301,7 @@ impl ThreadView {
             row(format!("compare-model-{id}").into())
                 .role(gpui::accesskit::Role::CheckBox)
                 .aria_label(label.clone())
-                .aria_toggled(if on {
-                    gpui::accesskit::Toggled::True
-                } else {
-                    gpui::accesskit::Toggled::False
-                })
+                .aria_toggled(on.into())
                 .child(check(format!("compare-check-{id}"), on))
                 .child(div().flex_1().child(label.clone()))
                 .when(full && !on, |this| this.opacity(0.5))
@@ -355,11 +351,7 @@ impl ThreadView {
                         row("compare-worktrees".into())
                             .role(gpui::accesskit::Role::CheckBox)
                             .aria_label("In worktrees")
-                            .aria_toggled(if c.worktrees {
-                                gpui::accesskit::Toggled::True
-                            } else {
-                                gpui::accesskit::Toggled::False
-                            })
+                            .aria_toggled(c.worktrees.into())
                             .child(check("compare-worktrees-check".into(), c.worktrees))
                             .child(div().flex_1().child("In worktrees"))
                             .on_click(

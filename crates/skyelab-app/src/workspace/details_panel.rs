@@ -5,6 +5,7 @@
 use super::thread::ThreadView;
 use super::thread_model::Record;
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use gpui::{
     AnimationExt as _, AnyElement, App, Context, EventEmitter, FocusHandle, Focusable, FontWeight,
     IntoElement, Render, Subscription, WeakEntity, Window, div, prelude::*,
@@ -271,6 +272,7 @@ impl Render for DetailsPanel {
                 .occlude()
                 .max_h_full()
                 .overflow_y_scroll()
+                .a11y_scroll_area()
                 .p_1p5()
                 .rounded(ui::RADIUS_XL)
                 .border_1()

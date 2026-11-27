@@ -306,6 +306,7 @@ impl BrowserView {
         let reopen = this.clone();
         Button::new("browser-menu")
             .icon(IconName::Ellipsis)
+            .accessibility_label("Browser menu")
             .small()
             .ghost()
             .dropdown_menu_with_anchor(gpui::Anchor::TopRight, move |menu, _, cx| {
@@ -343,9 +344,10 @@ impl BrowserView {
     pub(super) fn render_find(&self, _: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let find = self.find.as_ref()?;
         let theme = cx.theme();
-        let step = |id: &'static str, icon: IconName, backwards: bool| {
+        let step = |id: &'static str, icon: IconName, name: &'static str, backwards: bool| {
             Button::new(id)
                 .icon(icon)
+                .accessibility_label(name)
                 .xsmall()
                 .ghost()
                 .disabled(find.missed)
@@ -359,15 +361,30 @@ impl BrowserView {
                 .py_1()
                 .border_b_1()
                 .border_color(theme.border)
-                .child(div().w(px(260.)).child(Input::new(&find.input).small()))
+                .child(
+                    div()
+                        .w(px(260.))
+                        .child(Input::new(&find.input).small().aria_label("Find in page")),
+                )
                 .when(find.missed, |row| {
                     row.child(div().text_xs().text_color(theme.danger).child("No matches"))
                 })
-                .child(step("find-prev", IconName::ChevronUp, true))
-                .child(step("find-next", IconName::ChevronDown, false))
+                .child(step(
+                    "find-prev",
+                    IconName::ChevronUp,
+                    "Previous match",
+                    true,
+                ))
+                .child(step(
+                    "find-next",
+                    IconName::ChevronDown,
+                    "Next match",
+                    false,
+                ))
                 .child(
                     Button::new("find-close")
                         .icon(IconName::Close)
+                        .accessibility_label("Close find")
                         .xsmall()
                         .ghost()
                         .on_click(cx.listener(|this, _, window, cx| {

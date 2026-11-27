@@ -6,6 +6,7 @@ use super::env_mode::SwitchEnvironment;
 use super::env_picker::{ConnectTyped, EnvPicker, ForgetEnvironment, MachineKind, machine_icon};
 use crate::remote::Remote;
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::{Button, TextField};
 use gpui::{Context, Entity, IntoElement, SharedString, Subscription, Window, div, prelude::*};
 use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
@@ -211,6 +212,7 @@ impl Render for MachinesPage {
             .id("machines")
             .size_full()
             .overflow_y_scroll()
+            .a11y_scroll_area()
             .bg(theme.background)
             .child(
                 v_flex()

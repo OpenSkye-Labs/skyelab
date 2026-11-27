@@ -72,7 +72,7 @@ fn rail_button(
         .icon(icon)
         .role(gpui::Role::Tab)
         .selected(selected)
-        .aria_selected(selected)
+        .accessibility_selected(selected)
         .tooltip(tip)
         .when(selected, |b| {
             b.bg(theme.sidebar_accent)

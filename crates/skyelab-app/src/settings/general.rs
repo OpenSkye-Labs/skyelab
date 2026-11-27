@@ -362,7 +362,7 @@ impl Settings {
                             Button::new("settings-error-details")
                                 .ghost()
                                 .xsmall()
-                                .aria_expanded(open)
+                                .accessibility_expanded(open)
                                 .label(if open { "Hide details" } else { "Details" })
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.error_open = !this.error_open;

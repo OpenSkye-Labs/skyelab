@@ -235,11 +235,7 @@ impl Onboarding {
             .id(SharedString::from(format!("import-{}", path.display())))
             .role(gpui::accesskit::Role::CheckBox)
             .aria_label(name.clone())
-            .aria_toggled(if r.checked {
-                gpui::accesskit::Toggled::True
-            } else {
-                gpui::accesskit::Toggled::False
-            })
+            .aria_toggled(r.checked.into())
             .debug_selector(move || selector)
             .h(px(44.))
             .px_3()

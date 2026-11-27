@@ -4,6 +4,7 @@
 
 use super::Workspace;
 use crate::debug_mode;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::{self, Button, SkyeIcon};
 use gpui::{
     AppContext as _, Context, InteractiveElement as _, IntoElement, ParentElement as _, Render,
@@ -183,6 +184,7 @@ impl Render for DebugHud {
             .w(px(if self.log { 560. } else { 300. }))
             .max_h(px(420.))
             .overflow_y_scroll()
+            .a11y_scroll_area()
             .gap_2()
             .p_2p5()
             .rounded(ui::RADIUS_LG)

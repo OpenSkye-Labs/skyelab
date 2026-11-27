@@ -20,7 +20,7 @@ impl Workspace {
             .ghost()
             .xsmall()
             .accessibility_label(account_a11y)
-            .aria_description("Opens accounts and folder bindings")
+            .accessibility_description("Opens accounts and folder bindings")
             .accessibility_id("status-account")
             .tooltip("Accounts and folder bindings")
             .child(badge.chip())
@@ -42,7 +42,7 @@ impl Workspace {
         });
         div()
             .id("status-bar")
-            .role(gpui::accesskit::Role::Status)
+            .role(gpui::accesskit::Role::Toolbar)
             .aria_label("Status bar")
             .accessibility_id("status-bar")
             .w_full()

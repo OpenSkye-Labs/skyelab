@@ -2,6 +2,7 @@
 
 use super::{AllowDevice, DenyDevice, DisconnectPeer, Remote, RevokeDevice, ToggleSharing};
 use crate::ui;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::{Button, Switch};
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Window, div,
@@ -193,6 +194,7 @@ impl Render for RemotePanel {
             .track_focus(&self.focus)
             .size_full()
             .overflow_y_scroll()
+            .a11y_scroll_area()
             .bg(theme.background)
             .child(
                 v_flex()

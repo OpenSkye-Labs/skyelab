@@ -360,7 +360,7 @@ pub fn row_surface(
     theme: &Theme,
 ) -> Stateful<Div> {
     let hover = theme.sidebar_accent.opacity(0.7);
-    base.id(id)
+    super::a11y_scroll::scrolls_into_view(base.id(id))
         .role(gpui::accesskit::Role::Button)
         .aria_selected(selected)
         .w_full()

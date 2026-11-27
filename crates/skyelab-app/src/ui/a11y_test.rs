@@ -49,8 +49,8 @@ fn button_toggle_choice_and_decorative_checkbox_snapshots(cx: &mut TestAppContex
                     Button::new("btn-save")
                         .label("Save")
                         .accessibility_id("save-id")
-                        .aria_description("Writes config")
-                        .aria_selected(true)
+                        .accessibility_description("Writes config")
+                        .accessibility_selected(true)
                         .toggled(true)
                         .on_click(|_, _, _| {}),
                 )
@@ -259,6 +259,7 @@ fn row_empty_state_dialog_title_and_toast_a11y_nodes(cx: &mut TestAppContext) {
 
                     let r1 = row("row-1", false, &theme)
                         .aria_label("Fix bug")
+                        .on_click(|_, _, _| {})
                         .into_element();
                     let role1 = r1.a11y_role().expect("row role");
                     let mut node1 = accesskit::Node::new(role1);
@@ -330,6 +331,9 @@ fn row_empty_state_dialog_title_and_toast_a11y_nodes(cx: &mut TestAppContext) {
     assert_eq!(r1.role(), accesskit::Role::Button);
     assert_eq!(r1.is_selected(), Some(false));
     assert_eq!(r1.label(), Some("Fix bug"));
+    // What agent-desktop presses and asks for before pressing something scrolled away.
+    assert!(r1.supports_action(accesskit::Action::Click));
+    assert!(r1.supports_action(accesskit::Action::ScrollIntoView));
 
     let r2 = nodes.row_selected.as_ref().expect("r2");
     assert_eq!(r2.role(), accesskit::Role::Button);

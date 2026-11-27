@@ -188,6 +188,10 @@ fn custom_clickables_and_ui_rows_declare_role_and_label() {
     let src_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut files = Vec::new();
     collect_non_test_rs_files(&src_root, &src_root, &mut files);
+    // The browser pane is UI too; its paths are reported from the crates folder (`skyelab-browser/src/..`).
+    let crates = src_root.join("../..");
+    let browser = crates.join("skyelab-browser/src");
+    collect_non_test_rs_files(&browser, &crates, &mut files);
     files.sort_by(|a, b| a.0.cmp(&b.0));
 
     let mut violations = Vec::new();
@@ -228,6 +232,27 @@ fn custom_clickables_and_ui_rows_declare_role_and_label() {
                     "{rel}:{}: `{call}...)` without accessible primitive or `.role(...)` + `.aria_label(...)`",
                     line_number(masked, dot_pos)
                 ));
+            }
+        }
+
+        // A scroll container registers where it is on screen, so controls inside it can be scrolled into view.
+        if !rel.starts_with("skyelab-browser/") {
+            for call in [
+                ".overflow_y_scroll()",
+                ".overflow_x_scroll()",
+                ".overflow_scroll()",
+            ] {
+                let mut from = 0;
+                while let Some(at) = masked[from..].find(call) {
+                    let pos = from + at;
+                    from = pos + call.len();
+                    if !statement_forward(masked, pos).contains(".a11y_scroll_area(") {
+                        violations.push(format!(
+                            "{rel}:{}: `{call}` without `.a11y_scroll_area()`",
+                            line_number(masked, pos)
+                        ));
+                    }
+                }
             }
         }
 

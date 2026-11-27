@@ -2,6 +2,7 @@
 
 use super::{OpenHome, OpenSettingsSection};
 use crate::settings::Section;
+use crate::ui::A11yScrollArea as _;
 use crate::ui::{self, Button, Pill, SkyeIcon};
 use gpui::{
     App, Context, FocusHandle, Focusable, FontWeight, IntoElement, Render, Window, div, prelude::*,
@@ -134,6 +135,7 @@ impl Render for BotsPage {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
+            .a11y_scroll_area()
             .child(
                 v_flex()
                     .w_full()
