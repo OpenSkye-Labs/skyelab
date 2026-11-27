@@ -335,7 +335,11 @@ impl BasePanel for PreviewPanel {
 
 impl Panel for PreviewPanel {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::workspace::tab_context_menu::tab_title(cx.entity_id().into(), self.title_text())
+        crate::workspace::tab_context_menu::tab_title(
+            cx.entity_id().into(),
+            Some(self.title_text()),
+            self.title_text(),
+        )
     }
 }
 

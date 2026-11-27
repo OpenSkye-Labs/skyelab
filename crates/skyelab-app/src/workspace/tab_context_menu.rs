@@ -8,97 +8,20 @@ use super::files::PreviewPanel;
 use super::terminal_panel::TerminalPanel;
 use super::{NewTerminal, Workspace};
 use gpui::{
-    AnyElement, App, Bounds, Context, DismissEvent, Entity, FocusHandle, Focusable as _, Global,
+    AnyElement, App, Context, DismissEvent, Entity, FocusHandle, Focusable as _,
     InteractiveElement as _, IntoElement, MouseButton, Pixels, Point, Subscription, WeakEntity,
-    Window, WindowId, anchored, deferred, div, prelude::*, px,
+    Window, anchored, deferred, div, prelude::*, px,
 };
 use gpui_component::{
-    ElementExt as _,
     dock::{DockPlacement, PanelId, TabGroupContext},
     menu::{PopupMenu, PopupMenuItem},
 };
 use skyelab_core::terminal_layout::Axis;
-use std::collections::HashMap;
 
-/// Last painted title bounds and direct right-click hits, keyed by window and panel.
-#[derive(Default)]
-struct TabHits {
-    bounds: HashMap<(WindowId, PanelId), Bounds<Pixels>>,
-    direct: Option<(WindowId, PanelId, Point<Pixels>)>,
-}
-
-impl Global for TabHits {}
-
-/// Wraps a dock panel's title so right-clicks on the title or its surrounding tab padding identify `panel_id`.
-pub(in crate::workspace) fn tab_title(
-    panel_id: PanelId,
-    inner: impl IntoElement,
-) -> impl IntoElement {
-    div()
-        .id(("tab-title", panel_id.as_u64()))
-        .h_full()
-        .flex()
-        .items_center()
-        .child(inner)
-        .on_mouse_down(MouseButton::Right, move |e, window, cx| {
-            let wid = window.window_handle().window_id();
-            cx.default_global::<TabHits>().direct = Some((wid, panel_id, e.position));
-        })
-        .on_prepaint(move |bounds, window, cx| {
-            let wid = window.window_handle().window_id();
-            cx.default_global::<TabHits>()
-                .bounds
-                .insert((wid, panel_id), bounds);
-        })
-}
-
-/// Resolves which tab in `group` a right-click at `pos` landed on, if any.
-fn tab_at(
-    group: &TabGroupContext,
-    pos: Point<Pixels>,
-    window: &Window,
-    cx: &mut App,
-) -> Option<PanelId> {
-    let wid = window.window_handle().window_id();
-    let direct = cx.default_global::<TabHits>().direct.take();
-    if let Some((w, id, at)) = direct
-        && w == wid
-        && at == pos
-        && group.panels().iter().any(|p| p.panel_id(cx) == id)
-    {
-        return Some(id);
-    }
-    let panels: Vec<(PanelId, bool)> = group
-        .panels()
-        .iter()
-        .filter(|p| p.visible(cx))
-        .map(|p| (p.panel_id(cx), p.closable(cx)))
-        .collect();
-    let hits = cx.try_global::<TabHits>()?;
-    let visible: Vec<(PanelId, Bounds<Pixels>, bool)> = panels
-        .into_iter()
-        .filter_map(|(id, closable)| {
-            let bounds = *hits.bounds.get(&(wid, id))?;
-            Some((id, bounds, closable))
-        })
-        .collect();
-    // Each Tab in gpui-component's TabBar has 12 px horizontal padding around its title, plus ~24 px for a close ×.
-    let pad_l = px(13.);
-    for (i, &(id, bounds, closable)) in visible.iter().enumerate() {
-        if pos.y < bounds.top() - px(6.) || pos.y > bounds.bottom() + px(6.) {
-            continue;
-        }
-        let left = bounds.left() - pad_l;
-        let right = match visible.get(i + 1) {
-            Some(&(_, next, _)) => next.left() - px(12.),
-            None => bounds.right() + if closable { px(38.) } else { px(13.) },
-        };
-        if pos.x >= left && pos.x <= right {
-            return Some(id);
-        }
-    }
-    None
-}
+#[path = "tab_hits.rs"]
+mod tab_hits;
+use tab_hits::tab_at;
+pub(in crate::workspace) use tab_hits::tab_title;
 
 /// Attaches right-click context menu handling to a dock tab bar wrapper (`center_skin.rs`).
 pub(super) fn attach_tab_bar(
