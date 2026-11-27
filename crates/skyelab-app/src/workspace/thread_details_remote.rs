@@ -26,9 +26,11 @@ impl ThreadView {
                 row(
                     SharedString::from(format!("details-remote-{}-{id}", c.node_id)),
                     SkyeIcon::Bot,
-                    title,
+                    title.clone(),
                     theme,
                 )
+                .role(gpui::accesskit::Role::Button)
+                .aria_label(format!("{title} {}", remote_label(&c.machine)))
                 .child(
                     div()
                         .flex_shrink_0()
