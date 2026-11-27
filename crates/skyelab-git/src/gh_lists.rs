@@ -17,6 +17,7 @@ pub const MAX_TITLE: usize = 300;
 pub const MAX_LABELS: usize = 10;
 pub const MAX_BODY: usize = 4000;
 const MAX_NAME: usize = 100;
+const MAX_REF: usize = 256;
 const MAX_URL: usize = 2048;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -32,6 +33,10 @@ pub struct PrRow {
     pub updated_at: String,
     /// The head commit the checks are for (`headRefOid`), when valid.
     pub head: Option<String>,
+    /// The PR's head branch (`headRefName`), empty when absent or in a fork (a fork's branch is never another PR's base).
+    pub head_ref: String,
+    /// The PR's base branch (`baseRefName`), empty when absent.
+    pub base_ref: String,
     /// Open or draft as listed; merged or closed once the row is read again after a merge.
     pub state: PrState,
 }
@@ -134,8 +139,7 @@ fn base_args(kind: &str, repo: &str, fields: &str) -> Vec<String> {
 }
 
 pub fn pr_list_args(repo: &str, filter: PrFilter) -> Vec<String> {
-    let fields =
-        "number,title,url,author,isDraft,reviewDecision,statusCheckRollup,updatedAt,headRefOid";
+    let fields = "number,title,url,author,isDraft,reviewDecision,statusCheckRollup,updatedAt,headRefOid,headRefName,baseRefName,isCrossRepository";
     let mut args = base_args("pr", repo, fields);
     match filter {
         PrFilter::Mine => args.extend(["--author".into(), "@me".into()]),
@@ -252,6 +256,12 @@ pub fn parse_pr_list(json: &[u8]) -> Result<Vec<PrRow>> {
                 review: review(v["reviewDecision"].as_str().unwrap_or_default()),
                 updated_at: text(v, "updatedAt", 64),
                 head: head_sha(v),
+                head_ref: if v["isCrossRepository"] == false {
+                    text(v, "headRefName", MAX_REF)
+                } else {
+                    String::new()
+                },
+                base_ref: text(v, "baseRefName", MAX_REF),
             })
         })
         .take(MAX_ROWS)

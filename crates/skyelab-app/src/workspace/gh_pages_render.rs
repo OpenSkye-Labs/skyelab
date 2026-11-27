@@ -124,7 +124,10 @@ impl GhPage {
         let theme = cx.theme();
         let pr = &r.row;
         let (icon, color, label) = state_look(Some(pr.state), theme);
-        let mut signals = Vec::new();
+        let mut signals: Vec<AnyElement> = super::pr_stack::badge(cx, &pr.url)
+            .map(IntoElement::into_any_element)
+            .into_iter()
+            .collect();
         // Read again after a merge: say so on the row, not only in the glyph's tooltip.
         if pr.state != PrState::Open {
             signals.push(ui::Pill::new(label).into_any_element());

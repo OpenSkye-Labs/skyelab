@@ -50,12 +50,17 @@ pub enum Verdict {
 }
 
 /// `url` as given when it is a canonical GitHub PR link (what gh gets as the PR), else an error before gh runs.
-fn pr_link(url: &str) -> Result<&str> {
+pub(crate) fn pr_link(url: &str) -> Result<&str> {
     if skyelab_core::github_pr_url(url).as_deref() == Some(url) {
         Ok(url)
     } else {
         Err(invalid("not a GitHub pull request link"))
     }
+}
+
+/// Whether `head` is a full SHA-1 or SHA-256 hex commit id.
+pub(crate) fn valid_head(head: &str) -> bool {
+    matches!(head.len(), 40 | 64) && head.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// `github.com/<owner>/<repo>` of a canonical PR link (`https://github.com/<owner>/<repo>/pull/<n>`).
@@ -101,7 +106,7 @@ pub fn merge_pr(
     delete_branch: bool,
 ) -> Result<()> {
     let url = pr_link(url)?;
-    if !(matches!(head.len(), 40 | 64) && head.bytes().all(|b| b.is_ascii_hexdigit())) {
+    if !valid_head(head) {
         return Err(invalid(
             "the pull request's head commit isn't known; refresh it, then merge",
         ));

@@ -42,7 +42,7 @@ pub(crate) struct Target {
 }
 
 /// What runs after an action succeeds (the caller reads the PR again); `true` after a review.
-type OnDone = Rc<dyn Fn(bool, &mut Window, &mut App)>;
+pub(super) type OnDone = Rc<dyn Fn(bool, &mut Window, &mut App)>;
 
 /// Where the merge button is: each click moves it one step, the last one merges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,13 +62,14 @@ enum Act {
 
 pub(crate) struct PrActions {
     pub(crate) target: Target,
-    gh: PathBuf,
-    accounts_file: Option<PathBuf>,
+    pub(super) gh: PathBuf,
+    pub(super) accounts_file: Option<PathBuf>,
     /// The repo's merge methods; `None` while they are read.
     pub(crate) methods: Option<Result<Vec<MergeMethod>, SharedString>>,
     pub(crate) method: MergeMethod,
     pub(crate) delete_branch: bool,
     pub(crate) stage: Stage,
+    pub(crate) stack: super::pr_stack::StackState,
     pub(crate) busy: bool,
     /// The running action is the merge: its button says so.
     pub(crate) merging: bool,
@@ -78,7 +79,7 @@ pub(crate) struct PrActions {
     pub(crate) comments: Vec<ReviewComment>,
     /// Opened from the PR's diff tab: no "View diff".
     pub(crate) from_diff: bool,
-    on_done: OnDone,
+    pub(super) on_done: OnDone,
     _read: Task<()>,
 }
 
@@ -105,30 +106,7 @@ pub(crate) fn open(
             }
         })
         .detach(); // both die with the dialog
-        let read = {
-            let (target, gh, file) = (target.clone(), gh.clone(), accounts_file.clone());
-            let methods = cx.background_spawn(async move {
-                let config = super::accounts_now(file.as_deref(), &target.config);
-                let gh_dir = account_gh_dir(&config, &target.dir, &target.account)?;
-                let github = GitHub {
-                    gh: &gh,
-                    config_dir: &gh_dir,
-                };
-                anyhow::Ok(skyelab_git::merge_methods(&github, &target.url)?)
-            });
-            cx.spawn(async move |this, cx| {
-                let methods = methods.await;
-                let _ = this.update(cx, |this: &mut PrActions, cx| {
-                    if let Ok(m) = &methods
-                        && let Some(&first) = m.first()
-                    {
-                        this.method = first;
-                    }
-                    this.methods = Some(methods.map_err(|e| format!("{e:#}").into()));
-                    cx.notify();
-                });
-            })
-        };
+        let read = super::pr_stack::spawn_load(&target, &gh, accounts_file.as_deref(), cx);
         PrActions {
             target: target.clone(),
             gh,
@@ -137,6 +115,7 @@ pub(crate) fn open(
             method: MergeMethod::Squash,
             delete_branch: false,
             stage: Stage::Idle,
+            stack: Default::default(),
             busy: false,
             merging: false,
             error: None,
@@ -177,6 +156,7 @@ impl PrActions {
     pub(crate) fn pick_method(&mut self, method: MergeMethod, cx: &mut Context<Self>) {
         self.method = method;
         self.stage = Stage::Idle;
+        self.stack.stage = Stage::Idle;
         cx.notify();
     }
 
@@ -282,6 +262,9 @@ impl PrActions {
             let ok = done.is_ok();
             let _ = this.update_in(cx, |this, window, cx| {
                 this.busy = false;
+                if !reviewed {
+                    super::pr_stack::PrStacks::forget_repo(&this.target.url, cx);
+                }
                 match done {
                     Err(e) => this.error = Some(format!("{e:#}").into()),
                     Ok(()) => window.close_dialog(cx),
@@ -402,6 +385,7 @@ impl PrActions {
                     }))
                     .child(div().ml_auto().child(button)),
             )
+            .children(self.render_merge_stack(cx))
     }
 
     fn render_review(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -488,6 +472,7 @@ impl Render for PrActions {
                 h_flex()
                     .gap_2()
                     .child(div().flex_1().min_w_0().truncate().child(link))
+                    .children(self.render_stack_badge())
                     .children(view_diff),
             )
             .child(self.render_merge(cx))

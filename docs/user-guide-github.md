@@ -45,6 +45,14 @@ dialog that acts on GitHub with the account the project's folder is bound to, ne
   it again to confirm. While the PR's checks are failing (or weren't read yet) it asks a third time, **Merge anyway**. The merge is pinned to
   the commit whose checks you saw: if someone pushed since, GitHub refuses it, and if that commit wasn't read the
   dialog asks you to refresh first. GitHub's own branch rules still apply: SkyeLab never merges as an admin.
+- **Stacked pull requests**: when an open PR's base branch is another open PR's head branch (forks never count), it
+  shows a stack badge such as `Stack 2/3` on its Pull requests page row, in the PR actions dialog, and on the thread
+  details card once its repo's PRs were listed. With open PRs below it, the dialog offers **Merge stack (N PRs)**: the
+  same two clicks (three while a layer's checks fail), with the folder's account checked right before gh runs. It
+  merges bottom first, each PR pinned to the commit that was listed. The bottom PR must still target the branch shown;
+  each PR above it is moved onto that branch (`gh pr edit --base`) right before it merges, so nothing merges into a
+  lower branch. **Delete the branch on GitHub** applies to every layer; no branch is deleted otherwise. It stops at the
+  first PR that fails, says which merged, and leaves the dialog open.
 - **Review**: **Approve**, or write a comment and **Comment** or **Request changes** (both need text, unless line
   comments from the diff go along).
 - **View diff** opens the PR's diff in a tab of the right dock, with the same file tree, split/unified and find as the
