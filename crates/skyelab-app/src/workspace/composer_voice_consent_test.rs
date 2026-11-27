@@ -15,7 +15,7 @@ fn settings_file(dir: &Path, cx: &mut VisualTestContext) -> PathBuf {
 }
 
 fn dialog_open(cx: &mut VisualTestContext) -> bool {
-    cx.update(|window, cx| window.has_active_dialog(cx))
+    cx.update(crate::ui::has_active_dialog)
 }
 
 fn mic(cx: &mut VisualTestContext) {
@@ -65,7 +65,7 @@ fn a_server_language_asks_first_and_cancel_starts_nothing(cx: &mut TestAppContex
     assert_eq!(starts(&h), 0, "MIC_ON_BEFORE_CONSENT");
     assert!(!listening(&thread, cx), "still dictating while asking");
 
-    cx.update(|window, cx| window.close_dialog(cx)); // Cancel and Escape close it
+    cx.update(crate::ui::close_dialog); // Cancel and Escape close it
     cx.run_until_parked();
     assert_eq!(starts(&h), 0, "CANCEL_STARTED_THE_MIC");
     assert_eq!(

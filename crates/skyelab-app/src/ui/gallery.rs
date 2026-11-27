@@ -86,7 +86,7 @@ impl UiGallery {
         crate::ui::open_dialog(window, cx, |dialog, _, _| {
             dialog
                 .w(px(420.))
-                .title(super::dialog_title("Discard changes?"))
+                .title("Discard changes?")
                 .child("The 3 changed files go back to the last commit. This can't be undone.")
                 .footer(
                     dialog_footer()

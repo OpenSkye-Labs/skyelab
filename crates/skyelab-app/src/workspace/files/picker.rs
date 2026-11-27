@@ -10,7 +10,7 @@ use gpui::{
     px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, WindowExt as _,
+    ActiveTheme as _, Icon,
     command::{Command, CommandItem, CommandState},
     h_flex,
 };
@@ -155,7 +155,7 @@ impl FilePicker {
             return;
         };
         let (path, on_pick, prev) = (PathBuf::from(path), self.on_pick.clone(), self.prev.clone());
-        window.close_dialog(cx);
+        crate::ui::close_dialog(window, cx);
         window.focus(&prev, cx);
         on_pick(path, editor, window, cx);
     }

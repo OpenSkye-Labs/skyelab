@@ -13,7 +13,7 @@ use gpui::{
     Render, SharedString, StatefulInteractiveElement as _, Styled as _, WeakEntity, Window,
     actions, div, prelude::FluentBuilder as _,
 };
-use gpui_component::{ActiveTheme as _, WindowExt as _, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 use skyelab_agent::import::{self, Entry, MAX_TRANSCRIPT_BYTES, Transcript};
 use skyelab_core::{Account, AccountsConfig};
 use skyelab_store::{NewThread, Project, Thread};
@@ -190,7 +190,7 @@ impl ImportPicker {
         if picks.is_empty() {
             return;
         }
-        window.close_dialog(cx);
+        crate::ui::close_dialog(window, cx);
         let (project, account) = (self.project.clone(), self.account.id.clone());
         let _ = self.ws.update(cx, |ws, cx| {
             ws.run_import(project, account, picks, window, cx)

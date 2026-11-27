@@ -174,7 +174,7 @@ mod tests {
         });
         let window = cx.add_window(|window, cx| {
             let view = cx.new(|_| Blank);
-            gpui_component::Root::new(view, window, cx)
+            crate::ui::window_root(view.into(), window, cx)
         });
         let cx = gpui::VisualTestContext::from_window(window.into(), cx).into_mut();
         cx.simulate_mouse_move(point(px(20.), px(20.)), None, gpui::Modifiers::none());
@@ -204,10 +204,7 @@ mod tests {
             !built(cx),
             "a control elsewhere in the dialog keeps its tooltip"
         );
-        cx.update(|window, cx| {
-            use gpui_component::WindowExt as _;
-            window.close_dialog(cx)
-        });
+        cx.update(crate::ui::close_dialog);
         cx.run_until_parked();
         assert!(
             !cx.update(|window, cx| before.hidden(window, cx)),

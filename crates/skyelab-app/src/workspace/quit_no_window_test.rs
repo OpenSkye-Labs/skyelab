@@ -6,7 +6,6 @@ use super::quit_guard::{Blocker, TestQuits, blockers, request_quit};
 use super::threads_test::wait_until;
 use super::*;
 use gpui::TestAppContext;
-use gpui_component::{Root, WindowExt as _};
 
 #[gpui::test]
 fn quit_with_no_window_open_still_asks(cx: &mut TestAppContext) {
@@ -42,7 +41,7 @@ fn quit_with_no_window_open_still_asks(cx: &mut TestAppContext) {
             let ws = cx.new(|cx| {
                 Workspace::new(folder, accounts, config, None, backend, window, cx)
             });
-            cx.new(|cx| Root::new(ws, window, cx))
+            cx.new(|cx| crate::ui::window_root(ws.into(), window, cx))
         })
         .expect("a window opens");
     });
@@ -61,7 +60,7 @@ fn quit_with_no_window_open_still_asks(cx: &mut TestAppContext) {
     let asked = TestAppContext::update(vcx, |cx| {
         let windows = super::window_handles(cx);
         windows.iter().any(|w| {
-            w.update(cx, |_, window, cx| window.has_active_dialog(cx))
+            w.update(cx, |_, window, cx| crate::ui::has_active_dialog(window, cx))
                 .unwrap_or(false)
         })
     });

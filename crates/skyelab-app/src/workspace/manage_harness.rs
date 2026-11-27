@@ -4,7 +4,6 @@
 use super::threads_test::{Fixture, fake_bin, fixture, setup, wait_until};
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
-use gpui_component::{Root, WindowExt as _};
 use skyelab_store::NewThread as NewRow;
 
 pub(crate) struct Rig {
@@ -30,7 +29,7 @@ pub(crate) fn rig(cx: &mut TestAppContext) -> (Rig, &mut VisualTestContext) {
         let focus = view.read(cx).focus.clone();
         window.focus(&focus, cx);
         ws = Some(view.clone());
-        Root::new(view, window, cx)
+        crate::ui::window_root(view.into(), window, cx)
     });
     let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
     let ws = ws.expect("workspace built");
@@ -112,7 +111,7 @@ impl Rig {
     }
 
     pub fn dialog_open(&self, cx: &mut VisualTestContext) -> bool {
-        cx.update(|window, cx| window.has_active_dialog(cx))
+        cx.update(crate::ui::has_active_dialog)
     }
 
     /// Opens a stored thread's tab (no agent starts until a prompt is sent).

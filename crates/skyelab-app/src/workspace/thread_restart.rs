@@ -13,7 +13,6 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        use gpui_component::WindowExt as _;
         if self.starting {
             // The process starting now reads the account's config as it is: nothing to restart yet.
             return crate::ui::toast::push(
@@ -43,7 +42,7 @@ impl ThreadView {
                                 .small()
                                 .label("Restart")
                                 .on_click(move |_, window, cx| {
-                                    window.close_dialog(cx);
+                                    crate::ui::close_dialog(window, cx);
                                     let _ = view.update(cx, |v, cx| v.restart_now(window, cx));
                                 }),
                         ),

@@ -121,7 +121,7 @@ pub(super) fn open_thread_on<'a>(
         let window = cx.add_window(|window, cx| {
             let ws = cx.new(|cx| build(window, cx));
             made = Some(ws.clone());
-            gpui_component::Root::new(ws, window, cx)
+            crate::ui::window_root(ws.into(), window, cx)
         });
         let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
         (made.expect("the window was built"), cx)

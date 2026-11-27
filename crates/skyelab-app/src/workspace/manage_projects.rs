@@ -8,7 +8,6 @@ use crate::ui::Button;
 use crate::ui::TextField;
 use gpui::{AppContext as _, Context, Entity, ParentElement as _, Window};
 use gpui_component::{
-    WindowExt as _,
     input::{InputEvent, InputState},
     v_flex,
 };
@@ -86,7 +85,7 @@ impl Workspace {
                                         .small()
                                         .label("Remove")
                                         .on_click(move |_, window, cx| {
-                                            window.close_dialog(cx);
+                                            crate::ui::close_dialog(window, cx);
                                             let _ = ws.update(cx, |ws, cx| {
                                                 ws.remove_project_now(id, window, cx)
                                             });
@@ -156,7 +155,7 @@ impl Workspace {
                 if text.is_empty() {
                     return;
                 }
-                window.close_dialog(cx);
+                crate::ui::close_dialog(window, cx);
                 let _ = ws.update(cx, |ws, cx| done(ws, text, window, cx));
             }
         };
@@ -167,7 +166,7 @@ impl Workspace {
             move |ws, input, e: &InputEvent, window, cx| {
                 let text = input.read(cx).value().trim().to_owned();
                 if matches!(e, InputEvent::PressEnter { .. }) && !text.is_empty() {
-                    window.close_dialog(cx);
+                    crate::ui::close_dialog(window, cx);
                     on_enter(ws, text, window, cx);
                 }
             },
@@ -177,7 +176,7 @@ impl Workspace {
             let submit = submit.clone();
             dialog
                 .w(gpui::px(420.))
-                .title(crate::ui::dialog_title(title))
+                .title(title)
                 .child(v_flex().child(TextField::new(&field).accessibility_label(title)))
                 .footer(
                     ui::dialog_footer()

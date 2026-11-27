@@ -8,7 +8,6 @@ use super::thread_model::Record;
 use super::threads_test::resume::{env_reports, send_text};
 use super::threads_test::{stored_records, wait_until};
 use gpui::TestAppContext;
-use gpui_component::WindowExt as _;
 use skyelab_agent::{Block, Event};
 use skyelab_core::{Account, AccountsConfig, Binding};
 use std::collections::BTreeMap;
@@ -191,7 +190,7 @@ fn import_sessions_lists_the_bound_accounts_sessions_and_imports_them_once(
     );
 
     // Sending continues the same session under the bound account.
-    cx.update(|window, cx| window.close_dialog(cx));
+    cx.update(crate::ui::close_dialog);
     let view = rig.open(row.id, cx);
     send_text(&view, "go on", cx);
     wait_until(cx, "the resumed agent's env report", |_| {

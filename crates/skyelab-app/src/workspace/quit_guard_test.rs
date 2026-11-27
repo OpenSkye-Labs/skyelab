@@ -6,7 +6,6 @@ use super::quit_guard::{Blocker, TestQuits, asks, blockers, question, request_qu
 use super::threads_test::wait_until;
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
-use gpui_component::WindowExt as _;
 
 fn quits(cx: &mut VisualTestContext) -> usize {
     cx.update(|_, cx| cx.try_global::<TestQuits>().map_or(0, |q| q.0))
@@ -19,7 +18,7 @@ fn quit(cx: &mut VisualTestContext) {
 }
 
 fn dialog_open(cx: &mut VisualTestContext) -> bool {
-    cx.update(|window, cx| window.has_active_dialog(cx))
+    cx.update(crate::ui::has_active_dialog)
 }
 
 #[test]
@@ -75,7 +74,7 @@ fn quit_asks_only_while_a_thread_waits(cx: &mut TestAppContext) {
     assert!(dialog_open(cx), "a waiting thread: the dialog asks");
     assert_eq!(quits(cx), 1, "and the app keeps running");
 
-    cx.update(|window, cx| window.close_dialog(cx)); // the dialog closes, as Cancel or Escape close it
+    cx.update(crate::ui::close_dialog); // the dialog closes, as Cancel or Escape close it
     cx.run_until_parked();
     quit(cx);
     assert!(dialog_open(cx), "after Cancel, Quit asks again");
@@ -84,7 +83,7 @@ fn quit_asks_only_while_a_thread_waits(cx: &mut TestAppContext) {
     quit(cx);
     assert_eq!(quits(cx), 2, "a second Quit while the dialog is open quits");
 
-    cx.update(|window, cx| window.close_dialog(cx));
+    cx.update(crate::ui::close_dialog);
     cx.run_until_parked();
     cx.update(|_, cx| set_asks(false, cx)).expect("saved");
     assert!(!cx.update(|_, cx| asks(cx)));
@@ -139,7 +138,7 @@ fn unsent_comments_and_chips_ask_before_quitting(cx: &mut TestAppContext) {
     assert_eq!(cx.update(|_, cx| blockers(cx)), vec![(title.clone(), Blocker::Unsent)]);
     quit(cx);
     assert!(dialog_open(cx), "unsent comments: the dialog asks");
-    cx.update(|window, cx| window.close_dialog(cx));
+    cx.update(crate::ui::close_dialog);
     cx.run_until_parked();
 
     // Sent into the composer as a chip, still unsent.

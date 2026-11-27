@@ -38,6 +38,7 @@ mod dialog;
 mod dialog_close_test;
 #[cfg(test)]
 mod dialog_focus_test;
+mod dialog_layer;
 #[cfg(test)]
 mod dialog_look_test;
 #[cfg(test)]
@@ -83,7 +84,7 @@ pub use components::{
     header, mono, page_title, row, row_surface, section_title, subsection_title,
 };
 pub use dialog::{
-    close_dialog, dialog_cancel, dialog_footer, dialog_title, has_active_dialog, open_dialog,
+    DialogEntrance, close_dialog, dialog_cancel, dialog_footer, has_active_dialog, open_dialog,
 };
 pub use kbd::{Kbd, keys};
 pub use surface::{Card, Divider};

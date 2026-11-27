@@ -15,7 +15,7 @@ use rows::{back_row, row, search_field};
 use gpui::Subscription;
 use gpui_component::input::{InputEvent, InputState};
 use gpui_component::{
-    ActiveTheme as _, IndexPath, WindowExt as _,
+    ActiveTheme as _, IndexPath,
     command::{Command, CommandGroup, CommandItem, CommandState},
 };
 
@@ -170,7 +170,7 @@ fn open_with(
         // T3's card: max-w-xl, rounded-2xl, the list and footer reaching its edges.
         // Rex's palette opens and closes in one frame.
         dialog
-            .entrance(gpui_component::dialog::DialogEntrance::None)
+            .entrance(crate::ui::DialogEntrance::None)
             .w(px(600.))
             .p_0()
             .rounded(RADIUS_XL)
@@ -358,7 +358,7 @@ pub(super) fn bind_keys(cx: &mut App) {
 /// Closes the palette and gives focus back to what had it.
 fn close(palette: &Entity<Palette>, window: &mut Window, cx: &mut App) {
     let prev = palette.read(cx).prev.clone();
-    window.close_dialog(cx);
+    crate::ui::close_dialog(window, cx);
     // The dialog sits outside the workspace, so the action must start from the element focused before it.
     window.focus(&prev, cx);
 }

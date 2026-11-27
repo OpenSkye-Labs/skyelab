@@ -5,7 +5,7 @@ use super::super::thread_items::ItemsView;
 use crate::ui;
 use crate::ui::Button;
 use gpui::{AnyElement, App, Context, SharedString, Window, prelude::*, px};
-use gpui_component::{ActiveTheme as _, WindowExt as _, h_flex};
+use gpui_component::{ActiveTheme as _, h_flex};
 
 /// Under a card whose page was refused hosts: which ones, each with Allow. The page named them, so they are only
 /// offered: Allow asks first ([`confirm_allow`]), and nothing is added without the user's click there.
@@ -64,7 +64,7 @@ fn confirm_allow(host: String, window: &mut Window, cx: &mut App) {
                                 hosts.push(host.clone());
                             }
                             prefs::save_page_hosts(hosts, cx).detach_and_log_err(cx);
-                            window.close_dialog(cx);
+                            crate::ui::close_dialog(window, cx);
                         }),
                 ),
             )

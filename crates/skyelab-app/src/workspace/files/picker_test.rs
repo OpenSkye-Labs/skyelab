@@ -5,7 +5,6 @@ use super::super::worktree_thread_test::{Fixture, fixture, open_thread, wait_unt
 use super::super::*;
 use super::picker::{self, OnPick, rank_files};
 use gpui::{TestAppContext, VisualTestContext};
-use gpui_component::Root;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -50,7 +49,7 @@ fn open_in_root<'a>(
         let focus = view.read(cx).focus.clone();
         window.focus(&focus, cx);
         ws = Some(view.clone());
-        Root::new(view, window, cx)
+        crate::ui::window_root(view.into(), window, cx)
     });
     let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
     let ws = ws.expect("workspace built");

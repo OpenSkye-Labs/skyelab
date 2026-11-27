@@ -13,7 +13,7 @@ use gpui::{
     prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _, WindowExt as _, h_flex,
+    ActiveTheme as _, Sizable as _, h_flex,
     input::{InputEvent, Textarea, TextareaState},
     v_flex,
 };
@@ -155,7 +155,7 @@ impl IssueActions {
                         }
                         this.error = Some(e.into());
                     }
-                    Ok(()) => window.close_dialog(cx),
+                    Ok(()) => crate::ui::close_dialog(window, cx),
                 }
                 cx.notify();
             });

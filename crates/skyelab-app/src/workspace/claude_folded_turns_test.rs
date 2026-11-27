@@ -84,7 +84,7 @@ pub(super) fn one_view<'a>(
     let window = cx.add_window(|window, cx| {
         let view = cx.new(|cx| ThreadView::new(&project, config, backend, window, cx));
         made = Some(view.clone());
-        gpui_component::Root::new(view, window, cx)
+        crate::ui::window_root(view.into(), window, cx)
     });
     let view = made.expect("the thread view was built");
     let cx = VisualTestContext::from_window(window.into(), cx).into_mut();

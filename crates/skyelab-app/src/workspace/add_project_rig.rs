@@ -5,7 +5,6 @@ use super::palette_test::setup;
 use super::threads_test::{test_backend, wait_until};
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
-use gpui_component::Root;
 use skyelab_core::{Account, Binding, Provider};
 use std::path::{Path, PathBuf};
 
@@ -66,7 +65,7 @@ pub(super) fn rig(
         let focus = view.read(cx).focus.clone();
         window.focus(&focus, cx);
         ws = Some(view.clone());
-        Root::new(view, window, cx)
+        crate::ui::window_root(view.into(), window, cx)
     });
     let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
     cx.run_until_parked();
@@ -116,7 +115,7 @@ pub(super) fn shown(cx: &mut VisualTestContext) -> crate::palette::Shown {
 }
 
 pub(super) fn dialog_open(cx: &mut VisualTestContext) -> bool {
-    cx.update(gpui_component::WindowExt::has_active_dialog)
+    cx.update(crate::ui::has_active_dialog)
 }
 
 /// Types into the palette's field and lets the folder listing land.

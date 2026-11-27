@@ -15,7 +15,7 @@ use gpui::{
     AnyElement, AnyWindowHandle, App, AppContext as _, Context, FontWeight, Global, Hsla, Image,
     ImageFormat, IntoElement, Render, SharedString, Window, div, img, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, Theme, WindowExt as _, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, Theme, h_flex, v_flex};
 use serde_json::{Value, json};
 use skyelab_agent::mcp::HTML_MAX_CHARS;
 use skyelab_browser::page::{self, MAX_SHOT_HEIGHT, Page, PageTheme};
@@ -437,7 +437,7 @@ impl Render for PageViewer {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("PageViewer");
         // A closing dialog still draws while it fades: the native page must go at once, not over the backdrop.
-        let shown = window.has_active_dialog(cx);
+        let shown = crate::ui::has_active_dialog(window, cx);
         if let Some(page) = &self.page {
             let _ = page.webview().read(cx).set_visible(shown);
         }
@@ -469,7 +469,7 @@ impl Render for PageViewer {
                             .icon(Icon::new(SkyeIcon::Close))
                             .tooltip("Close")
                             .accessibility_label("Close page")
-                            .on_click(|_, window, cx| window.close_dialog(cx)),
+                            .on_click(|_, window, cx| crate::ui::close_dialog(window, cx)),
                     ),
             )
             .child(

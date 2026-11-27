@@ -10,7 +10,6 @@ use super::thread_extras::prefs;
 use super::worktree_thread_test::{fixture, open_thread_with, wait_until};
 use super::*;
 use gpui::{Modifiers, MouseButton, Point, Pixels, TestAppContext, VisualTestContext, px};
-use gpui_component::WindowExt as _;
 use skyelab_core::terminal_layout::{Axis, PaneTree};
 
 fn draw(cx: &mut VisualTestContext) {
@@ -47,7 +46,7 @@ fn no_confirm(cx: &mut VisualTestContext) {
 }
 
 fn dialog_open(cx: &mut VisualTestContext) -> bool {
-    cx.update(|window, cx| window.has_active_dialog(cx))
+    cx.update(crate::ui::has_active_dialog)
 }
 
 fn has_axis<T>(tree: &PaneTree<T>, target: Axis) -> bool {

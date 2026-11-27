@@ -11,7 +11,7 @@ use gpui::{
     AnyElement, App, AppContext as _, Context, Image, ImageFormat, ImageSource, IntoElement,
     ObjectFit, SharedString, Window, div, img, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, WindowExt as _, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 use skyelab_agent::{Attachment, AttachmentKind};
 use std::sync::Arc;
 
@@ -136,7 +136,7 @@ impl Render for ImageViewer {
                     )
                     .child(
                         button("image-close", Icon::new(SkyeIcon::X), "Close (Esc)")
-                            .on_click(|_, window, cx| window.close_dialog(cx)),
+                            .on_click(|_, window, cx| crate::ui::close_dialog(window, cx)),
                     ),
             )
             .child(

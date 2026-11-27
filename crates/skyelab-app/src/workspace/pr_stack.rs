@@ -8,7 +8,7 @@ use crate::ui::{Button, SkyeIcon};
 use gpui::{
     App, AppContext as _, Context, Global, IntoElement, SharedString, Task, Window, div, prelude::*,
 };
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _, WindowExt as _, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
 use skyelab_git::{Checks, GitHub, PrRow, PrStack};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -209,7 +209,7 @@ impl PrActions {
                 match &error {
                     // What merged is gone from GitHub's stack: offer no stale stack again; reopening lists it anew.
                     Some(e) => (this.error, this.stack.stack) = (Some(e.clone().into()), None),
-                    None => window.close_dialog(cx),
+                    None => crate::ui::close_dialog(window, cx),
                 }
                 cx.notify();
             });

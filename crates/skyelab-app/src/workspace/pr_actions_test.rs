@@ -89,7 +89,7 @@ pub(in crate::workspace) fn thread_dialog(
 }
 
 pub(in crate::workspace) fn dialog_open(cx: &mut VisualTestContext) -> bool {
-    cx.update(|window, cx| window.has_active_dialog(cx))
+    cx.update(crate::ui::has_active_dialog)
 }
 
 #[gpui::test]
@@ -437,7 +437,7 @@ fn unread_checks_ask_once_more_and_a_cancelled_merge_still_reads_the_pr_again(
     // The last click, then Cancel before gh answers: the merge happened, so the PR is read again anyway.
     dialog.update_in(cx, |d, window, cx| {
         d.press_merge(window, cx);
-        window.close_dialog(cx);
+        crate::ui::close_dialog(window, cx);
     });
     drop(dialog);
     wait_until(

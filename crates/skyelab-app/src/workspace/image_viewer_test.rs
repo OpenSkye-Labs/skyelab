@@ -4,7 +4,6 @@ use super::image_viewer::{self, ZOOMS, zoom_step};
 use super::palette_test::{open, setup};
 use super::threads_test::test_backend;
 use gpui::{Image, ImageFormat, TestAppContext};
-use gpui_component::WindowExt as _;
 use std::sync::Arc;
 
 #[test]
@@ -36,13 +35,13 @@ fn image_dialog_opens_and_escape_closes_it(cx: &mut TestAppContext) {
     cx.update(|window, cx| image_viewer::open(image, "a.png".into(), window, cx));
     cx.run_until_parked();
     assert!(
-        cx.update(|window, cx| window.has_active_dialog(cx)),
+        cx.update(crate::ui::has_active_dialog),
         "the viewer is open"
     );
     cx.simulate_keystrokes("escape");
     cx.run_until_parked();
     assert!(
-        !cx.update(|window, cx| window.has_active_dialog(cx)),
+        !cx.update(crate::ui::has_active_dialog),
         "escape closes it"
     );
 }

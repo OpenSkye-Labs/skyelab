@@ -5,7 +5,6 @@ use super::onboarding::Onboarding;
 use super::threads_test::{fake_bin, setup, test_backend, wait_until};
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
-use gpui_component::Root;
 use std::path::Path;
 
 pub(super) struct Rig {
@@ -79,7 +78,7 @@ fn rig_with(cx: &mut TestAppContext, load_error: Option<String>) -> (Rig, &mut V
         let setup = view.read(cx).welcome.read(cx).setup.clone();
         setup.update(cx, |o, _| o.home = Some(h));
         ws = Some(view.clone());
-        Root::new(view, window, cx)
+        crate::ui::window_root(view.into(), window, cx)
     });
     let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
     let ws = ws.expect("workspace built");

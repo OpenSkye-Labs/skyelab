@@ -79,13 +79,15 @@ pub(super) fn tree(vcx: &mut VisualTestContext) -> Vec<ElementSnapshot> {
     vcx.update(|window, _| snapshots(window))
 }
 
-/// The labels of the dialog nodes in the tree, outermost first.
+/// The labels of the dialog nodes in the tree, sorted (snapshots come in no particular order).
 pub(super) fn dialogs(vcx: &mut VisualTestContext) -> Vec<String> {
-    tree(vcx)
+    let mut labels: Vec<String> = tree(vcx)
         .iter()
         .filter(|s| s.role() == Some(accesskit::Role::Dialog))
         .map(|s| s.label().unwrap_or_default().to_owned())
-        .collect()
+        .collect();
+    labels.sort();
+    labels
 }
 
 pub(super) fn behind_focused(behind: &Entity<Behind>, vcx: &mut VisualTestContext) -> bool {

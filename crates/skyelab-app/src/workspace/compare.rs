@@ -275,7 +275,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        use gpui_component::WindowExt as _;
         let id = a.id;
         let others = self.compare_others(id, cx);
         if others.iter().any(|&o| self.working(o, cx)) {
@@ -302,7 +301,7 @@ impl Workspace {
             let choose = |archive: bool| {
                 let ws = ws.clone();
                 move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut gpui::App| {
-                    window.close_dialog(cx);
+                    crate::ui::close_dialog(window, cx);
                     let _ = ws.update(cx, |ws, cx| ws.finish_keep(id, archive, window, cx));
                 }
             };

@@ -73,7 +73,7 @@ fn dialogs_fade_for_rex_duration_and_none_draws_at_once(cx: &mut TestAppContext)
     });
     let window = cx.add_window(|window, cx| {
         let view = cx.new(|_| Blank);
-        gpui_component::Root::new(view, window, cx)
+        crate::ui::window_root(view.into(), window, cx)
     });
     let cx = gpui::VisualTestContext::from_window(window.into(), cx).into_mut();
     moving_for(cx);
@@ -85,12 +85,12 @@ fn dialogs_fade_for_rex_duration_and_none_draws_at_once(cx: &mut TestAppContext)
             && fade <= motion::FADE + std::time::Duration::from_millis(30),
         "the fade runs about 150 ms, ran {fade:?}"
     );
-    cx.update(gpui_component::WindowExt::close_dialog);
+    cx.update(crate::ui::close_dialog);
     cx.run_until_parked();
     moving_for(cx);
     cx.update(|window, cx| {
         super::open_dialog(window, cx, |d, _, _| {
-            d.entrance(gpui_component::dialog::DialogEntrance::None)
+            d.entrance(crate::ui::DialogEntrance::None)
         })
     });
     cx.run_until_parked();
