@@ -1,7 +1,7 @@
 //! Stacked pull requests: chains found from a repo's open PR list (cycles, forks and ties included), and Merge stack
 //! with the account's gh (the fake gh only): bottom first, each layer pinned to its head, stopping at a failure.
 
-use skyelab_git::{Checks, MergeMethod, PrRow, PrStack, PrState, Review, stack_for};
+use skyelab_git::{Checks, PrRow, PrStack, PrState, Review, stack_for};
 
 fn pr(number: u64, head_ref: &str, base_ref: &str) -> PrRow {
     PrRow {
@@ -128,7 +128,7 @@ fn the_list_reads_branches_and_drops_a_fork_head() {
 #[cfg(unix)] // the fake gh is a shell script
 mod merge {
     use super::*;
-    use skyelab_git::GitHub;
+    use skyelab_git::{GitHub, MergeMethod};
     use std::path::{Path, PathBuf};
 
     fn fake_gh() -> PathBuf {
