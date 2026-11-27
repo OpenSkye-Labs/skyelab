@@ -7,13 +7,14 @@ use super::gh_pages::{GhPage, Listing};
 use super::pr_actions::account_gh_dir;
 use super::usage_page_render::segments;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, SkyeIcon};
 use gpui::{
     App, AppContext as _, Context, Entity, IntoElement, Render, SharedString, Window, div,
     prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _, h_flex,
+    Sizable as _, h_flex,
     input::{InputEvent, Textarea, TextareaState},
     v_flex,
 };

@@ -5,6 +5,7 @@
 use super::dialog::{Dialog, DialogClosed, DialogEntrance, OnClose};
 use super::window_root::WindowRoot;
 use super::{A11yScrollArea as _, SkyeIcon, icon_button};
+use crate::ui::ActiveTheme as _;
 use gpui::{
     Animation, AnimationExt as _, AnyElement, App, BoxShadow, Context, Entity, FocusHandle,
     FontWeight, IntoElement, KeyBinding, MouseButton, ParentElement as _, Pixels, Render,
@@ -12,7 +13,7 @@ use gpui::{
     relative,
 };
 use gpui_base::TestSupportExt as _;
-use gpui_component::{ActiveTheme as _, v_flex};
+use gpui_component::v_flex;
 use std::rc::Rc;
 
 actions!(
@@ -206,7 +207,7 @@ fn layer(
 ) -> AnyElement {
     let theme = cx.theme();
     let viewport = window.viewport_size();
-    let margin: Pixels = theme.spacing_tokens().lg;
+    let margin: Pixels = super::SPACE_LG;
     let lower = px(STACK_STEP * at.depth as f32);
     let width = dialog.width.min((viewport.width - margin * 2.).max(px(0.)));
     let x = (viewport.width - width) / 2.;
@@ -227,7 +228,7 @@ fn layer(
     let name = dialog.title.clone().unwrap_or_else(|| "Dialog".into());
     let (overlay, background, border, radius) = (
         theme.overlay,
-        theme.tokens.background,
+        theme.background,
         theme.border,
         theme.radius_lg,
     );

@@ -7,13 +7,14 @@
 use super::composer_context::ChipKind;
 use super::thread::ThreadView;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, MouseButton, Pixels, Point, Window, anchored,
     deferred, div, point, prelude::*, px,
 };
 use gpui_base::TextSelection;
-use gpui_component::{ActiveTheme as _, ElementExt as _, Icon, Sizable as _, h_flex};
+use gpui_component::{ElementExt as _, Icon, Sizable as _, h_flex};
 
 /// The chip's label: the quote's first words.
 fn label(text: &str) -> String {

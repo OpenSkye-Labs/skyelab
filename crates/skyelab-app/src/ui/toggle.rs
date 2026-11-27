@@ -7,11 +7,12 @@
 //! inside it is only its picture (docs/gpui/elements.md).
 
 use super::{DISABLED_OPACITY, META, RADIUS_SM, SkyeIcon};
+use crate::ui::ActiveTheme as _;
 use gpui::{
     App, ClickEvent, ElementId, FontWeight, IntoElement, ParentElement as _, RenderOnce,
     SharedString, Styled as _, Window, accesskit, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon};
+use gpui_component::Icon;
 use std::rc::Rc;
 
 type OnToggle = Rc<dyn Fn(&bool, &mut Window, &mut App)>;

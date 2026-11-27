@@ -2,9 +2,10 @@
 
 use super::thread_items::ItemsView;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use gpui::{Context, IntoElement, SharedString, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex};
+use gpui_component::{Icon, Sizable as _, h_flex};
 
 /// Question `qi`'s attached files as chips, and Attach files.
 pub(super) fn answer_files<V: ItemsView>(

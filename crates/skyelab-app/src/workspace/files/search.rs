@@ -2,6 +2,7 @@
 //! project content search). The search runs off the UI thread; a newer query cancels the one before it.
 
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
 use gpui::{
@@ -9,7 +10,7 @@ use gpui::{
     Subscription, Task, Window, div, prelude::*, px, uniform_list,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon,
+    Icon,
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{InputEvent, InputState},

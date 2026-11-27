@@ -6,13 +6,14 @@ use super::lock;
 use super::thread::{ThreadView, ThreadViewEvent};
 use super::{SharedStore, Workspace};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, Checkbox, TextField};
 use anyhow::{Context as _, Result, bail};
 use gpui::{
     Action, AppContext as _, Context, Entity, FontWeight, SharedString, Task, WeakEntity, Window,
     div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, h_flex, input::InputState, v_flex};
+use gpui_component::{h_flex, input::InputState, v_flex};
 use skyelab_core::{Account, AccountsConfig};
 use skyelab_store::ProjectScript;
 use skyelab_terminal::SpawnOptions;

@@ -69,6 +69,19 @@ mod terminal_colors_test;
 #[cfg(test)]
 mod tests;
 mod text_field;
+pub mod theme;
+#[cfg(test)]
+mod theme_boundary_test;
+mod theme_bridge;
+#[cfg(test)]
+mod theme_font_test;
+pub(crate) mod theme_load;
+#[cfg(test)]
+mod theme_load_test;
+#[cfg(test)]
+mod theme_match_test;
+#[cfg(test)]
+mod theme_switch_test;
 pub mod themes;
 #[cfg(test)]
 mod themes_test;
@@ -102,20 +115,15 @@ pub use window_controls::{WindowControls, drag_area, no_drag};
 pub use window_root::window_root;
 
 use gpui::{Hsla, Pixels, Rems, px, rems};
-use gpui_component::Theme;
 use std::path::Path;
+pub use theme::{ActiveTheme, Theme};
 
-/// Registers SkyeLab's theme families (T3 Code's zinc light and true-black dark tokens are the default, see
-/// docs/design/t3-reference.md) and applies the default appearance. Call once, after `gpui_component::init`; then
-/// [`themes::load`] applies the saved choice. Views read colors only from the active theme.
+/// Checks SkyeLab's theme families (T3 Code's zinc light and true-black dark tokens are the default, see
+/// docs/design/t3-reference.md) and applies the default appearance. Call once at start, after `gpui_component::init`
+/// (the bridge writes its theme too); then [`themes::load`] applies the saved choice. Views read colors only from the active theme.
 pub fn install_theme(cx: &mut gpui::App) -> anyhow::Result<()> {
-    themes::register(cx)?;
+    themes::register()?;
     themes::apply(cx);
-    let theme = gpui_component::Theme::global_mut(cx);
-    theme.cursor_blink = CURSOR_BLINK;
-    theme.motion = motion::tokens();
-    // Base's copy (plots, scrollbars) is derived from the theme: refresh it now, not at the next mode change.
-    gpui_component::Theme::sync_base(cx);
     Ok(())
 }
 
@@ -153,6 +161,8 @@ pub fn titlebar_options() -> gpui::TitlebarOptions {
     }
 }
 
+/// The least room an overlay keeps from the window's edges.
+pub const SPACE_LG: Pixels = px(16.);
 /// Corner radii (docs/design/t3-reference.md §3): badges and keys `SM`, sidebar rows `MD`, controls and cards `BASE`,
 /// grouped settings `LG`, the composer and message bubbles `XL`.
 pub const RADIUS_SM: Pixels = px(4.);
@@ -322,8 +332,8 @@ pub fn account_color_in(cx: &gpui::App, id: &str) -> Hsla {
     let slot = cx
         .try_global::<AccountSlots>()
         .and_then(|s| s.0.get(id).copied())
-        .map(|slot| account_palette(gpui_component::ActiveTheme::theme(cx))[slot]);
-    slot.unwrap_or_else(|| account_color(gpui_component::ActiveTheme::theme(cx), id))
+        .map(|slot| account_palette(crate::ui::ActiveTheme::theme(cx))[slot]);
+    slot.unwrap_or_else(|| account_color(crate::ui::ActiveTheme::theme(cx), id))
 }
 
 /// A status color used as text. In light themes the 500-weight status colors are too light to read on the canvas

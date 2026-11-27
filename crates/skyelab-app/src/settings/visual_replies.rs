@@ -3,10 +3,11 @@
 
 use super::Settings;
 use super::widgets::{row, section, setting};
+use crate::ui::ActiveTheme as _;
 use crate::ui::{self, Button, SkyeIcon, TextField};
 use crate::workspace::thread_extras::prefs;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*};
-use gpui_component::{ActiveTheme as _, Icon};
+use gpui_component::Icon;
 use skyelab_core::page_hosts::parse_host;
 use skyelab_core::{HtmlWidth, VisualReplySettings};
 

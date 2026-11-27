@@ -8,8 +8,8 @@ pub(crate) use agents::internal;
 pub use agents::{RemoteCall, Reply, UiAgents};
 pub use panel::RemotePanel;
 
+use crate::ui::Theme;
 use gpui::{Action, AppContext as _, Context, Hsla, SharedString, Task, actions};
-use gpui_component::Theme;
 use skyelab_core::{AppSettings, ApprovedDevice};
 use skyelab_daemon::{AccessRequest, Approval, Backend, Config, Daemon, Peer, SharedTailnet};
 use skyelab_store::Store;

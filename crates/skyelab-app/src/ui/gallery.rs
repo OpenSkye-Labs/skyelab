@@ -11,11 +11,12 @@ use super::{
     Button, Card, Checkbox, Divider, EmptyState, SECTION, SegmentedControl, Size, SkyeIcon, Switch,
     Tabs, TextField, dialog_cancel, dialog_footer,
 };
+use crate::ui::ActiveTheme as _;
 use gpui::{
     App, AppContext as _, Context, Entity, FontWeight, IntoElement, ParentElement as _, Render,
     Styled as _, Window, actions, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, h_flex, input::InputState, v_flex};
+use gpui_component::{h_flex, input::InputState, v_flex};
 
 actions!(skyelab, [OpenUiGallery]);
 

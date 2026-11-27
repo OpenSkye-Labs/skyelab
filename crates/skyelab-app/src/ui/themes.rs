@@ -1,14 +1,13 @@
-//! Settings → Appearance: the theme families (data in `themes/*.json`, gpui-component's theme format), accent
-//! presets, density and text sizes, applied live to every window and saved under `[appearance]` in settings.toml.
+//! Settings → Appearance: the theme families (data in `themes/*.json`), accent presets, density and text sizes,
+//! applied live to every window and saved under `[appearance]` in settings.toml.
 
+use super::theme::{Theme, ThemeMode};
+use super::theme_load::{self, darken, lighten, parse_color, to_hex};
 use gpui::{App, AppContext as _, Global, Hsla, Task};
-use gpui_component::{
-    Colorize as _, Theme, ThemeConfig, ThemeMode, ThemeRegistry, try_parse_color,
-};
+use serde_json::Value;
 use skyelab_core::{AppSettings, AppearanceSettings, ColorMode};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
@@ -17,7 +16,7 @@ pub struct Family {
     pub key: &'static str,
     pub label: &'static str,
     pub about: &'static str,
-    json: &'static str,
+    pub(crate) json: &'static str,
 }
 
 pub const FAMILIES: [Family; 14] = [
@@ -192,19 +191,12 @@ pub struct Appearance {
 
 impl Global for Appearance {}
 
-/// Registers every family's themes. Call once, after `gpui_component::init`.
-pub(super) fn register(cx: &mut App) -> anyhow::Result<()> {
-    let registry = ThemeRegistry::global_mut(cx);
+/// Checks that every family file loads in both modes. Call once, before the first [`apply`].
+pub(super) fn register() -> anyhow::Result<()> {
     for f in &FAMILIES {
-        registry.load_themes_from_str(f.json)?;
-    }
-    for f in &FAMILIES {
-        for mode in ["Light", "Dark"] {
-            let name = format!("{} {mode}", f.label);
-            anyhow::ensure!(
-                registry.themes().contains_key(name.as_str()),
-                "theme {name} is missing"
-            );
+        for dark in [false, true] {
+            theme_load::resolve(f.json, dark, &AppearanceSettings::default())
+                .map_err(|e| e.context(format!("theme family {}", f.key)))?;
         }
     }
     Ok(())
@@ -278,41 +270,53 @@ fn mode(s: &AppearanceSettings, system: ThemeMode) -> ThemeMode {
     }
 }
 
-/// Puts the chosen family, accent and sizes into the light and dark themes and shows the chosen mode.
+/// Puts the chosen family, accent and sizes into our theme and gpui-component's, in the mode to show.
 pub fn apply(cx: &mut App) {
+    let system = cx.window_appearance().into();
+    show(mode(&get(cx), system), cx);
+}
+
+/// Follows the setting, or the system appearance when it says System. Called when a window opens and whenever its
+/// appearance changes.
+pub fn sync(window: &mut gpui::Window, cx: &mut App) {
+    follow(window.appearance(), window, cx);
+}
+
+/// Shows the mode for `appearance` (the window's): what [`sync`] does with the window's own.
+pub fn follow(appearance: gpui::WindowAppearance, window: &mut gpui::Window, cx: &mut App) {
+    let m = mode(&get(cx), appearance.into());
+    if cx.try_global::<Theme>().is_none_or(|t| t.mode != m) {
+        show(m, cx);
+        window.refresh();
+    }
+}
+
+fn show(m: ThemeMode, cx: &mut App) {
     let s = get(cx).clamped();
     let f = family(&s.theme);
-    let registry = ThemeRegistry::global(cx);
-    let pick = |m: &str| {
-        registry
-            .themes()
-            .get(format!("{} {m}", f.label).as_str())
-            .cloned()
+    let dark = m.is_dark();
+    // `register` checked every file at start.
+    let mut theme = match theme_load::resolve(f.json, dark, &s) {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("theme {}: {e:#}", f.key);
+            return;
+        }
     };
-    let (Some(light), Some(dark)) = (pick("Light"), pick("Dark")) else {
-        return; // not registered (a test without `install_theme`): keep gpui-component's themes
-    };
-    let (light, dark) = (adjust(&light, &s, false), adjust(&dark, &s, true));
+    theme_load::installed_fonts(&mut theme, cx);
     COMPACT.store(s.compact, Ordering::Relaxed);
     super::motion::apply_reduce_motion(cx);
     // Every family has them (`terminal_colors_test`); a broken file keeps the last family's.
     if let Some(colors) = ansi(f) {
         cx.set_global(colors);
     }
-    let theme = Theme::global_mut(cx);
-    theme.light_theme = Rc::new(light);
-    theme.dark_theme = Rc::new(dark);
-    let system = cx.window_appearance().into();
-    Theme::change(mode(&s, system), None, cx);
-}
-
-/// Follows the setting, or the system appearance when it says System. Called when a window opens and whenever its
-/// appearance changes.
-pub fn sync(window: &mut gpui::Window, cx: &mut App) {
-    let m = mode(&get(cx), window.appearance().into());
-    if Theme::global(cx).mode != m {
-        Theme::change(m, Some(window), cx);
-    }
+    cx.set_global(theme);
+    super::theme_bridge::write(
+        [adjusted(f.key, &s, false), adjusted(f.key, &s, true)],
+        dark,
+        cx,
+    );
+    cx.refresh_windows();
 }
 
 /// The family's terminal colors: each theme's `terminal.ansi`, 16 hex colors (gpui-component ignores the key).
@@ -324,7 +328,10 @@ pub(crate) fn ansi(f: &Family) -> Option<skyelab_terminal::AnsiColors> {
             .iter()
             .find(|t| t["mode"] == mode)?;
         let list = t["terminal.ansi"].as_array()?;
-        let colors: Vec<Hsla> = list.iter().filter_map(|c| parse_hex(c.as_str()?)).collect();
+        let colors: Vec<Hsla> = list
+            .iter()
+            .filter_map(|c| parse_color(c.as_str()?))
+            .collect();
         colors.try_into().ok()
     };
     Some(skyelab_terminal::AnsiColors {
@@ -333,59 +340,64 @@ pub(crate) fn ansi(f: &Family) -> Option<skyelab_terminal::AnsiColors> {
     })
 }
 
-pub(crate) fn parse_hex(s: &str) -> Option<Hsla> {
-    let v = u32::from_str_radix(s.trim_start_matches('#'), 16).ok()?;
-    Some(gpui::rgb(v).into())
+/// One theme of family `key` as JSON, with the accent preset and text sizes of `s` written in.
+pub fn adjusted(key: &str, s: &AppearanceSettings, dark: bool) -> Value {
+    let file: Value = serde_json::from_str(family(key).json).unwrap_or_default();
+    let mut theme = theme_load::pick(&file, dark).cloned().unwrap_or_default();
+    adjust(&mut theme, s, dark);
+    theme
 }
 
-/// `base` with the text sizes and, when set, the accent preset written into it.
-pub(crate) fn adjust(base: &ThemeConfig, s: &AppearanceSettings, dark: bool) -> ThemeConfig {
-    let mut c = base.clone();
-    // A theme with no `highlight` keeps whatever code colors were applied before (gpui-component starts with its
-    // light ones), so a dark theme drew code in light-theme colors. Give each mode its own default.
-    if c.highlight.is_none() {
-        let default = if dark {
-            gpui_component::highlighter::HighlightTheme::default_dark()
+/// Writes the text sizes, the mode's code colors and, when set, the accent preset into one theme of a family file.
+pub(crate) fn adjust(theme: &mut Value, s: &AppearanceSettings, dark: bool) {
+    // A theme with no `highlight` would keep whatever code colors were applied before, so a dark theme drew code in
+    // light-theme colors. Give each mode its own default.
+    if theme.get("highlight").is_none()
+        && let Ok(style) = serde_json::to_value(&theme_load::default_highlight(dark).style)
+    {
+        theme["highlight"] = style;
+    }
+    theme["font.size"] = f32::from(s.ui_font_size).into();
+    theme["mono_font.size"] = f32::from(s.code_font_size).into();
+    let Some(a) = accent(s.accent.as_deref()) else {
+        return;
+    };
+    let (fill, text) = if dark { a.dark } else { a.light };
+    let Some(color) = parse_color(fill) else {
+        return;
+    };
+    let shade = |up: bool| {
+        let shaded = if up == dark {
+            lighten(color, 0.08)
         } else {
-            gpui_component::highlighter::HighlightTheme::default_light()
+            darken(color, 0.08)
         };
-        c.highlight = Some(default.style.clone());
+        to_hex(shaded)
+    };
+    let k = &mut theme["colors"];
+    // A preset is tuned for neutral canvases; a tinted one (Nord's slate, Gruvbox's cream) can sink it.
+    let surfaces: Vec<Hsla> = ["background", "sidebar.background", "popover.background"]
+        .into_iter()
+        .filter_map(|key| parse_color(k[key].as_str()?))
+        .collect();
+    let link = parse_color(if dark { a.dark_link } else { fill }).unwrap_or(color);
+    let alpha =
+        |light: &str, on_dark: &str| format!("{fill}{}", if dark { on_dark } else { light });
+    for (key, value) in [
+        ("primary.background", fill.to_string()),
+        ("primary.hover.background", shade(true)),
+        ("primary.active.background", shade(false)),
+        ("primary.foreground", text.to_string()),
+        ("sidebar.primary.background", fill.to_string()),
+        ("sidebar.primary.foreground", text.to_string()),
+        ("ring", to_hex(readable(color, &surfaces, 3.0, dark))),
+        ("link", to_hex(readable(link, &surfaces, 4.5, dark))),
+        ("list.active.background", alpha("1a", "26")),
+        ("list.active.border", fill.to_string()),
+        ("selection.background", alpha("33", "4d")),
+    ] {
+        k[key] = value.into();
     }
-    c.font_size = Some(f32::from(s.ui_font_size));
-    c.mono_font_size = Some(f32::from(s.code_font_size));
-    if let Some(a) = accent(s.accent.as_deref()) {
-        let (fill, text) = if dark { a.dark } else { a.light };
-        let Some(color) = parse_hex(fill) else {
-            return c;
-        };
-        let shade = |up: bool| {
-            let shaded = if up == dark {
-                color.lighten(0.08)
-            } else {
-                color.darken(0.08)
-            };
-            Some(shaded.to_hex().into())
-        };
-        let k = &mut c.colors;
-        k.primary = Some(fill.into());
-        k.primary_hover = shade(true);
-        k.primary_active = shade(false);
-        k.primary_foreground = Some(text.into());
-        k.sidebar_primary = Some(fill.into());
-        k.sidebar_primary_foreground = Some(text.into());
-        // A preset is tuned for neutral canvases; a tinted one (Nord's slate, Gruvbox's cream) can sink it.
-        let surfaces: Vec<Hsla> = [&k.background, &k.sidebar, &k.popover]
-            .into_iter()
-            .filter_map(|c| try_parse_color(c.as_deref()?).ok())
-            .collect();
-        let link = parse_hex(if dark { a.dark_link } else { fill }).unwrap_or(color);
-        k.ring = Some(readable(color, &surfaces, 3.0, dark).to_hex().into());
-        k.link = Some(readable(link, &surfaces, 4.5, dark).to_hex().into());
-        k.list_active = Some(format!("{fill}{}", if dark { "26" } else { "1a" }).into());
-        k.list_active_border = Some(fill.into());
-        k.selection = Some(format!("{fill}{}", if dark { "4d" } else { "33" }).into());
-    }
-    c
 }
 
 /// WCAG relative luminance.
@@ -418,18 +430,10 @@ fn readable(mut c: Hsla, on: &[Hsla], min: f32, dark: bool) -> Hsla {
     c
 }
 
-/// A family's canvas, text and accent in light or dark, resolved the way the live theme resolves them (`None` before
-/// [`super::install_theme`]): the onboarding's theme tiles paint each family with it.
+/// A family's canvas, text and accent in light or dark, resolved the way the live theme resolves them, the user's
+/// accent preset included: the onboarding's theme tiles paint each family with it.
 pub fn swatch(key: &str, dark: bool, cx: &App) -> Option<[Hsla; 3]> {
     let f = FAMILIES.iter().find(|f| f.key == key)?;
-    let name = format!("{} {}", f.label, if dark { "Dark" } else { "Light" });
-    let config = ThemeRegistry::global(cx)
-        .themes()
-        .get(name.as_str())?
-        .clone();
-    // The user's accent preset too, as `apply` bakes it in, so the current family's tile matches the live theme.
-    let config = Rc::new(adjust(&config, &get(cx).clamped(), dark));
-    let mut theme = Theme::global(cx).clone();
-    theme.apply_config(&config);
-    Some([theme.background, theme.foreground, theme.primary])
+    let t = theme_load::resolve(f.json, dark, &get(cx).clamped()).ok()?;
+    Some([t.background, t.foreground, t.primary])
 }

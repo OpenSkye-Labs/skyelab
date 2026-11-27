@@ -2,11 +2,12 @@
 //! While `background::is_busy(cx)` is true, Restart to update opens a choice dialog instead of killing in-flight work.
 
 use super::{Step, UpdateStatus, Updates, set_step, shown};
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::workspace::quit_guard::{self, Blocker};
 use crate::workspace::{background, window_handles};
 use gpui::{App, AppContext as _, Global, SharedString, Task, Window, prelude::*};
-use gpui_component::{ActiveTheme as _, v_flex};
+use gpui_component::v_flex;
 use skyelab_core::update_install::{self as install, Staged};
 
 /// The most busy threads the confirmation dialog lists before "and N more".

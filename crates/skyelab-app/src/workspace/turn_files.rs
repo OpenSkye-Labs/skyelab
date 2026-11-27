@@ -11,10 +11,11 @@ use super::thread::ThreadView;
 use super::thread_items::ItemsView;
 use super::thread_model::Item;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, FontWeight, SharedString, Task, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 use std::collections::HashMap;
 use std::path::PathBuf;
 

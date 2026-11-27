@@ -3,12 +3,13 @@
 
 use super::ChangesView;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Checkbox;
 use crate::ui::SkyeIcon;
 use crate::workspace::changes_model::{LineKind, Row};
 use crate::workspace::changes_tree::{SplitRow, TreeRow};
 use gpui::{AnyElement, App, Context, FontWeight, Hsla, SharedString, Window, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex};
+use gpui_component::{Icon, Sizable as _, h_flex};
 use skyelab_git::ChangeKind;
 use std::ops::Range;
 
@@ -370,7 +371,7 @@ fn line_parts<E: ParentElement + Styled>(
     kind: LineKind,
     text: SharedString,
     wrap: bool,
-    theme: &gpui_component::Theme,
+    theme: &crate::ui::Theme,
 ) -> E {
     let num = |n: Option<u32>| {
         div()

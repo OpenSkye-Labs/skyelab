@@ -295,7 +295,8 @@ impl PreviewPanel {
 
     /// The "Changed on disk" / save error line under the header.
     pub(super) fn banner(&self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
-        use gpui_component::{ActiveTheme as _, h_flex};
+        use crate::ui::ActiveTheme as _;
+        use gpui_component::h_flex;
         let banner = self.edit.banner.clone()?;
         let theme = cx.theme();
         let row = h_flex()

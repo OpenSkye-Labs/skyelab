@@ -203,8 +203,9 @@ pub(super) fn prompt_row<V: ItemsView>(
     cx: &mut Context<V>,
 ) -> AnyElement {
     use crate::ui;
+    use crate::ui::ActiveTheme as _;
     use gpui::relative;
-    use gpui_component::{ActiveTheme as _, v_flex};
+    use gpui_component::v_flex;
     let theme = cx.theme();
     v_flex()
         .w_full()
@@ -245,7 +246,8 @@ pub(super) fn reply_row<V: ItemsView>(
     cx: &mut Context<V>,
 ) -> AnyElement {
     use crate::ui;
-    use gpui_component::{ActiveTheme as _, h_flex, v_flex};
+    use crate::ui::ActiveTheme as _;
+    use gpui_component::{h_flex, v_flex};
     let key = this.items().key(ix);
     let muted = cx.theme().muted_foreground;
     on_message(

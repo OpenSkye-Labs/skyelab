@@ -103,11 +103,12 @@ pub(in crate::workspace) use composer_popover::{hint, popover};
 pub(in crate::workspace) use composer_state::{Composer, SteerPrompt, Submit, shown_prompt};
 
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use composer_keys::MENU_CONTEXT;
 use composer_state::AttachFiles;
 use gpui::{AnyElement, Context, ExternalPaths, IntoElement, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, h_flex, input::Textarea, v_flex};
+use gpui_component::{Icon, h_flex, input::Textarea, v_flex};
 use thread::{SendPrompt, ThreadView};
 
 /// Under this card width the control row goes compact (T3 collapses its chips the same way).

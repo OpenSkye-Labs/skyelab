@@ -2,10 +2,10 @@
 
 use super::{Settings, widgets};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::updates::{self, UpdateStatus};
 use gpui::{AnyElement, Context, prelude::*};
-use gpui_component::ActiveTheme as _;
 
 impl Settings {
     pub(super) fn render_about(&self, cx: &mut Context<Self>) -> AnyElement {

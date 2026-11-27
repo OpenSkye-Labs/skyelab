@@ -4,6 +4,7 @@
 //! mod+F finds in the text with the thread's find bar; the editor's own matcher counts and highlights the matches.
 
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::workspace::thread_find::{
@@ -15,7 +16,6 @@ use gpui::{
     SharedString, Task, Window, div, img, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _,
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{Editor, EditorState, Position},

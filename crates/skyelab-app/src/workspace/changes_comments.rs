@@ -4,6 +4,7 @@
 
 use super::ChangesView;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::workspace::diff_comments::{DiffComment, DiffComments};
@@ -13,7 +14,7 @@ use gpui::{
     Window, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _, h_flex,
+    Icon, Sizable as _, h_flex,
     input::{InputEvent, Textarea, TextareaState},
     v_flex,
 };

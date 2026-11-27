@@ -5,13 +5,14 @@
 use super::Workspace;
 use crate::debug_mode;
 use crate::ui::A11yScrollArea as _;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{self, Button, SkyeIcon};
 use gpui::{
     AppContext as _, Context, InteractiveElement as _, IntoElement, ParentElement as _, Render,
     SharedString, StatefulInteractiveElement as _, Styled as _, Task, Window, actions, div,
     prelude::FluentBuilder as _, px,
 };
-use gpui_component::{ActiveTheme as _, h_flex, v_flex};
+use gpui_component::{h_flex, v_flex};
 use skyelab_core::debug;
 use std::time::Duration;
 

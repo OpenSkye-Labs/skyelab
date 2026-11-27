@@ -5,7 +5,6 @@
 
 use gpui::{BoxShadow, hsla, point, px};
 use gpui_base::{Easing, Spring};
-use gpui_component::theme::MotionTokens;
 use std::time::Duration;
 
 /// Rex's pane and sidebar spring: no overshoot, ω ≈ 41 rad/s (response 2π/ω). 93% of the way in 117 ms, at rest by
@@ -84,22 +83,8 @@ pub fn appear_since(
 }
 
 /// [`ease_out_quad`] as a bezier, for gpui-component's tokens.
-fn ease_out_quad_bezier() -> Easing {
+pub(super) fn ease_out_quad_bezier() -> Easing {
     Easing::cubic_bezier(0.25, 0.46, 0.45, 0.94).expect("static ease-out quad is valid")
-}
-
-/// gpui-component's motion tokens set to Rex's values, so its own pieces (dialog fades, dock tab bars, resize handles)
-/// move like ours.
-pub fn tokens() -> MotionTokens {
-    let mut m = MotionTokens::default();
-    m.duration_fast = FADE_FAST;
-    m.duration_normal = FADE;
-    m.duration_slow = Duration::from_millis(250);
-    m.easing_enter = ease_out_quad_bezier();
-    m.easing_move = ease_out_quad_bezier();
-    m.spring_control = SPRING;
-    m.spring_move = SPRING.with_epsilon(0.1);
-    m
 }
 
 /// Last OS-level Reduce Motion reading, combined with Settings → Appearance → Motion by [`apply_reduce_motion`].

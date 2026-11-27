@@ -7,10 +7,11 @@
 use super::thread::{ThreadView, ThreadViewEvent};
 use super::thread_list::{Shelf, ShelveThread};
 use super::{Workspace, lock};
+use crate::ui::ActiveTheme as _;
 use crate::ui::toast::{self, Toast};
 use crate::ui::{self, Button, SkyeIcon};
 use gpui::{AnyElement, AppContext as _, Context, FontWeight, Window, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, h_flex};
+use gpui_component::{Icon, h_flex};
 use skyelab_core::{limit_reset, snooze};
 
 /// How often the banner's "Resets in 25 min" is read again.

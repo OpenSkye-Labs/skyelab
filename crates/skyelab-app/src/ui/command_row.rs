@@ -3,11 +3,12 @@
 //! text and a chevron on a row that opens a page. The list around it draws the hover and selected background.
 
 use super::{BODY, Kbd, META, SkyeIcon};
+use crate::ui::ActiveTheme as _;
 use gpui::{
     App, FontWeight, HighlightStyle, IntoElement, ParentElement as _, RenderOnce, SharedString,
     Styled as _, StyledText, Window, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
+use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 use std::ops::Range;
 
 #[derive(IntoElement)]

@@ -2,11 +2,12 @@
 //! hairline that splits areas).
 
 use super::RADIUS_LG;
+use crate::ui::ActiveTheme as _;
 use gpui::{
     AnyElement, App, IntoElement, ParentElement, RenderOnce, StyleRefinement, Styled, Window, div,
     prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, v_flex};
+use gpui_component::v_flex;
 
 #[derive(IntoElement, Default)]
 pub struct Card {

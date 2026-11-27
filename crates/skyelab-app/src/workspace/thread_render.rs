@@ -4,6 +4,7 @@ use super::thread::{CONTEXT, ThreadView};
 use super::thread_find::FindHost as _;
 use super::{NewThread, OpenSettings, OpenThread, SelectProject};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Tooltip};
 use gpui::{
@@ -11,7 +12,7 @@ use gpui::{
 };
 use gpui_base::TestSupportExt as _;
 use gpui_component::{
-    ActiveTheme as _, Icon, h_flex,
+    Icon, h_flex,
     menu::{DropdownMenu as _, PopupMenuItem},
     v_flex,
 };

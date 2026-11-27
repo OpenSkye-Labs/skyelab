@@ -5,9 +5,10 @@ use super::thread_model::ToolItem;
 use super::tool_cards::chevron;
 use crate::ui;
 use crate::ui::A11yScrollArea as _;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 pub(super) use skyelab_agent::timeline::cards::{exit_status, plain_output};
 
 /// A shell command, T3's command block: `$ command` in mono with how it ended; opened, its output in a scroll box.

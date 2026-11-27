@@ -4,6 +4,7 @@
 use super::form::Kind;
 use super::page::{Editor, Pick, Row, ScheduledPage};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Checkbox, Switch, TextField};
 use crate::workspace::OpenThread;
@@ -12,7 +13,7 @@ use gpui::{
     Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, h_flex,
+    Icon, h_flex,
     input::Textarea,
     menu::{DropdownMenu as _, PopupMenuItem},
     v_flex,

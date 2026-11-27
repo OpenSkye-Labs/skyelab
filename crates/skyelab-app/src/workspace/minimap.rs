@@ -8,10 +8,11 @@
 //! order tree pays for every overlap: a third of each streaming frame went there (docs/gpui/redraw.md).
 
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::workspace::thread::ThreadView;
 use crate::workspace::thread_model::Item;
 use gpui::{AnyElement, Context, ListOffset, SharedString, Window, div, prelude::*, px, relative};
-use gpui_component::{ActiveTheme as _, StyledExt as _};
+use gpui_component::StyledExt as _;
 
 #[cfg(test)]
 #[path = "minimap_test.rs"]

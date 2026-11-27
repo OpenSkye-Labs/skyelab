@@ -31,7 +31,7 @@ impl Status {
     /// What an account card says: the words, their color, and the CLI's error (a tooltip) when it couldn't answer.
     pub fn label(
         status: Option<&Self>,
-        theme: &gpui_component::Theme,
+        theme: &crate::ui::Theme,
     ) -> (gpui::SharedString, gpui::Hsla, Option<gpui::SharedString>) {
         let ink = |c| crate::ui::ink(theme, c);
         match status {

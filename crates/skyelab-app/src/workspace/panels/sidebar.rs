@@ -346,7 +346,7 @@ impl Sidebar {
         item: &SidebarItem,
         indent: bool,
         now: i64,
-        theme: &gpui_component::Theme,
+        theme: &crate::ui::Theme,
     ) -> AnyElement {
         let row = sidebar_row(
             item,
@@ -369,7 +369,7 @@ impl Sidebar {
     }
 
     /// The archived threads' toggle row ("Archived 3").
-    fn archived_head(&self, theme: &gpui_component::Theme) -> gpui::Stateful<gpui::Div> {
+    fn archived_head(&self, theme: &crate::ui::Theme) -> gpui::Stateful<gpui::Div> {
         let (open, count, toggle) = self.archived.as_ref().map_or((false, 0, None), |a| {
             (a.open, a.items.len(), Some(a.toggle.boxed_clone()))
         });

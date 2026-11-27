@@ -5,6 +5,7 @@
 
 use super::thread::{self, ThreadView};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use futures::StreamExt as _;
@@ -13,7 +14,7 @@ use gpui::{
     AnyElement, App, Context, Global, InteractiveElement as _, KeyBinding, Task, Window, actions,
     div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, h_flex};
+use gpui_component::{Icon, h_flex};
 use skyelab_core::dictation::{Edit, Phase};
 use skyelab_speech_sys::{Capability, Event, Refusal};
 use std::rc::Rc;

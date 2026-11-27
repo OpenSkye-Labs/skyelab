@@ -3,10 +3,11 @@
 use super::thread::ThreadView;
 use super::thread_worktree::{OpenChanges, ToggleWorktree};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
+use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 
 /// The machine the thread runs on, as a chip that opens the machine menu (T3's environment selector).
 pub(in crate::workspace) fn machine_chip(

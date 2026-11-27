@@ -3,6 +3,7 @@
 
 use super::terminal_panel::{Pane, TabEvent, TerminalPanel};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
 use gpui::{
@@ -10,7 +11,7 @@ use gpui::{
     Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
+    Icon, Sizable as _,
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{InputEvent, InputState},

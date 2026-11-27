@@ -7,11 +7,12 @@ use super::timeline_text::{divider_text, limited_text};
 use super::tool_cards;
 pub(super) use super::tool_cards::tool_summary;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 use skyelab_agent::{Decision, DeltaKind};
 
 /// Longest tool input or result shown when a row is expanded; the store keeps the whole text.

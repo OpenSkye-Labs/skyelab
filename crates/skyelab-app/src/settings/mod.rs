@@ -1,6 +1,7 @@
 //! Settings, shown as a modal over the window: a searchable section nav and the chosen section.
 //! Thin: every account rule lives in `skyelab_core::AccountsConfig`.
 
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use anyhow::{Context as _, Result};
 use gpui::{
@@ -9,7 +10,7 @@ use gpui::{
     actions, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _,
+    Sizable as _,
     input::{Input, InputEvent, InputState},
 };
 use skyelab_core::{Account, AccountsConfig, Binding, Provider};

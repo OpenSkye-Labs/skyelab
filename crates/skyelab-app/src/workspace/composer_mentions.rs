@@ -3,10 +3,11 @@
 //! the text field steps the caret over it, deletes it whole, undoes it and copies its text, so the prompt's value
 //! (what is sent, drafted, stashed and queued) stays the plain text. This file only finds mentions and draws them.
 
+use crate::ui::ActiveTheme as _;
 use crate::ui::{self, SkyeIcon};
 use gpui::{AnyElement, App, Entity, FontWeight, IntoElement, Styled as _, div, prelude::*, px};
 use gpui_component::{
-    ActiveTheme as _, Icon, h_flex,
+    Icon, h_flex,
     input::{InlineToken, InlineTokenContext, InputContent, TextareaState},
 };
 use skyelab_core::Provider;

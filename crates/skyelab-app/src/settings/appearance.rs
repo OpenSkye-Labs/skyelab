@@ -6,19 +6,11 @@ use super::*;
 use crate::ui::SkyeIcon;
 use crate::ui::{self, SegmentedControl, Size, themes};
 use gpui::{Hsla, accesskit};
-use gpui_component::{Icon, h_flex, try_parse_color, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 use skyelab_core::{AppearanceSettings, ColorMode, MotionMode};
 
 /// One theme card in the wrapping grid.
 const THEME_CARD_W: f32 = 148.;
-
-/// A theme config color by its key, for the previews.
-fn color(
-    config: &gpui_component::ThemeConfig,
-    pick: impl Fn(&gpui_component::ThemeConfigColors) -> Option<SharedString>,
-) -> Option<Hsla> {
-    pick(&config.colors).and_then(|c| try_parse_color(&c).ok())
-}
 
 impl Settings {
     fn set_appearance(
@@ -176,21 +168,11 @@ impl Settings {
         cx: &mut Context<Self>,
     ) -> super::scroll::TrackedButton {
         let theme = cx.theme();
-        let side = if theme.is_dark() { "Dark" } else { "Light" };
-        let registry = gpui_component::ThemeRegistry::global(cx);
-        let config = registry
-            .themes()
-            .get(format!("{} {side}", f.label).as_str())
-            .cloned();
-        let pick = |p: fn(&gpui_component::ThemeConfigColors) -> Option<SharedString>, or: Hsla| {
-            config.as_ref().and_then(|c| color(c, p)).unwrap_or(or)
-        };
-        let bg = pick(|c| c.background.clone(), theme.background);
-        let side_bg = pick(|c| c.sidebar.clone(), theme.sidebar);
-        let fg = pick(|c| c.foreground.clone(), theme.foreground);
-        let muted = pick(|c| c.muted_foreground.clone(), theme.muted_foreground);
-        let primary = pick(|c| c.primary.clone(), theme.primary);
-        let border = pick(|c| c.border.clone(), theme.border);
+        // The family's own colors in this mode, without the accent preset.
+        let own = crate::ui::theme_load::resolve(f.json, theme.is_dark(), &Default::default()).ok();
+        let own = own.as_ref().unwrap_or(theme);
+        let (bg, side_bg, fg) = (own.background, own.sidebar, own.foreground);
+        let (muted, primary, border) = (own.muted_foreground, own.primary, own.border);
         let ring = theme.ring;
         let accent_hover = theme.accent;
         let bar = |w: f32, c: Hsla| div().h(gpui::px(4.)).w(gpui::px(w)).rounded_full().bg(c);
@@ -324,7 +306,9 @@ impl Settings {
             .children(
                 std::iter::once(own)
                     .map(|(k, l, _)| (k, l, None))
-                    .chain(presets.map(|(k, l, hex)| (k, l, try_parse_color(hex).ok())))
+                    .chain(
+                        presets.map(|(k, l, hex)| (k, l, crate::ui::theme_load::parse_color(hex))),
+                    )
                     .map(|(key, label, fill)| {
                         let on = current.as_deref() == key;
                         let theme = cx.theme();

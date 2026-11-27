@@ -5,6 +5,7 @@
 //! Try again, Release page). Shown only while `updates` has one.
 
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::updates::{Step, UpdateStatus, Updates};
@@ -15,7 +16,7 @@ use gpui::{
     RenderOnce, StatefulInteractiveElement as _, Styled as _, Window, div, px, relative,
 };
 use gpui_component::popover::Popover;
-use gpui_component::{ActiveTheme as _, Icon, Selectable, h_flex, v_flex};
+use gpui_component::{Icon, Selectable, h_flex, v_flex};
 use std::cell::Cell;
 use std::rc::Rc;
 

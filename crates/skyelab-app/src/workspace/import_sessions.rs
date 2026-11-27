@@ -6,6 +6,7 @@ use super::thread_model::Record;
 use super::{Workspace, lock};
 use crate::ui;
 use crate::ui::A11yScrollArea as _;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, Checkbox};
 use anyhow::{Context as _, Result, bail};
 use gpui::{
@@ -13,7 +14,7 @@ use gpui::{
     Render, SharedString, StatefulInteractiveElement as _, Styled as _, WeakEntity, Window,
     actions, div, prelude::FluentBuilder as _,
 };
-use gpui_component::{ActiveTheme as _, h_flex, v_flex};
+use gpui_component::{h_flex, v_flex};
 use skyelab_agent::import::{self, Entry, MAX_TRANSCRIPT_BYTES, Transcript};
 use skyelab_core::{Account, AccountsConfig};
 use skyelab_store::{NewThread, Project, Thread};

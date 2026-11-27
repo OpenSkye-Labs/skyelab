@@ -5,10 +5,11 @@ use super::{On, OpenInEditorWith, Page, editor_name, is_running};
 use crate::ui;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{ActiveTheme as _, Theme};
 use gpui::{
     AnyElement, App, ClickEvent, Context, FontWeight, SharedString, Window, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, Theme, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 
 impl ThreadView {
     /// The card's content: a picker page when one is open, else its titled sections with `usage` (every account's,

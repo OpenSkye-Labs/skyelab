@@ -2,11 +2,12 @@
 //! badges, pills, dots, section headers, empty states, rows, headers, key hints, settings groups.
 
 use super::{BODY, HEADER_H, META, PAGE, RADIUS_MD, RADIUS_SM, ROW_H, SECTION};
+use crate::ui::{ActiveTheme as _, Theme};
 use gpui::{
     AnyElement, App, Div, ElementId, FontWeight, Hsla, IntoElement, SharedString, Stateful, Window,
     div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Theme, h_flex, v_flex};
+use gpui_component::{h_flex, v_flex};
 use skyelab_core::Provider;
 
 /// The account identity, SkyeLab's one addition to T3's language: a dot in the account's own color, its label, and its

@@ -3,6 +3,7 @@
 
 use crate::palette::score;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use gpui::{
     App, AppContext as _, Context, Entity, FocusHandle, IntoElement, KeyBinding,
@@ -10,7 +11,7 @@ use gpui::{
     px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon,
+    Icon,
     command::{Command, CommandItem, CommandState},
     h_flex,
 };

@@ -6,6 +6,7 @@ use super::super::thread::{GitAction, ThreadViewEvent};
 use super::super::thread_worktree::{DiscardWorktree, OpenChanges, OpenWorktreeTerminal};
 use super::card::{chevron, row};
 use super::{On, Page, is_running};
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::{self, Status, TextField};
@@ -14,7 +15,7 @@ use gpui::{
     AnyElement, App, AppContext as _, Context, FontWeight, SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, h_flex,
+    h_flex,
     input::{InputEvent, InputState},
     v_flex,
 };

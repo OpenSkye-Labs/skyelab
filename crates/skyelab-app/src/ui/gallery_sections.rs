@@ -1,13 +1,14 @@
 //! Stateless section builders for the UI Gallery (`gallery.rs`): buttons, badges, palette rows, and toast samples.
 
 use super::UiGallery;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{
     AccountBadge, Button, CommandRow, Kbd, META, Pill, RADIUS_MD, SectionHeader, Size, SkyeIcon,
     StatusDot, Variant, account_color_in, icon_button, provider_logo, toast,
 };
 use gpui::{App, IntoElement, ParentElement as _, SharedString, Styled as _, div, prelude::*, px};
 use gpui_component::{
-    ActiveTheme as _, h_flex,
+    h_flex,
     menu::{DropdownMenu as _, PopupMenuItem},
     v_flex,
 };

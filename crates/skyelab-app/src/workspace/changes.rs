@@ -20,6 +20,7 @@ use super::changes_model::{self, Changes, Scope};
 use super::changes_tree::{self, SplitRow, TreeRow};
 use super::thread::ThreadView;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{
@@ -27,7 +28,7 @@ use gpui::{
     MouseButton, SharedString, Task, Window, actions, div, list, prelude::*, px, uniform_list,
 };
 use gpui_component::{
-    ActiveTheme as _, h_flex,
+    h_flex,
     input::{InputState, TextareaState},
     v_flex,
 };

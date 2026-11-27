@@ -6,6 +6,7 @@
 
 use super::usage_page_render::segments;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Checkbox, TextField};
 use gpui::{
@@ -13,7 +14,7 @@ use gpui::{
     prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _, h_flex,
+    Icon, Sizable as _, h_flex,
     input::{InputEvent, InputState},
     v_flex,
 };
@@ -444,7 +445,7 @@ impl PrActions {
     }
 }
 
-fn section(title: &'static str, theme: &gpui_component::Theme) -> impl IntoElement {
+fn section(title: &'static str, theme: &crate::ui::Theme) -> impl IntoElement {
     div()
         .text_size(ui::META)
         .font_weight(gpui::FontWeight::MEDIUM)

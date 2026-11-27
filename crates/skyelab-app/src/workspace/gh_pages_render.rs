@@ -10,12 +10,13 @@ use super::usage_page_render::segments;
 use crate::ui;
 use crate::ui::A11yScrollArea as _;
 use crate::ui::SkyeIcon;
+use crate::ui::{ActiveTheme as _, Theme};
 use crate::ui::{Button, Tooltip};
 use gpui::{
     AnyElement, Context, Focusable as _, FontWeight, Hsla, IntoElement, Render, SharedString,
     Window, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _, Theme, h_flex, v_flex};
+use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 use skyelab_git::{IssueFilter, IssueRow, PrFilter, PrRow, PrState};
 
 const PR_FILTERS: [(Filter, &str); 3] = [

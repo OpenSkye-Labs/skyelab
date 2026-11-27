@@ -4,6 +4,7 @@
 
 use super::Onboarding;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
@@ -11,7 +12,7 @@ use gpui::{
     AnyElement, Context, Div, FontWeight, IntoElement, ParentElement as _, SharedString, div,
     prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 
 pub(super) fn home_relative(p: &std::path::Path, home: Option<&std::path::Path>) -> SharedString {
     match home.and_then(|h| p.strip_prefix(h).ok()) {

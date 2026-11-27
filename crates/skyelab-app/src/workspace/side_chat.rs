@@ -7,6 +7,7 @@ use super::thread::composer::composer_context::ChipKind;
 use super::thread::{ThreadView, ThreadViewEvent};
 use super::thread_model::Item;
 use super::{Workspace, lock};
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use anyhow::{Result, bail};
 use gpui::Global;
@@ -15,7 +16,6 @@ use gpui::{
     Subscription, WeakEntity, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _,
     dock::{Panel, PanelEvent},
     h_flex, v_flex,
 };

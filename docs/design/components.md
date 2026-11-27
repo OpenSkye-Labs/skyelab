@@ -95,7 +95,7 @@ reaches for these.
 
 ## Restyling
 
-- **Colors**: change the theme JSON (`crates/skyelab-app/themes/*.json`). A button's look is one function,
+- **Colors**: change the theme JSON (`crates/skyelab-app/themes/*.json`; hex colors only, read by `ui::theme_load`). A button's look is one function,
   `ui::button::colors(variant, selected, theme)`, which maps each variant to theme fields. Change that function to
   change which fields a variant uses.
 - **Sizes**: change `ui::Size` (heights, text, icons, padding, gap, radius). Every control follows it.

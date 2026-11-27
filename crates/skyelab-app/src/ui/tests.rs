@@ -1,6 +1,6 @@
 use super::{Status, account_color, ago, folder_path, short_path};
+use crate::ui::{ActiveTheme as _, Theme};
 use gpui::TestAppContext;
-use gpui_component::{ActiveTheme as _, Theme};
 use std::path::Path;
 
 /// The real default theme (`Theme::default()` has every color zeroed).
@@ -135,13 +135,27 @@ fn skyelab_theme_installs_for_both_modes(cx: &mut TestAppContext) {
     let (light, dark) = cx.update(|cx| {
         gpui_component::init(cx);
         super::install_theme(cx).expect("skyelab.json parses and names both themes");
-        Theme::change(gpui_component::ThemeMode::Light, None, cx);
+        crate::ui::themes::set(
+            skyelab_core::AppearanceSettings {
+                mode: skyelab_core::ColorMode::Light,
+                ..crate::ui::themes::get(cx)
+            },
+            cx,
+        )
+        .detach();
         let light = cx.theme().clone();
-        Theme::change(gpui_component::ThemeMode::Dark, None, cx);
+        crate::ui::themes::set(
+            skyelab_core::AppearanceSettings {
+                mode: skyelab_core::ColorMode::Dark,
+                ..crate::ui::themes::get(cx)
+            },
+            cx,
+        )
+        .detach();
         (light, cx.theme().clone())
     });
-    assert_eq!(light.light_theme.name, "SkyeLab Light");
-    assert_eq!(dark.dark_theme.name, "SkyeLab Dark");
+    assert_eq!(light.highlight_theme.name, "SkyeLab Light");
+    assert_eq!(dark.highlight_theme.name, "SkyeLab Dark");
     // Porcelain by day, midnight slate by night.
     assert!(
         light.background.l > 0.96,

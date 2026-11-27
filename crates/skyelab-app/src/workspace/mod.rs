@@ -158,6 +158,7 @@ pub use windows::{
 mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
+use crate::ui::ActiveTheme as _;
 use center::{Center, Page};
 pub use github::{AntigravityBin, CodexBin, CursorBin, GhBin};
 pub(crate) use github::{gh_bin, gh_login_options};
@@ -166,7 +167,6 @@ use gpui::{
     Window, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _,
     dock::{DockArea, DockLayout, DockPlacement, DockSkin, panel_handle},
     v_flex,
 };

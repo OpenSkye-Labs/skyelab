@@ -9,11 +9,12 @@ use crate::remote::{
     AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, Reply,
     RevokeDevice, ToggleSharing,
 };
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use gpui::{
     AppContext as _, Context, Entity, IntoElement, Subscription, Task, Window, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, h_flex};
+use gpui_component::h_flex;
 
 pub(super) struct RemoteHook {
     remote: Entity<Remote>,
