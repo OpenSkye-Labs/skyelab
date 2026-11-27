@@ -149,7 +149,7 @@ impl ThreadView {
     /// The running children, then a row to the finished ones; titled with how many run.
     pub(super) fn render_lineage(&self, on: &On, cx: &App) -> Option<(SharedString, AnyElement)> {
         let source = self.composer.extras.forked_from.clone();
-        if self.children.is_empty() && source.is_none() {
+        if self.children.is_empty() && self.details.remote.is_empty() && source.is_none() {
             return None;
         }
         let theme = cx.theme();
@@ -175,6 +175,7 @@ impl ThreadView {
         let body = v_flex()
             .children(source)
             .children(running.into_iter().map(|c| self.agent_row(c, on, cx)))
+            .children(self.remote_rows(on, cx))
             .when(previous > 0, |v| {
                 v.child(
                     row("details-previous", SkyeIcon::Bot, "Previous agents", theme)

@@ -271,6 +271,7 @@ impl AppHost {
                 "thread {thread_id} started on {machine} but couldn't be recorded here ({e}); {how}"
             ));
         }
+        let _ = self.calls.send(OrchCall::ChildRecorded { parent: me.id });
         Ok(json!({"thread_id": thread_id, "machine": machine}))
     }
 

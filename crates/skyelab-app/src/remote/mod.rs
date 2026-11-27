@@ -1,6 +1,7 @@
 //! Sharing this machine on the user's tailnet. The daemon does all the gating; this only turns it on and off.
 
 mod agents;
+pub mod delegation_panel;
 mod panel;
 
 pub(crate) use agents::internal;
@@ -129,6 +130,11 @@ pub struct Remote {
     pub approved: Vec<ApprovedDevice>,
     /// Callers on other machines refused for want of a delegation link, as the daemon lists them.
     pub delegation_requests: Vec<skyelab_daemon::DelegationRequest>,
+    /// The local account (id, label) signed in to each request's login: `None` when none is, absent until checked.
+    pub delegation_matches:
+        std::collections::HashMap<delegation_panel::CallerKey, Option<(String, String)>>,
+    /// The delegation links in settings.toml.
+    pub delegation_links: Vec<skyelab_core::delegation_remote::DelegationLink>,
     /// Why the last Allow or Revoke couldn't be saved.
     pub approval_error: Option<String>,
     /// Revokes whose save failed: kept out of every later save, so a later Allow can't bring them back.
@@ -157,6 +163,8 @@ impl Remote {
             requests: Vec::new(),
             approved: Vec::new(),
             delegation_requests: Vec::new(),
+            delegation_matches: Default::default(),
+            delegation_links: Vec::new(),
             approval_error: None,
             unsaved_revokes: Vec::new(),
             generation: Arc::default(),
@@ -167,6 +175,7 @@ impl Remote {
         };
         if let Some(Ok(s)) = &loaded {
             this.approved = s.approved_devices.clone();
+            this.delegation_links = s.delegation.links.clone();
         }
         match loaded {
             Some(Ok(s)) if s.share_on_tailnet => {

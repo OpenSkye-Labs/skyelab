@@ -44,3 +44,9 @@ mod remote_delegation_children_test;
 
 #[path = "remote_delegation_offline_test.rs"]
 mod remote_delegation_offline_test;
+
+#[path = "remote_delegation_header_test.rs"]
+mod remote_delegation_header_test;
+
+#[path = "remote_delegation_panel_test.rs"]
+mod remote_delegation_panel_test;

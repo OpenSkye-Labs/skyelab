@@ -265,6 +265,7 @@ impl Render for RemotePanel {
                                 .map(|e| div().px_1().text_color(crate::ui::ink(theme, theme.danger)).child(e)),
                         ),
                     )
+                    .children(super::delegation_panel::sections(remote, theme))
                     .child(section("Connected devices", peers)),
             )
     }

@@ -30,6 +30,8 @@ mod card;
 mod git;
 #[path = "thread_details_pr.rs"]
 mod pr;
+#[path = "thread_details_remote.rs"]
+pub(super) mod remote;
 #[cfg(test)]
 #[path = "thread_details_test.rs"]
 mod tests;
@@ -65,6 +67,8 @@ pub struct Details {
     pub(in crate::workspace) side_chats: Vec<(i64, SharedString)>,
     /// The MCP servers of the thread's latest agent process, as it reported them.
     pub(in crate::workspace) mcp: Vec<skyelab_agent::McpServer>,
+    /// The threads this one started on other machines, as recorded here.
+    pub(in crate::workspace) remote: Vec<skyelab_store::RemoteChild>,
     /// Who the Commit & push menu pushes as: the account's GitHub login, or why there is none.
     pub(in crate::workspace) gh_login: Option<SharedString>,
     /// The "Link pull request…" field and what was wrong with the last link.
@@ -184,6 +188,7 @@ pub(in crate::workspace) struct DetailsSig {
     stat: Option<(u64, u64)>,
     editors: Option<Editors>,
     side_chats: Vec<(i64, SharedString)>,
+    remote: Vec<skyelab_store::RemoteChild>,
     mcp: Vec<skyelab_agent::McpServer>,
     gh_login: Option<SharedString>,
     pr_input: Option<gpui::EntityId>,
@@ -208,6 +213,7 @@ impl ThreadView {
             stat: d.stat,
             editors: d.editors.clone(),
             side_chats: d.side_chats.clone(),
+            remote: d.remote.clone(),
             mcp: d.mcp.clone(),
             gh_login: d.gh_login.clone(),
             pr_input: d.pr_input.as_ref().map(|i| i.entity_id()),
@@ -271,17 +277,25 @@ impl ThreadView {
     pub(super) fn load_details(&mut self, cx: &mut Context<Self>) {
         let cwd = self.cwd.clone();
         let base = self.thread.as_ref().and_then(|t| t.worktree_base.clone());
+        let (store, id) = (
+            self.backend.store.clone(),
+            self.thread.as_ref().map(|t| t.id),
+        );
         let task = cx.background_spawn(async move {
             let stat = skyelab_git::diff_stat(&cwd, base.as_deref()).ok();
             let sync = skyelab_git::ahead_behind(&cwd).ok().flatten();
             let machine = super::thread::composer::machine_name().map(SharedString::from);
-            (stat, sync, editors(), machine)
+            let remote = id
+                .and_then(|id| super::lock(&store).and_then(|s| s.remote_children(id)).ok())
+                .unwrap_or_default();
+            (stat, sync, editors(), machine, remote)
         });
         // This read covers the stat too: an older watch read must not land after it.
         self.details._stat = None;
         self.details._load = Some(cx.spawn(async move |this, cx| {
-            let (stat, sync, editors, machine) = task.await;
+            let (stat, sync, editors, machine, remote) = task.await;
             let _ = this.update(cx, |this, cx| {
+                this.details.remote = remote;
                 this.details.stat = stat;
                 this.details.sync = sync;
                 this.details.editors = Some(editors);

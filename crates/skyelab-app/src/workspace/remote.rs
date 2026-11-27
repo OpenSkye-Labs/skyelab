@@ -36,7 +36,10 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.remote = Some(RemoteHook {
-            _observe: cx.observe(&remote, |_, _, cx| cx.notify()),
+            _observe: cx.observe(&remote, |this, _, cx| {
+                this.match_delegation_requests(cx);
+                cx.notify()
+            }),
             remote,
             panel: None,
             _calls: None,

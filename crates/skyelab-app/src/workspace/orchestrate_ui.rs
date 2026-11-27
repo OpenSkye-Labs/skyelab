@@ -130,6 +130,11 @@ impl Workspace {
                     self.remote_out(call, window, cx);
                 }
             }
+            OrchCall::ChildRecorded { parent } => {
+                if let Some(view) = self.open_view(parent, cx) {
+                    view.update(cx, |v, cx| v.load_details(cx));
+                }
+            }
             OrchCall::Machines { reply } => {
                 let _ = reply.send(Ok(self.delegation_machines(cx)));
             }

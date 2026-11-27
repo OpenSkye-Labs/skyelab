@@ -71,6 +71,8 @@ pub enum OrchCall {
     },
     /// A delegation call to another machine (`delegate_out.rs`), sent on its linked connection.
     Remote(delegate_out::RemoteCall),
+    /// A thread recorded a child it started on another machine: its details card lists it now.
+    ChildRecorded { parent: i64 },
     /// The machines this agent may delegate to.
     Machines { reply: Reply<Vec<Value>> },
 }

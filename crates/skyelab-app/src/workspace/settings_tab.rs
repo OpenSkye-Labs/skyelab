@@ -203,6 +203,10 @@ impl Workspace {
         let machines = self
             .env_picker()
             .map(|p| cx.new(|cx| machines_page::MachinesPage::new(p, sharing, cx)));
+        let rows = self.delegation_rows();
+        if let Some(page) = &machines {
+            page.update(cx, |p, cx| p.set_delegation(rows, cx));
+        }
         let usage = cx.new(usage_page::UsagePage::new);
         let (store, accounts) = (self.backend.store.clone(), self.accounts_path.clone());
         let rules = cx.new(|cx| super::ProjectRulesPage::new(store.clone(), cx));
