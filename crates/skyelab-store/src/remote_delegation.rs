@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS delegated_from (
     request_id       TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS delegated_from_request
-    ON delegated_from(origin_node, origin_store, parent_thread_id, request_id) WHERE request_id IS NOT NULL;
+    ON delegated_from(origin_node, origin_store, parent_thread_id, origin_account, request_id)
+    WHERE request_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS delegated_from_parent ON delegated_from(origin_node, origin_store, parent_thread_id);
 CREATE TABLE IF NOT EXISTS store_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 INSERT OR IGNORE INTO store_meta VALUES ('store_id', lower(hex(randomblob(16))));
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS remote_children (
     node_id          TEXT NOT NULL,
     thread_id        INTEGER NOT NULL,
     title            TEXT NOT NULL DEFAULT '',
+    status           TEXT NOT NULL DEFAULT '',
     created_at       INTEGER NOT NULL,
     PRIMARY KEY (parent_thread_id, node_id, thread_id)
 );
@@ -63,6 +65,8 @@ pub struct RemoteChild {
     /// Its id on that machine.
     pub thread_id: i64,
     pub title: String,
+    /// Its status as last read from that machine; empty when it couldn't be read (counted as busy).
+    pub status: String,
     pub created_at: i64,
 }
 
@@ -92,6 +96,20 @@ impl Store {
                 |r| r.get(0),
             )
             .context("reading the store id")
+    }
+
+    /// Creates a thread another machine's agent asked for and records where it came from, in one transaction.
+    /// Fails if that caller already has a thread under the request id.
+    pub fn create_thread_from(
+        &self,
+        new: &crate::NewThread,
+        o: &DelegatedOrigin,
+    ) -> Result<crate::Thread> {
+        let tx = self.conn.unchecked_transaction()?;
+        let thread = self.create_thread(new)?;
+        self.set_delegated_from(thread.id, o)?;
+        tx.commit()?;
+        Ok(thread)
     }
 
     /// Records where `thread_id` came from. Fails if the caller already has a thread under that request id.
@@ -129,39 +147,24 @@ impl Store {
 
     /// Every thread another machine's agent started here, by id.
     pub fn all_delegated_from(&self) -> Result<std::collections::HashMap<i64, DelegatedOrigin>> {
-        let mut stmt = self.conn.prepare(&format!(
-            "SELECT thread_id, {ORIGIN_COLS} FROM delegated_from"
-        ))?;
-        let rows = stmt.query_map([], |r| {
-            let o = DelegatedOrigin {
-                origin_node: r.get(1)?,
-                origin_store: r.get(2)?,
-                origin_machine: r.get(3)?,
-                parent_thread_id: r.get(4)?,
-                parent_title: r.get(5)?,
-                origin_account: r.get(6)?,
-                depth: r.get(7)?,
-                request_id: r.get(8)?,
-            };
-            Ok((r.get(0)?, o))
-        })?;
+        let sql = format!("SELECT {ORIGIN_COLS}, thread_id FROM delegated_from");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([], |r| Ok((r.get(8)?, origin_from_row(r)?)))?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     /// The thread this caller already started under `request_id`, if any.
     pub fn delegated_by_request(
         &self,
-        node: &str,
-        store: &str,
-        parent: i64,
+        (node, store, parent, account): (&str, &str, i64, &str),
         request_id: &str,
     ) -> Result<Option<i64>> {
         Ok(self
             .conn
             .query_row(
                 "SELECT thread_id FROM delegated_from WHERE origin_node = ?1 AND origin_store = ?2 \
-                 AND parent_thread_id = ?3 AND request_id = ?4",
-                params![node, store, parent, request_id],
+                 AND parent_thread_id = ?3 AND origin_account = ?4 AND request_id = ?5",
+                params![node, store, parent, account, request_id],
                 |r| r.get(0),
             )
             .optional()?)
@@ -183,22 +186,38 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// Records a thread `parent` started on another machine.
+    /// Records a thread `parent` started on another machine; recording it again updates its name and status.
     pub fn add_remote_child(&self, c: &RemoteChild) -> Result<()> {
         self.conn
             .execute(
-                "INSERT OR IGNORE INTO remote_children (parent_thread_id, machine, node_id, thread_id, title, created_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![c.parent_thread_id, c.machine, c.node_id, c.thread_id, c.title, now_ms()],
+                "INSERT INTO remote_children (parent_thread_id, machine, node_id, thread_id, title, status, created_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ON CONFLICT (parent_thread_id, node_id, thread_id) \
+                 DO UPDATE SET machine = excluded.machine, status = excluded.status",
+                params![c.parent_thread_id, c.machine, c.node_id, c.thread_id, c.title, c.status, now_ms()],
             )
             .context("recording the thread started on another machine")?;
+        Ok(())
+    }
+
+    /// The status a remote child last answered with ("" when it couldn't be reached).
+    pub fn set_remote_child_status(
+        &self,
+        parent: i64,
+        node: &str,
+        thread_id: i64,
+        status: &str,
+    ) -> Result<()> {
+        self.conn.execute(
+            "UPDATE remote_children SET status = ?4 WHERE parent_thread_id = ?1 AND node_id = ?2 AND thread_id = ?3",
+            params![parent, node, thread_id, status],
+        )?;
         Ok(())
     }
 
     /// The threads `parent` started on other machines, oldest first.
     pub fn remote_children(&self, parent: i64) -> Result<Vec<RemoteChild>> {
         let mut stmt = self.conn.prepare(
-            "SELECT parent_thread_id, machine, node_id, thread_id, title, created_at FROM remote_children \
+            "SELECT parent_thread_id, machine, node_id, thread_id, title, status, created_at FROM remote_children \
              WHERE parent_thread_id = ?1 ORDER BY created_at, thread_id",
         )?;
         let rows = stmt.query_map([parent], |r| {
@@ -208,7 +227,8 @@ impl Store {
                 node_id: r.get(2)?,
                 thread_id: r.get(3)?,
                 title: r.get(4)?,
-                created_at: r.get(5)?,
+                status: r.get(5)?,
+                created_at: r.get(6)?,
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -268,13 +288,13 @@ mod tests {
             .expect("no request id");
         assert_eq!(
             store
-                .delegated_by_request("nA", "s", 7, "r1")
+                .delegated_by_request(("nA", "s", 7, "x"), "r1")
                 .expect("read"),
             Some(a)
         );
         assert_eq!(
             store
-                .delegated_by_request("nA", "other", 7, "r1")
+                .delegated_by_request(("nA", "other", 7, "x"), "r1")
                 .expect("read"),
             None
         );
@@ -303,5 +323,54 @@ mod tests {
             "goes with its thread"
         );
         assert_eq!(store.store_id().expect("id").len(), 32);
+    }
+}
+
+#[cfg(test)]
+mod remote_children_tests {
+    use super::*;
+
+    fn child(machine: &str, status: &str) -> RemoteChild {
+        RemoteChild {
+            parent_thread_id: 1,
+            machine: machine.into(),
+            node_id: "nB".into(),
+            thread_id: 7,
+            title: "child".into(),
+            status: status.into(),
+            created_at: 0,
+        }
+    }
+
+    #[test]
+    fn recording_again_updates_the_name_and_status() {
+        let store = Store::open_in_memory().expect("store");
+        let p = store
+            .create_project("p", std::path::Path::new("/w/p"))
+            .expect("project");
+        store
+            .create_thread(&crate::NewThread {
+                project_id: p.id,
+                title: "parent",
+                cwd: &p.path,
+                account_id: "work",
+                status: "running",
+            })
+            .expect("parent");
+        store
+            .add_remote_child(&child("old.example.ts.net", "starting"))
+            .expect("first");
+        store
+            .add_remote_child(&child("new.example.ts.net", "starting"))
+            .expect("again");
+        store
+            .set_remote_child_status(1, "nB", 7, "idle")
+            .expect("status");
+        let rows = store.remote_children(1).expect("read");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            (rows[0].machine.as_str(), rows[0].status.as_str()),
+            ("new.example.ts.net", "idle")
+        );
     }
 }

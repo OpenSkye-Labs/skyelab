@@ -127,7 +127,7 @@ impl Workspace {
             }
             OrchCall::Remote(call) => {
                 if !call.is_abandoned() {
-                    self.remote_out(call, window, cx);
+                    self.remote_out(*call, window, cx);
                 }
             }
             OrchCall::ChildRecorded { parent } => {

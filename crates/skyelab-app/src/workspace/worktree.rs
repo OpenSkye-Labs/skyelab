@@ -156,16 +156,11 @@ pub(super) fn save(
         if let Some(o) = remote {
             super::child_slots::claim_for(&store, &super::child_slots::remote_key(o), None)?;
         }
-        let mut thread = store.create_thread(new)?;
-        // Before the agent spawns, with its request id: a retried start finds this row.
-        if let Some(o) = remote
-            && let Err(e) = store.set_delegated_from(thread.id, o)
-        {
-            return Err(match store.delete_thread(thread.id) {
-                Ok(()) => e,
-                Err(d) => e.context(format!("deleting its half-saved row also failed: {d}")),
-            });
-        }
+        // With its origin and request id before the agent spawns, so a retried start finds this row.
+        let mut thread = match remote {
+            Some(o) => store.create_thread_from(new, o)?,
+            None => store.create_thread(new)?,
+        };
         if let Some(parent) = parent {
             let linked = store.set_thread_parent(thread.id, Some(parent));
             if let Err(e) = linked {

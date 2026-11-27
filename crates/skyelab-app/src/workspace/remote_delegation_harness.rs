@@ -50,7 +50,6 @@ pub(super) fn link(local: &str) -> DelegationLink {
         key_hash: device_key_hash(DEVICE_KEY),
         machine: A_NAME.into(),
         origin_account: "x".into(),
-        origin_label: "Work".into(),
         login: Login {
             provider: Provider::Claude,
             email: EMAIL.into(),
@@ -294,7 +293,7 @@ pub(super) fn wait_for_agent(b: &B, id: i64, cx: &mut VisualTestContext) -> Stri
     seen
 }
 
-/// Rows (`running` by default) delegated from `node` by `(store, parent)`, as if started earlier.
+/// Rows with `status` delegated from `node` by `(store, parent)`, as if started earlier.
 pub(super) fn seed_children(b: &B, node: &str, store_id: &str, parent: i64, n: usize, status: &str) -> Vec<i64> {
     let s = lock(&b.store).expect("lock");
     let project = s.project(b.project("work-b")).expect("read").expect("project");

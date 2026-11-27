@@ -59,6 +59,9 @@ impl Workspace {
         cx.spawn(async move |_, cx| {
             let found = read.await;
             remote.update(cx, |r, cx| {
+                let now = std::time::Instant::now();
+                r.delegation_checked
+                    .extend(found.keys().map(|k| (k.clone(), now)));
                 r.delegation_matches.extend(found);
                 cx.notify();
             });
@@ -84,19 +87,18 @@ impl Workspace {
             .cloned();
         let matched = r.delegation_matches.get(&key).cloned().flatten();
         let path = r.settings_path().map(std::path::Path::to_path_buf);
-        // The account shown when the user clicked must still be the one the login matches.
         let (Some(request), Some((local, _)), Some(path)) = (request, matched, path) else {
             return;
         };
-        if local != a.local_account {
+        let account = self.config.accounts.iter().find(|x| x.id == local).cloned();
+        let (Some(account), true) = (account, local == a.local_account) else {
             return;
-        }
+        };
         let link = DelegationLink {
             node_id: request.origin.node_id.clone(),
             key_hash: request.origin.key_hash.clone(),
             machine: request.origin.device.clone(),
             origin_account: request.account_id.clone(),
-            origin_label: request.account_id.clone(),
             login: Login {
                 provider: Provider::Claude,
                 email: request.email.to_ascii_lowercase(),
@@ -104,22 +106,35 @@ impl Workspace {
             },
             local_account: local,
         };
-        let saved = AppSettings::update(&path, |s| s.link_delegation(link))
-            .map(|(s, ())| s.delegation.links);
-        remote.update(cx, |r, cx| {
-            match saved {
-                Ok(links) => {
-                    r.delegation_links = links;
-                    r.with_daemon(|d| d.forget_delegation_request(&key.0, &key.1, &key.2));
-                    r.delegation_requests.retain(|q| key_of(q) != key);
-                    r.approval_error = None;
-                }
-                Err(e) => {
-                    r.approval_error = Some(format!("couldn't save the delegation link: {e:#}"))
-                }
+        // The account the request showed must be signed in to that login right now, read fresh (not cached).
+        let bin = self.backend.claude_bin.clone();
+        let saved = cx.background_spawn(async move {
+            let now = skyelab_agent::login_identity(&bin, &account).ok().flatten();
+            if now.as_ref() != Some(&link.login) {
+                anyhow::bail!(
+                    "{}'s login no longer matches that request; nothing was allowed",
+                    account.id
+                );
             }
-            cx.notify();
+            AppSettings::update(&path, |s| s.link_delegation(link))
+                .map(|(s, ())| s.delegation.links)
         });
+        cx.spawn(async move |_, cx| {
+            let saved = saved.await;
+            remote.update(cx, |r, cx| {
+                match saved {
+                    Ok(links) => {
+                        r.delegation_links = links;
+                        r.with_daemon(|d| d.forget_delegation_request(&key.0, &key.1, &key.2));
+                        r.delegation_requests.retain(|q| key_of(q) != key);
+                        r.approval_error = None;
+                    }
+                    Err(e) => r.approval_error = Some(format!("couldn't allow delegation: {e:#}")),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     pub(super) fn deny_delegation(

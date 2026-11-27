@@ -154,7 +154,7 @@ impl Workspace {
         Some(self.remote.as_ref()?.remote.read(cx).enabled)
     }
 
-    fn sharing_session(&self, cx: &Context<Self>) -> Option<u64> {
+    pub(super) fn sharing_session(&self, cx: &Context<Self>) -> Option<u64> {
         self.remote.as_ref()?.remote.read(cx).sharing_session()
     }
 
@@ -203,9 +203,9 @@ impl Workspace {
                 reply,
                 ..
             } => self.remote_questions(thread_id, &request_id, answers, reply, cx),
-            RemoteCall::Delegate { call, reply, .. } => {
+            RemoteCall::Delegate { call, reply, gate } => {
                 let (origin, caller, op) = *call;
-                self.remote_delegate(origin, caller, op, reply, window, cx)
+                self.remote_delegate(origin, caller, op, (reply, gate), window, cx)
             }
             RemoteCall::Shelve {
                 thread_id,

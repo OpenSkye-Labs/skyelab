@@ -64,6 +64,7 @@ fn a_v28_database_upgrades_and_keeps_its_rows() {
             node_id: "nB".into(),
             thread_id: 9,
             title: "child".into(),
+            status: String::new(),
             created_at: 0,
         })
         .expect("remote_children exists");

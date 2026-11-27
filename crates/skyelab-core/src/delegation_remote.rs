@@ -47,7 +47,6 @@ pub struct DelegationLink {
     /// The origin's MagicDNS name then, for the list.
     pub machine: String,
     pub origin_account: String,
-    pub origin_label: String,
     pub login: Login,
     pub local_account: String,
 }
@@ -126,25 +125,6 @@ pub fn check_logins(
     Ok(())
 }
 
-/// The whole check for a start: link, binding, logins. `local_login` is the login of the account `dir` binds to.
-pub fn check_remote_start<'a>(
-    config: &'a AccountsConfig,
-    links: &[DelegationLink],
-    (node_id, key_hash, origin_account): (&str, &str, &str),
-    caller_login: Option<&Login>,
-    local_login: impl FnOnce(&Account) -> Option<Login>,
-    dir: &Path,
-) -> Result<&'a Account, Refusal> {
-    let link = link_for(links, node_id, key_hash, origin_account).ok_or_else(|| {
-        Refusal::NotAllowed(
-            "this machine hasn't allowed delegation from that machine and account; the user is asked there".into(),
-        )
-    })?;
-    let target = check_remote_target(config, link, dir)?;
-    check_logins(link, caller_login, local_login(target).as_ref())?;
-    Ok(target)
-}
-
 /// The depth a child of a caller at `caller_depth` gets here, or why it can't start.
 pub fn remote_child_depth(caller_depth: u32) -> Result<u32, String> {
     crate::delegation::check_depth(caller_depth)?;
@@ -161,10 +141,10 @@ pub fn check_origin(busy: usize) -> Result<(), String> {
     Ok(())
 }
 
-/// A title from another machine, safe to store and draw: no control or bidi-override characters, at most
+/// Text from another machine, safe to store and draw: no control, bidi, zero-width or line-separator characters, at most
 /// [`MAX_TITLE`] chars.
 pub fn clean_title(title: &str) -> String {
-    let bidi = |c: char| matches!(c, '\u{061C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}');
+    let bidi = |c: char| matches!(c, '\u{061C}' | '\u{200B}'..='\u{200F}' | '\u{2028}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}');
     title
         .chars()
         .filter(|&c| !c.is_control() && !bidi(c))

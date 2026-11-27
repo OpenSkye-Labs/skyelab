@@ -9,11 +9,12 @@ use gpui::{Action, AnyElement, Context, SharedString, Window, div, prelude::*};
 use gpui_component::{Theme, v_flex};
 use skyelab_core::AppSettings;
 
-/// Turns delegation to `host` on or off.
+/// Turns delegation to `host` on or off: `on` is what the click asks for, from the switch as drawn.
 #[derive(Clone, PartialEq, Action)]
 #[action(namespace = skyelab, no_json)]
 pub struct ToggleDelegationTarget {
     pub host: String,
+    pub on: bool,
 }
 
 /// The linked machines and whether this machine's agents may delegate to each, as saved now.
@@ -35,7 +36,10 @@ pub(super) fn section(rows: &[(String, bool)], theme: &Theme) -> Option<AnyEleme
         return None;
     }
     let items = rows.iter().enumerate().map(|(n, (host, on))| {
-        let toggle = ToggleDelegationTarget { host: host.clone() };
+        let toggle = ToggleDelegationTarget {
+            host: host.clone(),
+            on: !*on,
+        };
         ui::group_row(n == 0, theme)
             .id(SharedString::from(format!("delegate-row-{host}")))
             .child(
@@ -102,10 +106,7 @@ impl Workspace {
             return;
         };
         // A file that can't be read changes nothing: the switch stays where it was.
-        let saved = AppSettings::update(&path, |s| {
-            let on = !s.is_delegation_target(&a.host);
-            s.set_delegation_target(&a.host, on);
-        });
+        let saved = AppSettings::update(&path, |s| s.set_delegation_target(&a.host, a.on));
         if let Err(e) = saved {
             eprintln!("skyelab: can't save the delegation switch: {e:#}");
         }

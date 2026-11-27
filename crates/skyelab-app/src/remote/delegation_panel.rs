@@ -69,12 +69,14 @@ fn requests(remote: &Remote, theme: &Theme) -> Vec<AnyElement> {
             let key = key_of(r);
             let id = format!("{}-{}-{}", key.0, key.1, key.2);
             let local = remote.delegation_matches.get(&key).cloned().flatten();
+            // Every field but the device name comes from the other machine's message.
+            let clean = skyelab_core::delegation_remote::clean_title;
             let who = format!(
                 "Agents on {} under {} ({} · {})",
                 short(&r.origin.device),
-                r.account_id,
-                r.email,
-                r.org_id
+                clean(&r.account_id),
+                clean(&r.email),
+                clean(&r.org_id)
             );
             let what: SharedString = match &local {
                 Some((_, label)) => {

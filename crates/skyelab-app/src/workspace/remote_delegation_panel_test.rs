@@ -40,7 +40,9 @@ fn allow_links_the_matching_account_and_deny_refuses(cx: &mut TestAppContext) {
         account_id: account_id.clone(),
         local_account: "work".into(),
     });
-    cx.run_until_parked();
+    wait_until(cx, "the link saved", |_| {
+        !skyelab_core::AppSettings::load(&b.settings).expect("load").delegation.links.is_empty()
+    });
     let links = skyelab_core::AppSettings::load(&b.settings).expect("load").delegation.links;
     assert_eq!(links.len(), 1);
     assert_eq!((links[0].local_account.as_str(), links[0].login.org_id.as_str()), ("work", ORG));

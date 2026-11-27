@@ -113,7 +113,7 @@ pub struct ThreadView {
     pub(super) sent_images: std::collections::HashMap<String, super::image_viewer::Sent>,
     /// Set when the resumed session was gone: rerun when this agent has ended.
     pub(super) rerun: Option<String>,
-    /// Started without the user (delegated, from another device): its row is marked unread.
+    /// Started without the user (delegated, or from another device): marked unread when it gets one.
     pub(super) background: bool,
     /// The window that owns it (last showed it): its prompt lives there; only it acts on the view's events.
     pub(super) window: gpui::AnyWindowHandle,

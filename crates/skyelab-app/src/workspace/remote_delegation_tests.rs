@@ -50,3 +50,9 @@ mod remote_delegation_header_test;
 
 #[path = "remote_delegation_panel_test.rs"]
 mod remote_delegation_panel_test;
+
+#[path = "remote_delegation_local_cap_test.rs"]
+mod remote_delegation_local_cap_test;
+
+#[path = "remote_delegation_rematch_test.rs"]
+mod remote_delegation_rematch_test;

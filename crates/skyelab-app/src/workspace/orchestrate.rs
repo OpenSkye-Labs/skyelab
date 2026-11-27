@@ -70,7 +70,7 @@ pub enum OrchCall {
         reply: Reply<Value>,
     },
     /// A delegation call to another machine (`delegate_out.rs`), sent on its linked connection.
-    Remote(delegate_out::RemoteCall),
+    Remote(Box<delegate_out::RemoteCall>),
     /// A thread recorded a child it started on another machine: its details card lists it now.
     ChildRecorded { parent: i64 },
     /// The machines this agent may delegate to.
@@ -126,8 +126,8 @@ pub struct AppHost {
     store: SharedStore,
     config: Mutex<AccountsConfig>,
     calls: flume::Sender<OrchCall>,
-    /// Machines that refused this machine's calls for want of a delegation link, until one passes.
-    not_linked: Mutex<std::collections::HashSet<String>>,
+    /// (machine, account) pairs refused for want of a delegation link there, until a call passes.
+    not_linked: Mutex<std::collections::HashSet<(String, String)>>,
 }
 
 fn ask<T>(
@@ -388,7 +388,7 @@ impl Host for AppHost {
                 tool,
                 reply,
             }),
-            Tool::ListMachines => self.machines(),
+            Tool::ListMachines => self.machines(caller),
             Tool::Remote { machine, tool } => self.remote(caller, &me, &machine, *tool, granted),
             Tool::WaitThread {
                 thread_id,

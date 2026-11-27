@@ -150,6 +150,7 @@
   asks once per language (microphone off until Allow) and keeps the answer in `settings.toml`.
 - **Delegation stays on one account.** An agent can start threads only in projects bound to its own account, and can
   read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
+  On another machine it needs a link approved there and the same Claude login on both ([remote-delegation.md](remote-delegation.md)).
 - **Updates.** Only the shown release's own assets download (redirects only to GitHub's download hosts, size
   capped), and an asset must match that release's `SHA256SUMS`. That proves integrity, not authorship: the list sits
   on the same release. On macOS the new app must have the installed one's bundle identifier, and a signed install

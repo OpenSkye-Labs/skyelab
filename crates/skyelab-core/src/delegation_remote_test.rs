@@ -67,7 +67,6 @@ fn link(local: &str) -> DelegationLink {
         key_hash: "k".into(),
         machine: "a-mac.example.ts.net".into(),
         origin_account: "x".into(),
-        origin_label: "Work".into(),
         login: login("me@acme.com", "org-acme"),
         local_account: local.into(),
     }
@@ -82,15 +81,11 @@ fn start(
     local: Option<Login>,
     dir: &std::path::Path,
 ) -> Result<String, Refusal> {
-    check_remote_start(
-        &r.config,
-        links,
-        WHO,
-        caller.as_ref(),
-        |_| local.clone(),
-        dir,
-    )
-    .map(|a| a.id.clone())
+    let link = link_for(links, WHO.0, WHO.1, WHO.2)
+        .ok_or_else(|| Refusal::NotAllowed("no link".into()))?;
+    let target = check_remote_target(&r.config, link, dir)?;
+    check_logins(link, caller.as_ref(), local.as_ref())?;
+    Ok(target.id.clone())
 }
 
 #[test]
@@ -234,6 +229,7 @@ fn clean_title_drops_control_and_bidi_chars() {
     assert_eq!(clean_title("\u{2066}a\u{2069}\u{200F}b"), "ab");
     assert_eq!(clean_title(&"x".repeat(500)).chars().count(), MAX_TITLE);
     assert_eq!(clean_title("  plain title "), "plain title");
+    assert_eq!(clean_title("a\u{2028}b\u{200B}c\u{FEFF}"), "abc");
 }
 
 #[test]

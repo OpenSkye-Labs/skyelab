@@ -199,6 +199,7 @@ pub(super) fn known_child(a: &A, thread_id: i64) {
                 node_id: "nSelf".into(),
                 thread_id,
                 title: "remote child".into(),
+                status: String::new(),
                 created_at: 0,
             })
         })

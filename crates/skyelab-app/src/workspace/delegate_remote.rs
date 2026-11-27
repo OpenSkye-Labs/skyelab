@@ -17,9 +17,11 @@ use skyelab_store::{DelegatedOrigin, Thread};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-/// A start under way, by (origin node, origin store, parent, request id), until its row is saved.
+/// Starts made here, by (origin node, origin store, parent, origin account, request id), while their tab is open.
 #[derive(Default)]
-pub(super) struct RemoteStarts(HashMap<(String, String, i64, String), WeakEntity<ThreadView>>);
+pub(super) struct RemoteStarts(
+    HashMap<(String, String, i64, String, String), WeakEntity<ThreadView>>,
+);
 
 impl Global for RemoteStarts {}
 
@@ -67,7 +69,7 @@ impl Workspace {
         origin: Origin,
         caller: Delegator,
         op: DelegateOp,
-        reply: Reply<Value>,
+        (reply, gate): (Reply<Value>, skyelab_daemon::CallGate),
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -79,7 +81,7 @@ impl Workspace {
             }
         };
         let Some(account) = self
-            .config
+            .saved_config(cx)
             .accounts
             .iter()
             .find(|a| a.id == link.local_account)
@@ -94,12 +96,31 @@ impl Workspace {
         };
         let bin = self.backend.claude_bin.clone();
         let caller_login = wire_login(&caller.login);
-        let local = cx.background_spawn(async move { crate::login_cache::login(&bin, &account) });
+        let checked_account = account.clone();
+        let local =
+            cx.background_spawn(async move { crate::login_cache::login(&bin, &checked_account) });
         cx.spawn_in(window, async move |this, cx| {
             let local = local.await;
             let checked = rules::check_logins(&link, caller_login.as_ref(), local.as_ref());
             let _ = this.update_in(cx, |this, window, cx| match checked {
                 Err(why) => _ = reply.send(Err(refusal(why))),
+                // Everything that could have changed while the login was read is checked again.
+                Ok(()) if gate.cancelled() || reply.is_disconnected() => {}
+                Ok(()) if this.sharing_session(cx).is_none() => {
+                    let _ = reply.send(Err(bad("sharing was turned off on this machine")));
+                }
+                Ok(())
+                    if this.delegation_link(&origin, &caller, cx).ok().as_ref() != Some(&link)
+                        || !this
+                            .saved_config(cx)
+                            .accounts
+                            .iter()
+                            .any(|a| a.same_login(&account)) =>
+                {
+                    let _ = reply.send(Err(not_allowed(
+                        "this machine's delegation link or account changed while the call was checked; call again",
+                    )));
+                }
                 Ok(()) => {
                     let linked = Linked {
                         origin,
@@ -111,6 +132,12 @@ impl Workspace {
             });
         })
         .detach();
+    }
+
+    /// accounts.toml as saved now: a rebind may not have reached this window's copy yet.
+    fn saved_config(&self, cx: &App) -> skyelab_core::AccountsConfig {
+        let file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
+        super::accounts_now(file.as_deref(), &self.config)
     }
 
     /// The link for this caller, read from settings.toml as it is now.
@@ -152,13 +179,14 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let answered = match op {
-            DelegateOp::ListProjects => Ok(Value::Array(
+            DelegateOp::ListProjects => Ok(Value::Array({
+                let config = self.saved_config(cx);
                 self.projects
                     .iter()
-                    .filter(|p| rules::check_remote_target(&self.config, &l.link, &p.path).is_ok())
+                    .filter(|p| rules::check_remote_target(&config, &l.link, &p.path).is_ok())
                     .map(|p| json!({"id": p.id, "name": p.name, "path": p.path}))
-                    .collect(),
-            )),
+                    .collect()
+            })),
             DelegateOp::Start {
                 project_id,
                 prompt,
@@ -168,27 +196,35 @@ impl Workspace {
                 let start = (project_id, prompt.as_str(), worktree, request_id.as_str());
                 return self.remote_child_start(&l, start, reply, window, cx);
             }
-            DelegateOp::Status { thread_id } => self.reachable(&l, thread_id).map(|t| {
-                json!({"thread_id": t.id, "title": t.title, "status": t.status, "project_id": t.project_id})
+            DelegateOp::Status { thread_id } => self.reachable(&l, thread_id, cx).map(|t| {
+                json!({"thread_id": t.id, "title": t.title, "status": t.status, "project_id": t.project_id,
+                    "account_id": t.account_id})
             }),
             DelegateOp::Read {
                 thread_id,
                 since_seq,
-            } => self.reachable(&l, thread_id).and_then(|t| {
+            } => self.reachable(&l, thread_id, cx).and_then(|t| {
                 super::orchestrate::read(&self.backend.store, &t, since_seq).map_err(bad)
             }),
             DelegateOp::Wait {
                 thread_id,
                 timeout_s,
-            } => match self.reachable(&l, thread_id) {
+            } => match self.reachable(&l, thread_id, cx) {
                 Ok(_) => return self.remote_wait(thread_id, timeout_s, reply, cx),
                 Err(e) => Err(e),
             },
-            DelegateOp::Send { thread_id, text } => match self.reachable(&l, thread_id) {
+            DelegateOp::Send { thread_id, text } => match self.reachable(&l, thread_id, cx) {
                 Ok(_) => return self.remote_child_send(thread_id, &text, reply, window, cx),
                 Err(e) => Err(e),
             },
-            DelegateOp::Interrupt { thread_id } => match self.reachable(&l, thread_id) {
+            DelegateOp::Interrupt { thread_id } => match self.reachable(&l, thread_id, cx) {
+                // Still starting: stop it, so its agent ends as soon as it is up.
+                Ok(_) if self.open_view(thread_id, cx).is_some_and(|v| v.read(cx).starting) => {
+                    if let Some(view) = self.open_view(thread_id, cx) {
+                        view.update(cx, |v, cx| v.stop(&super::thread::Stop, window, cx));
+                    }
+                    Ok(json!({"ok": true}))
+                }
                 Ok(_) => {
                     let (tx, rx) = flume::bounded(1);
                     self.remote_interrupt(thread_id, tx, cx);
@@ -202,7 +238,7 @@ impl Workspace {
 
     /// Thread `id` if this caller started it: the same origin node, store and parent thread, the same account
     /// there, and still under the link's account here.
-    fn reachable(&self, l: &Linked, id: i64) -> Result<Thread, RpcError> {
+    fn reachable(&self, l: &Linked, id: i64, cx: &App) -> Result<Thread, RpcError> {
         let (thread, from) = lock(&self.backend.store)
             .and_then(|s| Ok((s.thread(id)?, s.delegated_from(id)?)))
             .map_err(|_| unreachable(id))?;
@@ -222,7 +258,8 @@ impl Workspace {
             .iter()
             .find(|p| p.id == thread.project_id)
             .ok_or_else(|| unreachable(id))?;
-        rules::check_remote_target(&self.config, &l.link, &project.path).map_err(refusal)?;
+        rules::check_remote_target(&self.saved_config(cx), &l.link, &project.path)
+            .map_err(refusal)?;
         Ok(thread)
     }
 
@@ -240,18 +277,23 @@ impl Workspace {
                 l.origin.node_id.clone(),
                 l.caller.store_id.clone(),
                 l.caller.thread_id,
+                l.caller.account_id.clone(),
                 request_id.to_owned(),
             );
             // A retry: the same thread, whether it is still starting or was saved before a restart.
             let pending = cx
                 .try_global::<RemoteStarts>()
                 .and_then(|s| s.0.get(&key))
-                .and_then(WeakEntity::upgrade);
+                .and_then(WeakEntity::upgrade)
+                // One that failed before its row starts afresh.
+                .filter(|v| {
+                    super::orchestrate_ui::row_result(v.read(cx)).is_none_or(|r| r.is_ok())
+                });
             if let Some(view) = pending {
                 return Ok(Err(view));
             }
             let stored = lock(&self.backend.store)
-                .and_then(|s| s.delegated_by_request(&key.0, &key.1, key.2, &key.3))
+                .and_then(|s| s.delegated_by_request((&key.0, &key.1, key.2, &key.3), &key.4))
                 .map_err(|_| RpcError::new(ErrorCode::Internal, "store error"))?;
             if let Some(id) = stored {
                 return Ok(Ok(id));
@@ -262,10 +304,11 @@ impl Workspace {
                 .find(|p| p.id == project_id)
                 .cloned()
                 .ok_or_else(|| bad(format!("no project {project_id}; call list_projects")))?;
-            let account = rules::check_remote_target(&self.config, &l.link, &project.path)
-                .map_err(refusal)?
-                .id
-                .clone();
+            let account =
+                rules::check_remote_target(&self.saved_config(cx), &l.link, &project.path)
+                    .map_err(refusal)?
+                    .id
+                    .clone();
             let origin = DelegatedOrigin {
                 origin_node: key.0.clone(),
                 origin_store: key.1.clone(),
@@ -274,7 +317,7 @@ impl Workspace {
                 parent_title: rules::clean_title(&l.caller.title),
                 origin_account: l.caller.account_id.clone(),
                 depth,
-                request_id: Some(key.3.clone()),
+                request_id: Some(key.4.clone()),
             };
             // Refused here so a full caller gets no tab; the claim inside the launch, under the store lock, decides.
             lock(&self.backend.store)

@@ -71,11 +71,18 @@ pub(super) fn claim(store: &Store, parent: i64, me: Option<i64>) -> Result<()> {
         .map_err(|why| anyhow!("the thread that delegated this one: {why}"))
 }
 
-/// `parent`'s children holding a slot, not counting `except`.
+/// `parent`'s children holding a slot, not counting `except`: local ones, and those it started on other machines
+/// by their last known status.
 pub(super) fn busy(store: &Store, parent: i64, except: Option<i64>) -> Result<usize> {
-    Ok(store
+    let local = store
         .child_threads(parent)?
         .iter()
         .filter(|t| Some(t.id) != except && is_busy(&t.status))
-        .count())
+        .count();
+    let remote = store
+        .remote_children(parent)?
+        .iter()
+        .filter(|c| skyelab_core::delegation::is_remote_busy(&c.status))
+        .count();
+    Ok(local + remote)
 }

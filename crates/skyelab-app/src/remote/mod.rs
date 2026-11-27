@@ -133,6 +133,9 @@ pub struct Remote {
     /// The local account (id, label) signed in to each request's login: `None` when none is, absent until checked.
     pub delegation_matches:
         std::collections::HashMap<delegation_panel::CallerKey, Option<(String, String)>>,
+    /// When each request was last matched: one matched to no account is checked again after a while.
+    pub delegation_checked:
+        std::collections::HashMap<delegation_panel::CallerKey, std::time::Instant>,
     /// The delegation links in settings.toml.
     pub delegation_links: Vec<skyelab_core::delegation_remote::DelegationLink>,
     /// Why the last Allow or Revoke couldn't be saved.
@@ -164,6 +167,7 @@ impl Remote {
             approved: Vec::new(),
             delegation_requests: Vec::new(),
             delegation_matches: Default::default(),
+            delegation_checked: Default::default(),
             delegation_links: Vec::new(),
             approval_error: None,
             unsaved_revokes: Vec::new(),
@@ -332,6 +336,18 @@ impl Remote {
         if peers != self.peers || requests != self.requests {
             self.peers = peers;
             self.requests = requests;
+            cx.notify();
+        }
+        // A request no account matched is matched again (its Workspace observes this), so a sign-in shows Allow.
+        let checked = &self.delegation_checked;
+        let before = self.delegation_matches.len();
+        self.delegation_matches.retain(|k, m| {
+            m.is_some()
+                || checked
+                    .get(k)
+                    .is_some_and(|at| at.elapsed() < Duration::from_secs(15))
+        });
+        if self.delegation_matches.len() != before {
             cx.notify();
         }
         let delegation = self

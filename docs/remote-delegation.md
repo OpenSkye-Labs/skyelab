@@ -38,8 +38,9 @@ approved; the link adds the user's intent and the login check catches a rebind o
 
 - **Depth:** A sends its caller's depth; B refuses at 2 and stores the child's depth, so a B child counts the whole
   chain when it delegates again (locally, back to A, or elsewhere).
-- **Children:** on A, a parent's remote children count with its local ones against 4; one whose status can't be read
-  (B offline) counts as busy. On B, at most 4 busy children per (A node, A store, A parent) and 8 per A node, claimed
+- **Children:** on A, a parent's remote children count with its local ones against 4, for every start, resume and
+  follow-up, local or remote. A keeps each remote child's last known status (read again before a remote start); one
+  whose status can't be read (B offline) counts as busy, one B no longer has doesn't. On B, at most 4 busy children per (A node, A store, A parent) and 8 per A node, claimed
   under B's store lock at every claim site (a start, a resume, a restart-resume, a follow-up to an idle child).
 - **Sizes**, checked by B's daemon before anything else: prompt and text 100 000 chars, title 200, ids 128, email 320,
   org id 64, one wait 20 s. Each call takes a `max_in_flight` permit. Tunnel connections can't call it.
@@ -57,10 +58,16 @@ approved; the link adds the user's intent and the login check catches a rebind o
 is sent) or `not_linked_here` (B refused for want of a link). The six delegation tools take an optional `machine`
 (a MagicDNS name); without it they are local, with it thread ids are B's. A start always carries a request id (the
 agent's, else one A makes), so A's retry after a dropped connection returns the same thread; B keeps the request id
-with the child, so this holds across a restart. A start with B not connected fails at once; one whose connection drops
+with the child (per caller and account, written in one transaction with the thread row), so this holds across a
+restart. A start with B not connected fails at once; one whose connection drops
 is retried for 30 s, then answers with the request id to retry. A send that may have landed says so instead of
 retrying. A wait runs 20 s rounds on B until the agent's timeout, and answers `unreachable` at the deadline if B stays
-down. If A can't record a started child, it stops it on B.
+down. If A can't record a started child, it stops it on B (a child still starting is stopped as soon as it is up). A
+call about a known child goes only to the node it was started on: if another node answers to the name, nothing is
+sent.
+
+B reads its link, accounts.toml and both logins on every call, and checks the link, the account, the call's
+connection and sharing again after the login read, so a Revoke, rebind or Disconnect during it refuses the call.
 
 ## UI
 
@@ -73,4 +80,7 @@ opened through the linked machine. B's child shows the same label on A's remote 
 - The live check can't use two real machines (the daemon needs a real tailnet), so cross-machine behaviour is proven
   by in-process daemon tests; the live check covers B's drawn UI.
 - A linked machine added while Settings is open shows in Machines → Delegation the next time Settings opens.
+- A login read is cached for up to 10 minutes on each side, so a sign-out or account switch can take that long to
+  refuse a call (an Allow reads it fresh).
+- Two remote starts from one parent at the same moment can both pass A's own count; B's per-parent cap still holds.
 - Out of scope: delegation from mobile; browser, device and html tools on another machine; Codex and Cursor accounts.
