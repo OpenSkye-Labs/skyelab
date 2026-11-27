@@ -127,6 +127,27 @@ impl Store {
             .optional()?)
     }
 
+    /// Every thread another machine's agent started here, by id.
+    pub fn all_delegated_from(&self) -> Result<std::collections::HashMap<i64, DelegatedOrigin>> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT thread_id, {ORIGIN_COLS} FROM delegated_from"
+        ))?;
+        let rows = stmt.query_map([], |r| {
+            let o = DelegatedOrigin {
+                origin_node: r.get(1)?,
+                origin_store: r.get(2)?,
+                origin_machine: r.get(3)?,
+                parent_thread_id: r.get(4)?,
+                parent_title: r.get(5)?,
+                origin_account: r.get(6)?,
+                depth: r.get(7)?,
+                request_id: r.get(8)?,
+            };
+            Ok((r.get(0)?, o))
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     /// The thread this caller already started under `request_id`, if any.
     pub fn delegated_by_request(
         &self,

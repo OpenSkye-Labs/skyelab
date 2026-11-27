@@ -158,6 +158,8 @@ pub enum Ran {
     Answer(i64, String, skyelab_protocol::PermissionAnswer),
     Questions(i64, String, Vec<Vec<String>>),
     Shelve(i64, bool, Option<i64>),
+    /// A `delegate` call: the origin node the connection proved, and the op as JSON.
+    Delegate(String, String),
 }
 
 /// The agent calls an [`Env`] saw. With `fail`, every call is still recorded, then fails like an unwired desktop.
@@ -165,6 +167,8 @@ pub enum Ran {
 pub struct Recorder {
     pub ran: Mutex<Vec<Ran>>,
     pub fail: AtomicBool,
+    /// (node, key hash, account) a `delegate` call passes for; any other caller is `delegation_not_allowed`.
+    pub delegation_links: Mutex<Vec<(String, String, String)>>,
 }
 
 /// Records calls; a start creates the thread row (account "work") with its prompt, so it can be listed and watched.
@@ -232,6 +236,33 @@ impl Agents for RecordingAgents {
             request_id.into(),
             answers.to_vec(),
         ))
+    }
+    fn delegate(
+        &self,
+        origin: &crate::Origin,
+        caller: skyelab_protocol::Delegator,
+        op: skyelab_protocol::DelegateOp,
+    ) -> Result<serde_json::Value, RpcError> {
+        let op = serde_json::to_string(&op).expect("op serializes");
+        self.record(Ran::Delegate(origin.node_id.clone(), op))?;
+        let key = (
+            origin.node_id.clone(),
+            origin.key_hash.clone(),
+            caller.account_id,
+        );
+        if !self
+            .recorder
+            .delegation_links
+            .lock()
+            .expect("links lock")
+            .contains(&key)
+        {
+            return Err(RpcError::new(
+                ErrorCode::DelegationNotAllowed,
+                "no delegation link",
+            ));
+        }
+        Ok(serde_json::json!({"ok": true, "origin": origin.node_id, "device": origin.device}))
     }
     /// Writes the store as the app does, so a listing shows the shelf.
     fn shelve_thread(
@@ -328,6 +359,15 @@ impl Backend for Flaky {
     fn subscribe_shell(&self) -> Result<crate::ShellFeed, RpcError> {
         self.ask("subscribe_shell");
         self.inner.subscribe_shell()
+    }
+    fn delegate(
+        &self,
+        origin: &crate::Origin,
+        caller: skyelab_protocol::Delegator,
+        op: skyelab_protocol::DelegateOp,
+    ) -> Result<serde_json::Value, RpcError> {
+        self.ask("delegate");
+        self.inner.delegate(origin, caller, op)
     }
 }
 

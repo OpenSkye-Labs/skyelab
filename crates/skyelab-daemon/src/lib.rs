@@ -16,6 +16,7 @@ mod forward;
 mod gate;
 mod peers;
 mod serve;
+mod serve_delegate;
 mod shell;
 mod slots;
 #[cfg(feature = "test-support")]
@@ -51,6 +52,7 @@ pub use gate::CallGate;
 pub use peers::Peer;
 use peers::{Entry, Peers, Registered, lock_peers};
 use serve::serve;
+pub use serve_delegate::{DelegationRequest, Origin};
 pub use shell::ShellFeed;
 pub use skyelab_tailnet::ADMIN_DNS_URL;
 use slots::{Slot, Slots};
@@ -108,6 +110,7 @@ pub struct Daemon {
     events: broadcast::Sender<ThreadEvent>,
     peers: Peers,
     access: SharedAccess,
+    delegation: serve_delegate::SharedRequests,
     tls: Arc<Tls>,
     shutdown: Option<oneshot::Sender<()>>,
     thread: Option<JoinHandle<()>>,
@@ -123,6 +126,7 @@ struct Shared {
     pending: Arc<Slots>,
     peers: Peers,
     access: SharedAccess,
+    delegation: serve_delegate::SharedRequests,
     next_peer: AtomicU64,
     tls: Arc<Tls>,
     /// The ports the daemon listens on, which a forward may never reach.
@@ -212,9 +216,11 @@ impl Daemon {
         let access = Arc::new(std::sync::Mutex::new(access::Access::new(
             config.approved.clone(),
         )));
+        let delegation = serve_delegate::SharedRequests::default();
         let shared = Arc::new(Shared {
             peers: peers.clone(),
             access: access.clone(),
+            delegation: delegation.clone(),
             next_peer: AtomicU64::new(1),
             pending: Slots::new(config.max_pending, config.max_pending_per_peer),
             tls: tls.clone(),
@@ -245,6 +251,7 @@ impl Daemon {
             events,
             peers,
             access,
+            delegation,
             tls,
             shutdown: Some(shutdown),
             thread: Some(thread),
