@@ -263,7 +263,9 @@ impl TailscaleCli {
             cmd.arg(command)
                 .args(args)
                 .env_clear()
-                .envs(skyelab_core::env::inherited_agent_env(false));
+                .envs(skyelab_core::env::inherited_agent_env(false))
+                // Tailscale.app's binary acts as the CLI only with a TERM, which a Dock-launched app lacks.
+                .env("TAILSCALE_BE_CLI", "1");
             let spawned = Captured::spawn(&mut cmd, None);
             match spawned {
                 Ok(child) => return self.wait(child, command, deadline),
