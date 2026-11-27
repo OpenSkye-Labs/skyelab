@@ -86,12 +86,11 @@ pub(super) fn start_op(project_id: i64, request_id: &str) -> DelegateOp {
 }
 
 fn git(dir: &Path, args: &[&str]) {
-    let out = std::process::Command::new("git")
-        .args(["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"])
+    let mut cmd = std::process::Command::new("git");
+    cmd.args(["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"])
         .args(args)
-        .current_dir(dir)
-        .output()
-        .expect("git");
+        .current_dir(dir);
+    let out = skyelab_core::process::output(&mut cmd, None).expect("git");
     assert!(out.status.success(), "git {args:?}");
 }
 

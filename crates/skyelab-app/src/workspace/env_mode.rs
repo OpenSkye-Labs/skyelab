@@ -76,7 +76,7 @@ pub(super) struct EnvMode {
     pub(super) linked: Vec<super::env_linked::Linked>,
     /// The linked names as saved, also those whose connection couldn't start, so they can still be unlinked.
     pub(super) linked_hosts: Vec<String>,
-    settings_path: Option<PathBuf>,
+    pub(super) settings_path: Option<PathBuf>,
     options: Options,
     subs: Vec<Subscription>,
     _save: Option<Task<()>>,

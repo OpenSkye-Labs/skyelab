@@ -69,7 +69,14 @@ pub enum OrchCall {
         tool: HtmlTool,
         reply: Reply<Value>,
     },
+    /// A delegation call to another machine (`delegate_out.rs`), sent on its linked connection.
+    Remote(delegate_out::RemoteCall),
+    /// The machines this agent may delegate to.
+    Machines { reply: Reply<Vec<Value>> },
 }
+
+#[path = "delegate_out.rs"]
+pub(super) mod delegate_out;
 
 /// Present when orchestration is on (the socket or pipe could be bound).
 pub struct Orchestration {
@@ -93,6 +100,7 @@ pub fn install(
         store,
         config: Mutex::new(config),
         calls,
+        not_linked: Mutex::default(),
     });
     let server = Arc::new(Server::start(run_dir, host.clone())?);
     cx.set_global(Orchestration {
@@ -116,6 +124,8 @@ pub struct AppHost {
     store: SharedStore,
     config: Mutex<AccountsConfig>,
     calls: flume::Sender<OrchCall>,
+    /// Machines that refused this machine's calls for want of a delegation link, until one passes.
+    not_linked: Mutex<std::collections::HashSet<String>>,
 }
 
 fn ask<T>(
@@ -376,6 +386,8 @@ impl Host for AppHost {
                 tool,
                 reply,
             }),
+            Tool::ListMachines => self.machines(),
+            Tool::Remote { machine, tool } => self.remote(caller, &me, &machine, *tool, granted),
             Tool::WaitThread {
                 thread_id,
                 timeout_s,

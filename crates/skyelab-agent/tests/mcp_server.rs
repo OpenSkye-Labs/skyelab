@@ -173,6 +173,7 @@ fn lists_all_tools_with_schemas() {
             "device_type",
             "html_preview",
             "html_render",
+            "list_machines",
             "list_projects",
             "read_thread",
             "send_message",

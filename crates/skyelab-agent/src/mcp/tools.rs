@@ -39,7 +39,24 @@ pub enum Tool {
     Browser(BrowserTool),
     Device(DeviceTool),
     Html(HtmlTool),
+    /// The machines this agent may delegate to.
+    ListMachines,
+    /// One of the delegation tools above, sent to `machine` (a MagicDNS name from `list_machines`).
+    Remote {
+        machine: String,
+        tool: Box<Tool>,
+    },
 }
+
+/// The tools that take an optional `machine`.
+const REMOTE_TOOLS: [&str; 6] = [
+    "list_projects",
+    "start_thread",
+    "thread_status",
+    "read_thread",
+    "send_message",
+    "wait_thread",
+];
 
 pub(super) fn list() -> Value {
     let id = |what: &str| json!({"type": "integer", "minimum": 1, "description": what});
@@ -109,6 +126,20 @@ pub(super) fn list() -> Value {
         },
     ]);
     if let Value::Array(list) = &mut tools {
+        for tool in list
+            .iter_mut()
+            .filter(|t| REMOTE_TOOLS.contains(&t["name"].as_str().unwrap_or("")))
+        {
+            tool["inputSchema"]["properties"]["machine"] = json!({"type": "string", "maxLength": 253,
+                "description": "Another of the user's machines, from list_machines. Without it, this machine. \
+                    With it, thread ids are that machine's."});
+        }
+        list.push(json!({
+            "name": "list_machines",
+            "description": "The user's other machines you may delegate to (pass one as `machine` to the other \
+                tools), each with its state: ready, offline, needs_update or not_linked_here.",
+            "inputSchema": {"type": "object", "properties": {}},
+        }));
         list.extend(browser::list());
         list.extend(device::list());
         list.extend(html::list());
@@ -124,7 +155,19 @@ pub(super) fn parse(name: &str, args: &Value) -> Result<Tool, String> {
         Value::Object(m) => m,
         _ => return Err(format!("{name}: arguments must be an object")),
     };
+    if let Some(machine) = args.get("machine").filter(|_| REMOTE_TOOLS.contains(&name)) {
+        let machine = machine
+            .as_str()
+            .map(|m| m.trim_end_matches('.').to_ascii_lowercase())
+            .filter(|m| skyelab_protocol::is_magicdns_name(m))
+            .ok_or("machine must be a machine name from list_machines (machine.tailnet.ts.net)")?;
+        let mut rest = args.clone();
+        rest.remove("machine");
+        let tool = Box::new(parse(name, &Value::Object(rest))?);
+        return Ok(Tool::Remote { machine, tool });
+    }
     Ok(match name {
+        "list_machines" => Tool::ListMachines,
         "list_projects" => Tool::ListProjects,
         "start_thread" => Tool::StartThread {
             project_id: id(args, "project_id")?,
@@ -207,4 +250,57 @@ pub(super) fn bounded(
         return Err(format!("{field} is longer than {max} characters"));
     }
     Ok(s.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Tool, list, parse};
+    use serde_json::json;
+
+    #[test]
+    fn machine_routes_the_six_delegation_tools() {
+        let local = parse("thread_status", &json!({"thread_id": 3})).expect("local");
+        assert_eq!(local, Tool::ThreadStatus { thread_id: 3 });
+        let remote = parse(
+            "thread_status",
+            &json!({"thread_id": 3, "machine": "Desk.Example.ts.net."}),
+        )
+        .expect("remote");
+        assert_eq!(
+            remote,
+            Tool::Remote {
+                machine: "desk.example.ts.net".into(),
+                tool: Box::new(Tool::ThreadStatus { thread_id: 3 }),
+            }
+        );
+        for bad in ["localhost", "100.64.0.1", "desk", "-x.a.ts.net"] {
+            assert!(
+                parse("list_projects", &json!({"machine": bad})).is_err(),
+                "{bad}"
+            );
+        }
+        assert!(
+            parse("thread_status", &json!({"machine": "d.e.ts.net"})).is_err(),
+            "still validated"
+        );
+        assert_eq!(
+            parse("list_machines", &json!({})).expect("parsed"),
+            Tool::ListMachines
+        );
+        let tools = list();
+        let names: Vec<&str> = tools
+            .as_array()
+            .expect("list")
+            .iter()
+            .filter_map(|t| t["name"].as_str())
+            .collect();
+        assert!(names.contains(&"list_machines"));
+        let start = tools
+            .as_array()
+            .expect("list")
+            .iter()
+            .find(|t| t["name"] == "start_thread")
+            .expect("start");
+        assert!(start["inputSchema"]["properties"]["machine"].is_object());
+    }
 }

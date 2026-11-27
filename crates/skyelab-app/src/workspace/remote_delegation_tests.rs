@@ -32,3 +32,15 @@ mod remote_delegation_title_test;
 
 #[path = "remote_delegation_worktree_test.rs"]
 mod remote_delegation_worktree_test;
+
+#[path = "remote_delegation_a_harness.rs"]
+mod remote_delegation_a_harness;
+
+#[path = "remote_delegation_machines_test.rs"]
+mod remote_delegation_machines_test;
+
+#[path = "remote_delegation_children_test.rs"]
+mod remote_delegation_children_test;
+
+#[path = "remote_delegation_offline_test.rs"]
+mod remote_delegation_offline_test;

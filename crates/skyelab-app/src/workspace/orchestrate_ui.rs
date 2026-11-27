@@ -125,6 +125,14 @@ impl Workspace {
                     }
                 }
             }
+            OrchCall::Remote(call) => {
+                if !call.is_abandoned() {
+                    self.remote_out(call, window, cx);
+                }
+            }
+            OrchCall::Machines { reply } => {
+                let _ = reply.send(Ok(self.delegation_machines(cx)));
+            }
             OrchCall::Html {
                 caller,
                 tool,
@@ -150,7 +158,7 @@ impl Workspace {
         }
     }
 
-    fn caller_live(&self, caller: &Caller, cx: &App) -> Result<(), String> {
+    pub(super) fn caller_live(&self, caller: &Caller, cx: &App) -> Result<(), String> {
         match self.open_view(caller.thread_id, cx) {
             Some(view) if view.read(cx).is_live() => Ok(()),
             _ => Err(super::orchestrate::CALLER_GONE.into()),

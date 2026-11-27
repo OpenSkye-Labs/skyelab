@@ -262,7 +262,11 @@ impl Agents for RecordingAgents {
                 "no delegation link",
             ));
         }
-        Ok(serde_json::json!({"ok": true, "origin": origin.node_id, "device": origin.device}))
+        // Shaped like the app's answers: a start's thread id, a busy status, a finished wait.
+        Ok(
+            serde_json::json!({"ok": true, "origin": origin.node_id, "device": origin.device,
+            "thread_id": 900, "status": "running", "done": true}),
+        )
     }
     /// Writes the store as the app does, so a listing shows the shelf.
     fn shelve_thread(
