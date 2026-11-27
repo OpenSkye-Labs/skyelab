@@ -222,7 +222,7 @@ pub(super) fn open_with(
         window.focus(&focus, cx);
         made = Some(view.clone());
         let shell = cx.new(|_| CachedWorkspace(view.into(), false));
-        cx.new(|cx| gpui_component::Root::new(shell, window, cx))
+        cx.new(|cx| crate::ui::window_root(shell.into(), window, cx))
     });
     cx.default_global::<Windows>().opening_hidden = false;
     opened?;

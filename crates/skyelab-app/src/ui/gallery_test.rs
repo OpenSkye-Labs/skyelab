@@ -13,11 +13,17 @@ fn the_gallery_opens_in_its_own_window(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(cx.update(|cx| cx.windows().len()), before + 1);
     let gallery = handle
-        .update(cx, |root, _, _| {
+        .update(cx, |root, _, cx| {
             root.view()
                 .clone()
-                .downcast::<super::gallery::UiGallery>()
-                .is_ok()
+                .downcast::<super::window_root::WindowRoot>()
+                .is_ok_and(|ours| {
+                    ours.read(cx)
+                        .content()
+                        .clone()
+                        .downcast::<super::gallery::UiGallery>()
+                        .is_ok()
+                })
         })
         .expect("window alive");
     assert!(gallery, "the window's root view is the gallery");

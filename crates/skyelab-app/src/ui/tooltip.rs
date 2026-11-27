@@ -38,8 +38,7 @@ pub fn modal_shown(open: bool, window: &Window, cx: &mut App) {
 
 /// A dialog, or one of our own modals, is up in `window`.
 fn modal(window: &mut Window, cx: &mut App) -> bool {
-    use gpui_component::WindowExt as _;
-    window.has_active_dialog(cx)
+    super::has_active_dialog(window, cx)
         || cx
             .try_global::<Dialogs>()
             .is_some_and(|d| d.modals.contains(&window.window_handle().window_id()))

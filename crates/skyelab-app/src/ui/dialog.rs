@@ -20,6 +20,16 @@ pub fn open_dialog(
     });
 }
 
+/// Closes the top dialog in `window`.
+pub fn close_dialog(window: &mut Window, cx: &mut App) {
+    window.close_dialog(cx);
+}
+
+/// Whether a dialog is open in `window`.
+pub fn has_active_dialog(window: &mut Window, cx: &mut App) -> bool {
+    window.has_active_dialog(cx)
+}
+
 /// Accessible dialog heading wrapper (`gpui_component::dialog::DialogTitle` omits `Role::Heading`).
 pub fn dialog_title(title: impl Into<SharedString>) -> impl IntoElement {
     let title: SharedString = title.into();
@@ -39,7 +49,7 @@ pub fn dialog_cancel(id: &'static str) -> Button {
         .outline()
         .small()
         .label("Cancel")
-        .on_click(|_, window, cx| window.close_dialog(cx))
+        .on_click(|_, window, cx| close_dialog(window, cx))
 }
 
 /// The footer row: buttons at the end, 8 px apart. Pass it to `Dialog::footer`, or end a custom dialog body with it.
