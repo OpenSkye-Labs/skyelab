@@ -61,7 +61,7 @@ Opening SkyeLab again while it runs brings the running one forward (or opens a w
 second copy, which would run scheduled tasks and resume threads twice. A build from source keeps its own data
 (`skyelab-dev`), so it runs next to the installed app with its own threads.
 
-<kbd>⌘W</kbd> (<kbd>Ctrl+W</kbd> on Linux and Windows) closes the right panel's active tab, as in T3 Code; in a focused terminal it closes that terminal instead (<kbd>Ctrl+Shift+W</kbd> off macOS). It never closes the window: on macOS use File → Close Window or the window's close button.
+<kbd>⌘W</kbd> (<kbd>Ctrl+W</kbd> on Linux and Windows) closes the right panel's active tab, as in T3 Code; in a focused terminal it closes that terminal instead (<kbd>Ctrl+Shift+W</kbd> off macOS). Right-clicking a right-panel tab offers **Close tab**, **Close other tabs**, and **Close all tabs**, leaving unclosable tabs open and prompting before closing a Preview tab with unsaved edits. It never closes the window: on macOS use File → Close Window or the window's close button.
 
 On a narrow window the right panel gives up width so the thread keeps at least 360 pt. A window too narrow for both
 puts the panel away when it opens or shrinks (its width is kept for later); opening the panel yourself then hides the

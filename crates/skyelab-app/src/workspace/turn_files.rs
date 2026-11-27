@@ -43,6 +43,8 @@ pub struct Timeline {
     pub minimap_hover: Option<usize>,
     /// A minimap jump on its way (`smooth_scroll.rs`); replaced by the next one.
     pub scroll: Option<gpui::Task<()>>,
+    /// The open right-click context menu for a timeline message (`timeline_menu.rs`).
+    pub menu: super::timeline_menu::TimelineMenu,
 }
 
 #[derive(Default)]

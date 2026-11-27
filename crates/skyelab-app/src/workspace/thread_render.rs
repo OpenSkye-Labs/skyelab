@@ -241,6 +241,7 @@ impl Render for ThreadView {
         let find = self.render_find(cx);
         let strip = self.render_subagent_strip(cx);
         let quote = self.render_quote_button(cx);
+        let message_menu = self.render_message_menu(cx);
         let timeline = self.quote_listeners(div(), cx);
         let theme = cx.theme();
         // T3's working row: how long the turn has run, ticking (`tick_while_working`).
@@ -383,6 +384,7 @@ impl Render for ThreadView {
                     .children(dock)
                     .child(composer),
             )
+            .children(message_menu)
     }
 }
 

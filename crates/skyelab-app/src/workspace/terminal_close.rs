@@ -76,6 +76,31 @@ impl Workspace {
         });
     }
 
+    /// Closes multiple terminal tabs together, asking once when any pane runs a command.
+    pub(super) fn close_terminal_tabs(
+        &mut self,
+        panels: Vec<Entity<TerminalPanel>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if panels.is_empty() {
+            return;
+        }
+        let mut busy = Vec::new();
+        for panel in &panels {
+            let p = panel.read(cx);
+            let ids: Vec<EntityId> = p.panes.iter().map(|pane| pane.view.entity_id()).collect();
+            busy.extend(p.busy(&ids, cx));
+        }
+        self.confirm_busy_close(busy, window, cx, move |this, window, cx| {
+            for panel in panels {
+                if this.terminals.contains(&panel) {
+                    this.remove_terminal_tab(&panel, window, cx);
+                }
+            }
+        });
+    }
+
     /// Runs `then` at once, or after the user agrees when a pane in `ids` runs something and confirmation is on.
     fn confirm_terminal_close(
         &mut self,
@@ -86,6 +111,17 @@ impl Workspace {
         then: impl FnOnce(&mut Self, &mut Window, &mut Context<Self>) + 'static,
     ) {
         let busy = panel.read(cx).busy(&ids, cx);
+        self.confirm_busy_close(busy, window, cx, then);
+    }
+
+    /// Runs `then` at once, or opens the confirmation dialog when `busy` is non-empty and confirmation is on.
+    fn confirm_busy_close(
+        &mut self,
+        busy: Vec<SharedString>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        then: impl FnOnce(&mut Self, &mut Window, &mut Context<Self>) + 'static,
+    ) {
         if busy.is_empty() || !prefs::get_terminal(cx).confirm_close {
             return then(self, window, cx);
         }

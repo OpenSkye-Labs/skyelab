@@ -55,6 +55,7 @@ pub struct RemoteThreadView {
     find: Find,
     /// AskUserQuestion picks not yet sent, by request id.
     drafts: Drafts,
+    pub(super) menu: super::timeline_menu::TimelineMenu,
     _subs: Vec<Subscription>,
 }
 
@@ -139,6 +140,7 @@ impl RemoteThreadView {
             starting: false,
             find: Find::default(),
             drafts: Drafts::default(),
+            menu: Default::default(),
             _subs: subs,
         }
     }
@@ -359,6 +361,7 @@ impl Render for RemoteThreadView {
         let _render = crate::debug_renders::count("RemoteThreadView");
         let header = self.render_header(window, cx);
         let find = self.render_find(cx);
+        let message_menu = self.render_message_menu(cx);
         let theme = cx.theme();
         let connected = self.env.read(cx).state == ConnState::Connected;
         let host = self.env.read(cx).host.clone();
@@ -467,5 +470,6 @@ impl Render for RemoteThreadView {
                     ))
                     .children(self.account.clone().map(|a| format!("· {a}"))),
             )
+            .children(message_menu)
     }
 }

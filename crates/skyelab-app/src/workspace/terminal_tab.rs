@@ -112,6 +112,7 @@ impl TerminalPanel {
                 .into_any_element(),
             None => div()
                 .id("terminal-title")
+                .debug_selector(|| "terminal-title".into())
                 .max_w(px(220.))
                 .truncate()
                 .child(self.tab_label())
@@ -217,7 +218,7 @@ impl BasePanel for TerminalPanel {
 
 impl Panel for TerminalPanel {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.tab(cx)
+        super::tab_context_menu::tab_title(cx.entity_id().into(), self.tab(cx))
     }
     fn title_suffix(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         Some(self.controls(cx))

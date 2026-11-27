@@ -88,7 +88,11 @@ impl PreviewPanel {
     }
 
     /// The header's Edit toggle: on focuses the editor; off asks first when there are edits.
-    pub(super) fn toggle_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn toggle_edit(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if !self.can_edit() {
             return;
         }

@@ -115,6 +115,16 @@ impl ItemsView for RemoteThreadView {
             this.drafts.remove(&id);
         });
     }
+    fn message_menu(
+        &mut self,
+        is_markdown: bool,
+        text: String,
+        at: gpui::Point<gpui::Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_message_menu(is_markdown, text, at, window, cx);
+    }
 }
 
 impl FindHost for RemoteThreadView {

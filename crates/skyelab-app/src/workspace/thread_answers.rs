@@ -384,6 +384,16 @@ impl ItemsView for ThreadView {
     fn reveal_plan(&mut self, path: &str, cx: &mut Context<Self>) -> bool {
         ThreadView::reveal_plan(self, path, cx)
     }
+    fn message_menu(
+        &mut self,
+        is_markdown: bool,
+        text: String,
+        at: gpui::Point<gpui::Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_message_menu(is_markdown, text, at, window, cx);
+    }
 }
 
 impl ThreadView {

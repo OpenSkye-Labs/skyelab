@@ -273,8 +273,8 @@ impl BasePanel for SearchPanel {
 }
 
 impl Panel for SearchPanel {
-    fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        "Search"
+    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::workspace::tab_context_menu::tab_title(cx.entity_id().into(), "Search")
     }
     fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
         None

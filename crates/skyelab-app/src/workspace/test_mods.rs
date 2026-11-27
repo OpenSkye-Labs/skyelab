@@ -334,3 +334,7 @@ pub(crate) mod background_keep_test;
 mod background_last_window_test;
 #[cfg(all(test, unix))]
 mod resume_after_restart_test;
+#[cfg(all(test, unix))]
+mod tab_context_menu_test;
+#[cfg(all(test, unix))]
+mod timeline_menu_test;

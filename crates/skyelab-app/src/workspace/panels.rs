@@ -36,9 +36,9 @@ macro_rules! panel {
             }
         }
         impl Panel for $ty {
-            fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
                 let $this = &*self;
-                $title
+                crate::workspace::tab_context_menu::tab_title(cx.entity_id().into(), $title)
             }
             fn title_bar(&self, _: &App) -> bool {
                 $title_bar
@@ -296,7 +296,7 @@ impl BasePanel for BrowserPanel {
 }
 impl Panel for BrowserPanel {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.tab_title(cx)
+        crate::workspace::tab_context_menu::tab_title(cx.entity_id().into(), self.tab_title(cx))
     }
 }
 

@@ -214,7 +214,18 @@ impl Workspace {
             return self.close_details(window, cx);
         }
         // The workspace's escape binding runs before the open machine menu's own key handler.
-        if self.close_env_menu(window, cx) {
+        if self.close_env_menu(window, cx) || self.close_tab_menu(window, cx) {
+            return;
+        }
+        if let Some(view) = self.current_thread()
+            && view.update(cx, |v, cx| v.close_message_menu(window, cx))
+        {
+            return;
+        }
+        if let Page::RemoteThread(v) = &self.page
+            && let Some(view) = v.upgrade()
+            && view.update(cx, |v, cx| v.close_message_menu(window, cx))
+        {
             return;
         }
         if self.unzoom(window, cx) {
