@@ -95,6 +95,7 @@ pub fn init(cx: &mut App) {
             KeyBinding::new(SEARCH_FILES_KEY, files::SearchFiles, Some("Input")),
         ]);
     }
+    crate::ui::bind_keys(cx);
     layout::bind_keys(cx);
     onboarding::bind_keys(cx);
     surfaces::bind_keys(cx);

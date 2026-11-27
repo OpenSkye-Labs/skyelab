@@ -13,7 +13,7 @@ use gpui::{
     prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _, WindowExt as _, h_flex,
+    ActiveTheme as _, Icon, Sizable as _, h_flex,
     input::{InputEvent, InputState},
     v_flex,
 };
@@ -213,7 +213,7 @@ impl PrActions {
     /// "View diff": the PR's diff tab, through the workspace (the dialog closes first, so the action reaches it).
     pub(crate) fn view_diff(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let target = self.target.clone();
-        window.close_dialog(cx);
+        crate::ui::close_dialog(window, cx);
         crate::workspace::dispatch(
             Box::new(super::changes::pr::OpenPrDiff { target }),
             window,
@@ -271,7 +271,7 @@ impl PrActions {
                 }
                 match done {
                     Err(e) => this.error = Some(format!("{e:#}").into()),
-                    Ok(()) => window.close_dialog(cx),
+                    Ok(()) => crate::ui::close_dialog(window, cx),
                 }
                 cx.notify();
             });

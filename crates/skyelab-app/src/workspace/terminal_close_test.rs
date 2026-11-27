@@ -7,7 +7,6 @@ use super::threads_test::{add_rooted, test_backend};
 use super::{NewTerminal, Workspace};
 use crate::test_wait::wait_until;
 use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
-use gpui_component::WindowExt as _;
 use skyelab_core::terminal_layout::{Axis, PaneTree};
 
 fn rooted(
@@ -71,7 +70,7 @@ fn no_confirm(cx: &mut VisualTestContext) {
 }
 
 fn dialog_open(cx: &mut VisualTestContext) -> bool {
-    cx.update(|window, cx| window.has_active_dialog(cx))
+    cx.update(crate::ui::has_active_dialog)
 }
 
 #[gpui::test]
@@ -136,7 +135,7 @@ fn closing_a_busy_shell_asks_first(cx: &mut TestAppContext) {
         "nothing closed yet"
     );
     // Cancel: the dialog goes, the tab and its process stay.
-    cx.update(|window, cx| window.close_dialog(cx));
+    cx.update(crate::ui::close_dialog);
     cx.run_until_parked();
     assert_eq!(
         ws.read_with(cx, |ws, _| ws.terminals.len()),

@@ -5,7 +5,6 @@ use super::resume::env_reports;
 use super::*;
 use crate::workspace::thread::RestartAgentSession;
 use crate::workspace::thread_details::fold_mcp;
-use gpui_component::WindowExt as _;
 use skyelab_agent::McpServer;
 
 fn server(name: &str, status: &str) -> McpServer {
@@ -54,7 +53,7 @@ fn restart_idle_resumes_busy_asks(cx: &mut TestAppContext) {
     wait_until(cx, "the agent to end", |cx| {
         thread.read_with(cx, |t, _| t.session.is_none())
     });
-    assert!(!cx.update(|window, cx| window.has_active_dialog(cx)));
+    assert!(!cx.update(crate::ui::has_active_dialog));
 
     // The next send resumes the same session in a new process, one that never ends its turn.
     std::fs::write(f.project_dir.join(".fake-agent-no-result"), "").expect("marker");
@@ -76,8 +75,8 @@ fn restart_idle_resumes_busy_asks(cx: &mut TestAppContext) {
         t.restart_session(&RestartAgentSession, window, cx)
     });
     cx.run_until_parked();
-    assert!(cx.update(|window, cx| window.has_active_dialog(cx)));
-    cx.update(|window, cx| window.close_dialog(cx));
+    assert!(cx.update(crate::ui::has_active_dialog));
+    cx.update(crate::ui::close_dialog);
     cx.run_until_parked();
     thread.read_with(cx, |t, _| {
         assert!(t.session.is_some(), "Cancel keeps the agent")

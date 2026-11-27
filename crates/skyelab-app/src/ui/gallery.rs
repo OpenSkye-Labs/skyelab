@@ -15,7 +15,7 @@ use gpui::{
     App, AppContext as _, Context, Entity, FontWeight, IntoElement, ParentElement as _, Render,
     Styled as _, Window, actions, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, WindowExt as _, h_flex, input::InputState, v_flex};
+use gpui_component::{ActiveTheme as _, h_flex, input::InputState, v_flex};
 
 actions!(skyelab, [OpenUiGallery]);
 
@@ -43,7 +43,7 @@ pub fn open(cx: &mut App) -> anyhow::Result<gpui::WindowHandle<gpui_component::R
     };
     cx.open_window(options, |window, cx| {
         let view = cx.new(|cx| UiGallery::new(window, cx));
-        cx.new(|cx| gpui_component::Root::new(view, window, cx))
+        cx.new(|cx| super::window_root(view.into(), window, cx))
     })
 }
 
@@ -86,7 +86,7 @@ impl UiGallery {
         crate::ui::open_dialog(window, cx, |dialog, _, _| {
             dialog
                 .w(px(420.))
-                .title(super::dialog_title("Discard changes?"))
+                .title("Discard changes?")
                 .child("The 3 changed files go back to the last commit. This can't be undone.")
                 .footer(
                     dialog_footer()
@@ -96,7 +96,7 @@ impl UiGallery {
                                 .danger()
                                 .small()
                                 .label("Discard")
-                                .on_click(|_, window, cx| window.close_dialog(cx)),
+                                .on_click(|_, window, cx| super::close_dialog(window, cx)),
                         ),
                 )
         });

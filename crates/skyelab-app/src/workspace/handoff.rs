@@ -11,7 +11,6 @@ use gpui::{
     Action, AnyElement, AppContext as _, Context, InteractiveElement, IntoElement as _,
     ParentElement as _, SharedString, Styled as _, Window, actions, div,
 };
-use gpui_component::WindowExt as _;
 use skyelab_agent::{handoff, timeline::Record};
 use skyelab_core::Provider;
 use skyelab_store::{NewThread, Thread};
@@ -212,7 +211,7 @@ struct Ask {
 
 /// Binds the folder to the `to` account the user picked, then runs the handoff again.
 fn bind_and_continue(ask: &Ask, account: &str, window: &mut Window, cx: &mut gpui::App) {
-    window.close_dialog(cx);
+    crate::ui::close_dialog(window, cx);
     let _ = ask.ws.update(cx, |ws, cx| {
         let dir = ask.dir.clone();
         match ws.edit_accounts(
@@ -283,7 +282,7 @@ fn ask_bind(
                     .small()
                     .label("Open Settings")
                     .on_click(|_, window, cx| {
-                        window.close_dialog(cx);
+                        crate::ui::close_dialog(window, cx);
                         crate::workspace::dispatch(
                             Box::new(OpenSettingsSection {
                                 section: crate::settings::Section::Accounts,

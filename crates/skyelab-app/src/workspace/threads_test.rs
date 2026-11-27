@@ -105,7 +105,7 @@ pub(super) fn add_rooted(
         let view = cx.new(|cx| build(window, cx));
         window.focus(&view.read(cx).focus.clone(), cx);
         ws = Some(view.clone());
-        gpui_component::Root::new(view, window, cx)
+        crate::ui::window_root(view.into(), window, cx)
     });
     let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
     (ws.expect("workspace built"), cx)

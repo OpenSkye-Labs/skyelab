@@ -8,7 +8,6 @@ use crate::workspace::background::{self, IDLE_GRACE};
 use crate::workspace::background_keep_test::{approve, hidden_hub, quits, waiting_thread};
 use crate::workspace::manage_harness::rig;
 use gpui::{Modifiers, TestAppContext, VisualTestContext};
-use gpui_component::WindowExt as _;
 use skyelab_client::release::Release;
 use skyelab_core::update::{Asset, CHECKSUMS, RELEASES_PAGE};
 use skyelab_core::update_install::{self as install, Install, Staged};
@@ -109,7 +108,7 @@ fn restart_while_busy_asks_and_defers_swap_until_idle(cx: &mut TestAppContext) {
     TestAppContext::update(vcx, updates::restart);
     vcx.run_until_parked();
     assert!(
-        vcx.update(|window, cx| window.has_active_dialog(cx)),
+        vcx.update(crate::ui::has_active_dialog),
         "busy restart asks first"
     );
     assert_eq!(

@@ -6,7 +6,6 @@ use crate::ui;
 use crate::ui::Button;
 use crate::workspace::thread_extras::prefs;
 use gpui::{Context, InteractiveElement as _, Window, prelude::*, px};
-use gpui_component::WindowExt as _;
 
 /// Opens "Dictation in <locale> sends audio to Apple". Allow saves the locale, then starts dictation again (now
 /// allowed); a failed save shows in the composer and starts nothing.
@@ -32,7 +31,7 @@ pub(super) fn ask(locale: String, window: &mut Window, cx: &mut Context<ThreadVi
                             .small()
                             .label(format!("Allow for {locale}"))
                             .on_click(move |_, window, cx| {
-                                window.close_dialog(cx);
+                                crate::ui::close_dialog(window, cx);
                                 let save = prefs::allow_server_dictation(locale.clone(), cx);
                                 let thread = thread.clone();
                                 window

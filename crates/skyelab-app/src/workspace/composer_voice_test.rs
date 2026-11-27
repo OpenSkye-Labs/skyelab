@@ -8,7 +8,6 @@ use super::threads_test::{fixture, open_workspace, project_thread, setup, wait_u
 use crate::workspace::thread_extras::prefs;
 use crate::workspace::thread_model::Item;
 use gpui::{Entity, TestAppContext, VisualTestContext};
-use gpui_component::WindowExt as _;
 use skyelab_speech_sys::{Capability, Event, Refusal};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};

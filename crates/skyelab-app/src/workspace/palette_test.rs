@@ -4,7 +4,6 @@ use super::threads_test::test_backend;
 use super::*;
 use crate::palette::{Entry, Kind, OPEN_PALETTE_KEY};
 use gpui::{TestAppContext, VisualTestContext};
-use gpui_component::{Root, WindowExt as _};
 
 pub(super) fn setup(cx: &mut TestAppContext) {
     cx.update(|cx| {
@@ -37,7 +36,7 @@ pub(super) fn open(
         let focus = view.read(cx).focus.clone();
         window.focus(&focus, cx);
         ws = Some(view.clone());
-        Root::new(view, window, cx)
+        crate::ui::window_root(view.into(), window, cx)
     });
     let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
     cx.run_until_parked();
@@ -45,7 +44,7 @@ pub(super) fn open(
 }
 
 fn dialog_open(cx: &mut VisualTestContext) -> bool {
-    cx.update(|window, cx| window.has_active_dialog(cx))
+    cx.update(crate::ui::has_active_dialog)
 }
 
 /// Opens the palette with its key, types `query` and presses enter.

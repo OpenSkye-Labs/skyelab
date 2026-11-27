@@ -5,7 +5,6 @@
 
 use gpui::{BoxShadow, hsla, point, px};
 use gpui_base::{Easing, Spring};
-use gpui_component::dialog::DialogEntrance;
 use gpui_component::theme::MotionTokens;
 use std::time::Duration;
 
@@ -22,8 +21,6 @@ pub const FADE_FAST: Duration = Duration::from_millis(100);
 pub const FOCAL_FADE: Duration = Duration::from_millis(300);
 /// A leaving crossfade copy; dropped once this finishes.
 pub const FADE_OUT: Duration = Duration::from_millis(150);
-/// A dialog fades in place over [`FADE`]; Rex has no in-window dialog that slides.
-pub const DIALOG: DialogEntrance = DialogEntrance::Fade;
 
 /// Rex's fades: the biggest change in the first frame, its speed then falling off evenly (an ease-out quad; a cubic
 /// front-loads too much next to Rex's frames). The one easing for `Animation::with_easing` app-wide.

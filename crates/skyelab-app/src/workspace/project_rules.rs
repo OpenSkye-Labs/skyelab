@@ -9,7 +9,7 @@ use gpui::{
     AppContext as _, Context, Entity, IntoElement, Render, SharedString, WeakEntity, Window, div,
     prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, WindowExt as _, input::InputState, v_flex};
+use gpui_component::{ActiveTheme as _, input::InputState, v_flex};
 use serde_json::Value;
 use skyelab_agent::Mode;
 use skyelab_core::project_rules::{self as rules, Kind, Rule};
@@ -227,7 +227,7 @@ impl RuleDialog {
             let _ = this.update_in(cx, |this, window, cx| {
                 this.busy = false;
                 match r {
-                    Ok(()) => window.close_dialog(cx),
+                    Ok(()) => crate::ui::close_dialog(window, cx),
                     Err(e) => this.error = Some(e.into()),
                 }
                 cx.notify();

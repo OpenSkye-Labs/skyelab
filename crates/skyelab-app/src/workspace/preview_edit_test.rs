@@ -6,7 +6,6 @@ use super::*;
 use crate::workspace::quit_guard::{Blocker, blockers};
 use crate::workspace::worktree_thread_test::{fixture, open_thread_with};
 use gpui::VisualTestContext;
-use gpui_component::WindowExt as _;
 
 const M: &str = if cfg!(target_os = "macos") {
     "cmd"
@@ -58,7 +57,7 @@ fn text(p: &Entity<PreviewPanel>, cx: &mut VisualTestContext) -> String {
 }
 
 fn dialog_open(cx: &mut VisualTestContext) -> bool {
-    cx.update(|window, cx| window.has_active_dialog(cx))
+    cx.update(crate::ui::has_active_dialog)
 }
 
 #[gpui::test]

@@ -12,6 +12,8 @@ disallowed-types = [
     { path = "gpui_component::tooltip::Tooltip", reason = "use crate::ui::Tooltip" },
     { path = "gpui_component::notification::Notification", reason = "use crate::ui::toast::Toast" },
     { path = "gpui_component::dialog::DialogFooter", reason = "use crate::ui::dialog_footer" },
+    { path = "gpui_component::dialog::Dialog", reason = "use crate::ui::Dialog through crate::ui::open_dialog" },
+    { path = "gpui_component::dialog::DialogEntrance", reason = "use crate::ui::DialogEntrance" },
     { path = "gpui_component::select::Select", reason = "use crate::ui::Button with .dropdown_caret(true).dropdown_menu(..)" },
 ]
 # ui::Kbd borrows gpui-component's platform spelling (`Kbd::format`), so only its constructors are banned.
@@ -19,8 +21,10 @@ disallowed-methods = [
     { path = "gpui_component::kbd::Kbd::new", reason = "use crate::ui::Kbd::new" },
     { path = "gpui_component::kbd::Kbd::binding_for_action", reason = "use crate::ui::Kbd::for_action" },
     { path = "gpui_component::kbd::Kbd::binding_for_action_in", reason = "use crate::ui::Kbd::for_action_in" },
-    # Every dialog moves alike (ui::motion::DIALOG).
+    # SkyeLab's own dialogs (ui::dialog, ui::dialog_layer): named, trapped, faded alike.
     { path = "gpui_component::WindowExt::open_dialog", reason = "use crate::ui::open_dialog" },
+    { path = "gpui_component::WindowExt::close_dialog", reason = "use crate::ui::close_dialog" },
+    { path = "gpui_component::WindowExt::has_active_dialog", reason = "use crate::ui::has_active_dialog" },
     # Toasts fade in like Rex's (ui::toast); gpui-component's slide 96 px over 400 ms.
     { path = "gpui_component::WindowExt::push_notification", reason = "use crate::ui::toast::push" },
 ]

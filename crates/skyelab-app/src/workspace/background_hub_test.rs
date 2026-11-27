@@ -7,7 +7,6 @@ use super::delegation_test::{host_call, open, rig, start, thread_id, wait_until}
 use super::windows::{self, window_handles};
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
-use gpui_component::Root;
 use skyelab_agent::mcp::{Caller, Tool};
 
 #[gpui::test]
@@ -25,7 +24,7 @@ fn the_hidden_hub_serves_calls_and_opens_the_thread(cx: &mut TestAppContext) {
         cx.open_window(gpui::WindowOptions::default(), |window, cx| {
             let config = AccountsConfig::default();
             let ws = cx.new(|cx| Workspace::new(folder, path, config, None, backend, window, cx));
-            cx.new(|cx| Root::new(ws, window, cx))
+            cx.new(|cx| crate::ui::window_root(ws.into(), window, cx))
         })
         .expect("a window opens");
     });

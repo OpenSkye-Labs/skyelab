@@ -47,7 +47,7 @@ fn type_body(d: &Entity<IssueActions>, text: &str, cx: &mut VisualTestContext) {
 }
 
 fn dialog_open(cx: &mut VisualTestContext) -> bool {
-    cx.update(|window, cx| window.has_active_dialog(cx))
+    cx.update(crate::ui::has_active_dialog)
 }
 
 #[gpui::test]

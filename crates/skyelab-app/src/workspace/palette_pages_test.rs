@@ -5,10 +5,9 @@ use super::threads_test::test_backend;
 use super::*;
 use crate::palette::OPEN_PALETTE_KEY;
 use gpui::{TestAppContext, VisualTestContext};
-use gpui_component::WindowExt as _;
 
 fn dialog_open(cx: &mut VisualTestContext) -> bool {
-    cx.update(|window, cx| window.has_active_dialog(cx))
+    cx.update(crate::ui::has_active_dialog)
 }
 
 fn type_and(query: &str, key: &str, cx: &mut VisualTestContext) {

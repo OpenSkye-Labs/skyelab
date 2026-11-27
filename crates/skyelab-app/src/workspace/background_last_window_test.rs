@@ -7,14 +7,13 @@ use super::background_keep_test::waiting_thread;
 use super::manage_harness::rig;
 use super::quit_guard::{blockers, can_keep, may_close_on, set_keeps};
 use gpui::TestAppContext;
-use gpui_component::WindowExt as _;
 
 #[gpui::test]
 fn nothing_working_closes_without_asking(cx: &mut TestAppContext) {
     let (_r, vcx) = rig(cx);
     let close = vcx.update(|window, cx| may_close_on(false, window, cx));
     assert!(close, "nothing in flight: the window closes");
-    assert!(!vcx.update(|window, cx| window.has_active_dialog(cx)));
+    assert!(!vcx.update(crate::ui::has_active_dialog));
     assert!(!TestAppContext::update(vcx, |cx| background::is_on(cx)));
 }
 
@@ -28,7 +27,7 @@ fn closing_the_last_window_offers_keep_running(cx: &mut TestAppContext) {
     vcx.update(|_, cx| set_keeps(true, cx)).expect("saved");
     let close = vcx.update(|window, cx| may_close_on(false, window, cx));
     assert!(close, "the window closes without asking");
-    assert!(!vcx.update(|window, cx| window.has_active_dialog(cx)));
+    assert!(!vcx.update(crate::ui::has_active_dialog));
     assert!(
         TestAppContext::update(vcx, |cx| background::is_on(cx)),
         "and SkyeLab keeps running in background"
@@ -40,7 +39,7 @@ fn closing_the_last_window_offers_keep_running(cx: &mut TestAppContext) {
     let close = vcx.update(|window, cx| may_close_on(false, window, cx));
     vcx.run_until_parked();
     assert!(!close, "a waiting thread: the window stays while it asks");
-    assert!(vcx.update(|window, cx| window.has_active_dialog(cx)));
+    assert!(vcx.update(crate::ui::has_active_dialog));
     assert!(vcx.debug_bounds("quit-keep").is_some(), "Keep running is offered");
     assert!(!TestAppContext::update(vcx, |cx| background::is_on(cx)), "not yet");
 }

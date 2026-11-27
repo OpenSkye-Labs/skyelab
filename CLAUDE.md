@@ -79,7 +79,7 @@ and a merge that succeeds makes `pr view` answer MERGED; the PR's head sha is th
   next to itself, and its screen flips blue/green after every `input`), and `SKYELAB_XCRUN_BIN` = a script printing
   `{"devices":{}}` so no real simulator is listed. In `fake-claude-delegate.sh`, `device <id>` calls `device_open` and
   `tap <id>` calls `device_tap` at 50,100. Never drive a real simulator or emulator in tests. All of these are debug builds only.
-- **UI accessibility is enforced** ([docs/gpui/accessibility.md](docs/gpui/accessibility.md)): build with `crate::ui` primitives; every interactive control needs an id, a role, a non-empty name and `.on_click` / `.on_a11y_action(Action::Click, ..)`, never only `.on_mouse_down`. `ui::a11y_test` and `ui::a11y_audit_test` check it.
+- **UI accessibility is enforced** ([docs/gpui/accessibility.md](docs/gpui/accessibility.md)): build with `crate::ui` primitives; every interactive control needs an id, a role, a non-empty name and `.on_click` / `.on_a11y_action(Action::Click, ..)`, never only `.on_mouse_down`. `ui::a11y_test` and `ui::a11y_audit_test` check it. New controls go in our own kit: [docs/gpui/kit.md](docs/gpui/kit.md).
 - A real-account run (only with the user's explicit OK) needs the REAL `HOME`: on macOS, Claude Code reads its login from the
   keychain, and a throwaway `HOME` makes it report "Not logged in". It then uses the real SkyeLab data dir
   (`~/Library/Application Support/skyelab-dev` for a debug build, `skyelab` for a release build), so back up or clean

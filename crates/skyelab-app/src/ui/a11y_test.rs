@@ -4,7 +4,7 @@
 
 use super::{
     Button, Checkbox, EmptyState, SectionHeader, SegmentedControl, Switch, Tabs, TextField,
-    dialog_title, icon_button, page_title, row, row_surface, section_title,
+    icon_button, page_title, row, row_surface, section_title,
     toast::{self, Toast},
 };
 use crate::ui::SkyeIcon;
@@ -279,8 +279,9 @@ fn row_empty_state_dialog_title_and_toast_a11y_nodes(cx: &mut TestAppContext) {
                             .render(window, cx)
                             .into_any_element(),
                     ));
-                    n.dialog_heading =
-                        Some(probe_div(dialog_title("Delete thread").into_any_element()));
+                    n.dialog_heading = Some(probe_div(
+                        super::dialog::heading("Delete thread".into()).into_any_element(),
+                    ));
                     n.toast_error = Some(probe_div(
                         toast::card(
                             1,

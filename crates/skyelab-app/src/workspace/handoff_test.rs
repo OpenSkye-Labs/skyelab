@@ -9,7 +9,6 @@ use crate::workspace::threads_test::{
 };
 use crate::workspace::{AccountsFile, CodexBin, Workspace};
 use gpui::{Entity, TestAppContext, VisualTestContext};
-use gpui_component::WindowExt as _;
 use skyelab_core::{Account, AccountsConfig, Binding, Provider};
 use std::path::Path;
 
@@ -171,14 +170,14 @@ fn claude_thread_continues_in_codex(cx: &mut TestAppContext) {
         to: Provider::Codex,
     });
     wait_until(cx, "the bind dialog", |cx| {
-        cx.update(|window, cx| window.has_active_dialog(cx))
+        cx.update(crate::ui::has_active_dialog)
     });
     assert_eq!(
         thread_count(&f, project_id),
         before,
         "nothing under a Claude binding"
     );
-    cx.update(|window, cx| window.close_dialog(cx));
+    cx.update(crate::ui::close_dialog);
 
     // Unbound: the same.
     rebind(&f, &ws, None, cx);
@@ -187,10 +186,10 @@ fn claude_thread_continues_in_codex(cx: &mut TestAppContext) {
         to: Provider::Codex,
     });
     wait_until(cx, "the bind dialog", |cx| {
-        cx.update(|window, cx| window.has_active_dialog(cx))
+        cx.update(crate::ui::has_active_dialog)
     });
     assert_eq!(thread_count(&f, project_id), before, "nothing when unbound");
-    cx.update(|window, cx| window.close_dialog(cx));
+    cx.update(crate::ui::close_dialog);
 
     // Bound to Codex: the source can't resume there, and its banner offers the handoff.
     rebind(&f, &ws, Some("oai"), cx);
@@ -335,7 +334,7 @@ fn the_bind_dialog_binds_the_picked_account_and_continues(cx: &mut TestAppContex
         to: Provider::Codex,
     });
     wait_until(cx, "the bind dialog", |cx| {
-        cx.update(|window, cx| window.has_active_dialog(cx))
+        cx.update(crate::ui::has_active_dialog)
     });
     cx.run_until_parked();
     assert!(

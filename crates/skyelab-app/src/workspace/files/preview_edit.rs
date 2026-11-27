@@ -6,10 +6,7 @@
 use super::{Body, PreviewPanel};
 use crate::ui::Button;
 use gpui::{Context, SharedString, Subscription, Task, Window, prelude::*};
-use gpui_component::{
-    WindowExt as _,
-    input::{InputEvent, Rope},
-};
+use gpui_component::input::{InputEvent, Rope};
 use skyelab_core::files::Saved;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -265,7 +262,7 @@ impl PreviewPanel {
                                 .small()
                                 .label("Discard")
                                 .on_click(move |_, window, cx| {
-                                    window.close_dialog(cx);
+                                    crate::ui::close_dialog(window, cx);
                                     let Some(then) = drop_then.borrow_mut().take() else {
                                         return;
                                     };
@@ -282,7 +279,7 @@ impl PreviewPanel {
                                 .small()
                                 .label("Save")
                                 .on_click(move |_, window, cx| {
-                                    window.close_dialog(cx);
+                                    crate::ui::close_dialog(window, cx);
                                     let Some(then) = save_then.borrow_mut().take() else {
                                         return;
                                     };
@@ -375,7 +372,7 @@ impl PreviewPanel {
         cx: &mut Context<Self>,
     ) {
         let then = self.edit.pending.take().and_then(|t| t.borrow_mut().take());
-        window.close_dialog(cx);
+        crate::ui::close_dialog(window, cx);
         match (save, then) {
             (Some(true), Some(then)) => self.save(false, Some(then), window, cx),
             (Some(false), Some(then)) => {

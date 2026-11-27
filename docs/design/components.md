@@ -73,10 +73,10 @@ reaches for these.
 - **`Card` / `Divider`** (`ui/surface.rs`): a card is radius 12 with a hairline border on the muted fill. Use `raised()`
   for one floating over the page and `flush()` for one holding `group_row`s. A divider is a 1 px hairline, `vertical()`
   inside a row.
-- **Dialog shell** (`ui/dialog.rs`): the modal itself is gpui-component's `Dialog` (`window.open_dialog`: focus trap,
-  Esc, the dimmed `overlay` backdrop). Fill it with `dialog_title(title)` (which adds the semantic `Heading` role and
-  accessible label), the body and `dialog_footer()` holding `dialog_cancel(id)` and the action button. See
-  [docs/gpui/accessibility.md](../gpui/accessibility.md) for the full accessibility contract.
+- **`Dialog`** (`ui/dialog.rs`, `ui/dialog_layer.rs`): ours. `ui::open_dialog(window, cx, |d, _, _| d.title(..).w(..)
+  .child(..).footer(dialog_footer().child(dialog_cancel(id)).child(action)))`; `title` is text (the heading and the
+  dialog's accessible name). The layer brings the backdrop, Esc, the focus trap, the fade and a ✕ named
+  "Close <title>". See [docs/gpui/kit.md](../gpui/kit.md).
 - **`Toast`** (`ui/toast.rs`): `ui::toast::push(window, Toast::success(msg).title(..), cx)`. Kinds `new` (plain),
   `info`, `success`, `warning`, `error`; `action(label, f)` adds one button (and stops autohide unless
   `.autohide(true)`), `on_click`, and `key` (a newer toast with the same key replaces it). Fades in over 150 ms, leaves
@@ -87,7 +87,7 @@ reaches for these.
 - **The popup menu** (`DropdownMenu` / `PopupMenu`, `context_menu`): keyboard navigation, submenus and focus. It is
   colored by the theme's `popover`, `accent` and `border`.
 - **`Input` / `Textarea`**: text editing. GPUI has no text input of its own.
-- **`Dialog`** and **`HoverCard`**: layers inside `Root`. (gpui-component's `Notification` is banned; see `Toast`.)
+- **`HoverCard`**: a layer inside `Root`. (gpui-component's `Notification` is banned; see `Toast`.)
 - **The dock and its tab bars**, and **`TextView`** (markdown).
 - **`Command`** (the palette's list): its own query field is private and a fixed medium size, so the palette turns
   it off (`searchable(false)`) and draws a large field of ours in the header that drives `CommandState::set_query`.

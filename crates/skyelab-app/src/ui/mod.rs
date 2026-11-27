@@ -34,10 +34,31 @@ mod components;
 #[cfg(test)]
 mod contrast_test;
 mod dialog;
+#[cfg(test)]
+mod dialog_close_test;
+#[cfg(test)]
+mod dialog_fade_click_test;
+#[cfg(test)]
+mod dialog_focus_test;
+#[cfg(test)]
+mod dialog_keymap_reload_test;
+mod dialog_layer;
+#[cfg(test)]
+mod dialog_look_test;
+#[cfg(test)]
+mod dialog_selection_test;
+#[cfg(test)]
+mod dialog_stack_test;
+#[cfg(test)]
+mod dialog_test;
+#[cfg(test)]
+mod dialog_title_strip_test;
 pub mod gallery;
 #[cfg(test)]
 mod gallery_test;
 mod kbd;
+#[cfg(test)]
+mod kit_boundary_test;
 pub mod motion;
 #[cfg(test)]
 mod motion_test;
@@ -59,6 +80,7 @@ mod toggle;
 mod toggle_test;
 pub(crate) mod tooltip;
 pub mod window_controls;
+mod window_root;
 
 pub use button::{Button, Variant, icon_button};
 pub use choice::{SegmentedControl, Tabs};
@@ -67,13 +89,17 @@ pub use components::{
     AccountBadge, EmptyState, KeyHint, Monogram, Pill, SectionHeader, StatusDot, group, group_row,
     header, mono, page_title, row, row_surface, section_title, subsection_title,
 };
-pub use dialog::{dialog_cancel, dialog_footer, dialog_title, open_dialog};
+pub use dialog::{
+    DialogEntrance, close_dialog, dialog_cancel, dialog_footer, has_active_dialog, open_dialog,
+};
+pub use dialog_layer::bind_keys;
 pub use kbd::{Kbd, keys};
 pub use surface::{Card, Divider};
 pub use text_field::TextField;
 pub use toggle::{Checkbox, Switch};
 pub use tooltip::Tooltip;
 pub use window_controls::{WindowControls, drag_area, no_drag};
+pub use window_root::window_root;
 
 use gpui::{Hsla, Pixels, Rems, px, rems};
 use gpui_component::Theme;

@@ -171,7 +171,7 @@ fn what_took_the_focus_keeps_it_when_the_modal_closes(cx: &mut TestAppContext) {
         "the palette closed it"
     );
     assert!(
-        cx.update(gpui_component::WindowExt::has_active_dialog),
+        cx.update(crate::ui::has_active_dialog),
         "the palette is open"
     );
     let now = cx.update(|window, cx| window.focused(cx));

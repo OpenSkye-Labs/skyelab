@@ -10,7 +10,7 @@ use super::panels::Ask;
 use super::windows::{Windows, window_handles};
 use crate::ui::{Button, Checkbox};
 use gpui::{AnyWindowHandle, App, Global, SharedString, Window, prelude::*};
-use gpui_component::{ActiveTheme as _, WindowExt as _, v_flex};
+use gpui_component::{ActiveTheme as _, v_flex};
 use skyelab_core::AppSettings;
 use std::cell::Cell;
 use std::path::PathBuf;
@@ -348,7 +348,7 @@ fn asking(cx: &mut App) -> bool {
     // Inside that window's own update (⌘Q there) it can't be read: the flag stands, as the dialog's close clears it.
     let open = cx.windows().contains(&window)
         && window
-            .update(cx, |_, window, cx| window.has_active_dialog(cx))
+            .update(cx, |_, window, cx| crate::ui::has_active_dialog(window, cx))
             .unwrap_or(true);
     if !open {
         cx.set_global(Asking(None));
@@ -406,7 +406,7 @@ fn open(items: Vec<(SharedString, Blocker)>, window: &mut Window, cx: &mut App) 
                             .label("Cancel")
                             .on_click(|_, window, cx| {
                                 cx.set_global(Asking(None));
-                                window.close_dialog(cx);
+                                crate::ui::close_dialog(window, cx);
                             }),
                     )
                     .child(
@@ -440,7 +440,7 @@ fn open(items: Vec<(SharedString, Blocker)>, window: &mut Window, cx: &mut App) 
                                             );
                                         }
                                         cx.set_global(Asking(None));
-                                        window.close_dialog(cx);
+                                        crate::ui::close_dialog(window, cx);
                                         super::background::enter(cx);
                                     }),
                             ),

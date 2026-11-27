@@ -7,7 +7,7 @@ use super::terminal_panel::{CloseTerminal, TerminalPanel};
 use super::thread_extras::prefs;
 use crate::ui::Button;
 use gpui::{AppContext as _, Context, Entity, EntityId, SharedString, Window, prelude::*};
-use gpui_component::{WindowExt as _, dock::DockPlacement};
+use gpui_component::dock::DockPlacement;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -145,7 +145,7 @@ impl Workspace {
                                 .label("Close")
                                 .accessibility_label("Close terminal")
                                 .on_click(move |_, window, cx| {
-                                    window.close_dialog(cx);
+                                    crate::ui::close_dialog(window, cx);
                                     let Some(then) = then.borrow_mut().take() else {
                                         return;
                                     };
@@ -172,7 +172,7 @@ impl Workspace {
             .take()
             .and_then(|t| t.borrow_mut().take())
         {
-            window.close_dialog(cx);
+            crate::ui::close_dialog(window, cx);
             then(self, window, cx);
         }
     }
