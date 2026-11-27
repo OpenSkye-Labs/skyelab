@@ -324,8 +324,8 @@ fn layer(
             s.child(
                 div()
                     .absolute()
-                    .top((top_pad - px(10.)).max(px(8.)))
-                    .right((right_pad - px(10.)).max(px(8.)))
+                    .top((top_pad - px(14.)).max(px(4.)))
+                    .right((right_pad - px(13.5)).max(px(4.5)))
                     .child(
                         icon_button(("dialog-close", at.key), SkyeIcon::X)
                             .small()

@@ -90,6 +90,10 @@ See [gpui/webview.md](gpui/webview.md).
 
 See [gpui/accessibility.md](gpui/accessibility.md).
 
+## SkyeLab's own UI kit
+
+How kit components, windows and dialogs are built: [gpui/kit.md](gpui/kit.md).
+
 ## Testing
 
 - Logic goes in `skyelab-core` and gets plain `#[test]`s. Views stay thin.
