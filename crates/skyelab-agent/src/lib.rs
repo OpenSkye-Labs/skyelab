@@ -16,6 +16,7 @@ mod git_text;
 pub mod handoff;
 pub mod import;
 mod launch;
+mod login_identity;
 mod login_status;
 mod mcp_user;
 mod pipes;
@@ -33,6 +34,7 @@ pub use git_text::{
     generate_pr, pr_prompt,
 };
 pub use launch::resolve_bin;
+pub use login_identity::login_identity;
 pub use login_status::{Login, login_status};
 use pipes::{read_events, read_stderr, write_lines};
 pub use title::{clean_title, generate_title, one_shot, title_prompt};

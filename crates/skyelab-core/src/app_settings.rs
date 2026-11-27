@@ -68,6 +68,8 @@ pub struct AppSettings {
     /// Dictation languages (normalized locales, [`same_locale`]) the user allowed to go to Apple's servers because
     /// the Mac can't recognize them on the device. Empty: every server-side language asks first.
     pub dictation_server_locales: Vec<String>,
+    /// Delegation across machines: links allowed in, machines delegated to.
+    pub delegation: crate::delegation_settings::DelegationSettings,
 }
 
 impl Default for AppSettings {
@@ -95,6 +97,7 @@ impl Default for AppSettings {
             onboarded: false,
             visual_replies: VisualReplySettings::default(),
             dictation_server_locales: Vec::new(),
+            delegation: Default::default(),
         }
     }
 }
