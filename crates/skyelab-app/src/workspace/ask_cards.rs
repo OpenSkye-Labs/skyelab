@@ -8,13 +8,14 @@ use super::thread_model::ApprovalItem;
 use super::tool_cards::slot;
 use crate::ui;
 use crate::ui::A11yScrollArea as _;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
 use gpui::{
     AnyElement, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 use skyelab_agent::Decision;
 pub(super) use skyelab_agent::timeline::cards::questions;
 use std::collections::BTreeSet;
@@ -101,7 +102,7 @@ pub(super) fn waiting_row(icon: SkyeIcon, label: &str, cx: &Context<impl ItemsVi
         .into_any_element()
 }
 
-pub(super) fn card(theme: &gpui_component::Theme) -> gpui::Div {
+pub(super) fn card(theme: &crate::ui::Theme) -> gpui::Div {
     v_flex()
         .w_full()
         .gap_2()

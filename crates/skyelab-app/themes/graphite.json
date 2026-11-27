@@ -13,6 +13,11 @@
       "radius.lg": 12,
       "shadow": false,
       "colors": {
+        "chart.1": "#93c5fd",
+        "chart.2": "#3a82f6",
+        "chart.3": "#2563eb",
+        "chart.4": "#1c4dd8",
+        "chart.5": "#1d3faf",
         "background": "#f5f5f4",
         "overlay": "#f5f5f4bf",
         "foreground": "#1c1917",
@@ -86,6 +91,11 @@
       "radius.lg": 12,
       "shadow": false,
       "colors": {
+        "chart.1": "#93c5fd",
+        "chart.2": "#3a82f6",
+        "chart.3": "#2563eb",
+        "chart.4": "#1c4dd8",
+        "chart.5": "#1d3faf",
         "background": "#1c1c1e",
         "overlay": "#1c1c1ebf",
         "foreground": "#ececec",

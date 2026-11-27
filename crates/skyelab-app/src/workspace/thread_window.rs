@@ -2,6 +2,7 @@
 //! app-wide); the window that last showed it owns its prompt and its UI side effects.
 
 use super::{SendPrompt, ThreadView};
+use crate::ui::ActiveTheme as _;
 use crate::workspace::thread_extras::prefs;
 use gpui::{
     AnyElement, AnyWindowHandle, App, AppContext as _, Context, Entity, InteractiveElement as _,
@@ -9,7 +10,6 @@ use gpui::{
     StatefulInteractiveElement as _, Styled as _, Subscription, Window, div,
     prelude::FluentBuilder as _, px,
 };
-use gpui_component::ActiveTheme as _;
 use gpui_component::input::{InputEvent, TextareaState};
 
 pub(in crate::workspace) const PLACEHOLDER: &str =

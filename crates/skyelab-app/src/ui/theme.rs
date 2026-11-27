@@ -2,7 +2,7 @@
 //! (`theme_load`) builds it from the family files in `themes/`; `themes::apply` installs it.
 
 use gpui::{App, Global, Hsla, Pixels, SharedString, WindowAppearance};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ThemeMode {
@@ -50,11 +50,8 @@ pub struct Theme {
     pub danger_hover: Hsla,
     pub danger_active: Hsla,
     pub warning: Hsla,
-    pub warning_foreground: Hsla,
     pub success: Hsla,
-    pub success_foreground: Hsla,
     pub info: Hsla,
-    pub info_foreground: Hsla,
     pub input: Hsla,
     pub popover: Hsla,
     pub popover_foreground: Hsla,
@@ -62,7 +59,6 @@ pub struct Theme {
     pub selection: Hsla,
     pub overlay: Hsla,
     pub link: Hsla,
-    pub caret: Hsla,
     pub tab_bar: Hsla,
     pub sidebar: Hsla,
     pub sidebar_foreground: Hsla,
@@ -75,13 +71,16 @@ pub struct Theme {
     pub yellow: Hsla,
     pub magenta: Hsla,
     pub cyan: Hsla,
+    pub chart_1: Hsla,
+    pub chart_2: Hsla,
+    pub chart_3: Hsla,
+    pub chart_4: Hsla,
+    pub chart_5: Hsla,
     pub font_family: SharedString,
     pub font_size: Pixels,
     pub mono_font_family: SharedString,
     pub mono_font_size: Pixels,
-    pub radius: Pixels,
     pub radius_lg: Pixels,
-    pub shadow: bool,
     /// gpui-component's highlighter still paints code, so its style travels with ours until the text stage.
     pub highlight_theme: Arc<gpui_component::highlighter::HighlightTheme>,
 }
@@ -91,8 +90,19 @@ impl Theme {
         self.mode.is_dark()
     }
 
+    /// The installed theme; before `install_theme` (a test that doesn't need one), the default family's light theme.
     pub fn global(cx: &App) -> &Self {
-        cx.global::<Self>()
+        static DEFAULT: OnceLock<Theme> = OnceLock::new();
+        cx.try_global::<Self>().unwrap_or_else(|| {
+            DEFAULT.get_or_init(|| {
+                super::theme_load::resolve(
+                    super::themes::FAMILIES[0].json,
+                    false,
+                    &Default::default(),
+                )
+                .expect("the default theme file loads (theme_load_test)")
+            })
+        })
     }
 }
 

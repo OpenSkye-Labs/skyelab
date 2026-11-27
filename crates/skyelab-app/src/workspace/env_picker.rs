@@ -7,6 +7,7 @@ use super::env_mode::SwitchEnvironment;
 use crate::environment::RemoteEnv;
 use crate::ui;
 use crate::ui::A11yScrollArea as _;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::Tooltip;
 use gpui::{
@@ -14,7 +15,7 @@ use gpui::{
     Point, SharedString, Task, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon,
+    Icon,
     input::{InputEvent, InputState},
     v_flex,
 };

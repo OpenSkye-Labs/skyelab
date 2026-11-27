@@ -7,13 +7,14 @@ use super::question_drafts;
 use super::thread::ThreadView;
 use super::thread_model::ApprovalItem;
 use crate::ui::A11yScrollArea as _;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{self, Kbd, SkyeIcon, icon_button};
 use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement as _, ParentElement as _,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
     prelude::FluentBuilder as _, px,
 };
-use gpui_component::{ActiveTheme as _, h_flex, v_flex};
+use gpui_component::{h_flex, v_flex};
 use skyelab_agent::Decision;
 
 const ANSWER_HINT: &str = "Type your own answer, or leave this blank to use the selected option";
@@ -436,7 +437,7 @@ impl ThreadView {
 }
 
 /// An option's radio (one pick) or checkbox (any).
-pub(super) fn option_mark(on: bool, multi: bool, theme: &gpui_component::Theme) -> gpui::Div {
+pub(super) fn option_mark(on: bool, multi: bool, theme: &crate::ui::Theme) -> gpui::Div {
     let base = div()
         .size(px(14.))
         .flex_shrink_0()

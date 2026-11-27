@@ -4,9 +4,10 @@ use super::composer_picker_keys::{PICKER_CONTEXT, PickerJump};
 use super::thread::ThreadView;
 use super::{hint, popover};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{Checkbox, Kbd, SkyeIcon, TextField};
 use gpui::{AnyElement, Context, FontWeight, SharedString, Window, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
+use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 use skyelab_agent::CLAUDE_EFFORTS;
 use skyelab_core::Provider;
 

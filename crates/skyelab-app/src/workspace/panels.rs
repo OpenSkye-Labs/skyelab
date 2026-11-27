@@ -1,13 +1,14 @@
 //! The workspace's dock panels and the dock traits each one needs.
 
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, SharedString,
     Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon,
+    Icon,
     dock::{BasePanel, Panel, PanelEvent},
     h_flex, v_flex,
 };

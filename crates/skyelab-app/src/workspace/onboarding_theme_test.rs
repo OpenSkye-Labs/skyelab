@@ -5,7 +5,7 @@ use super::onboarding::Step;
 use super::onboarding_test::rig;
 use super::threads_test::wait_until;
 use gpui::TestAppContext;
-use gpui_component::ActiveTheme as _;
+use crate::ui::ActiveTheme as _;
 
 #[gpui::test]
 fn picking_a_family_and_dark_applies_and_saves_both(cx: &mut TestAppContext) {

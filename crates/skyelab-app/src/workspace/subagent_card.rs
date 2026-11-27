@@ -3,10 +3,11 @@
 
 use super::{SubagentItem, SubagentStatus};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::workspace::thread_items::{ItemsView, clip, tool_summary};
 use gpui::{AnyElement, Context, FontWeight, SharedString, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 
 /// "Running · 4s", "Done · 1m 02s", "Failed".
 pub fn status_text(s: &SubagentItem) -> String {

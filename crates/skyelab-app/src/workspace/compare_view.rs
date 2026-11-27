@@ -8,12 +8,13 @@ use super::thread_model::Item;
 use super::{OpenThread, SharedStore, Workspace, lock};
 use crate::ui;
 use crate::ui::A11yScrollArea as _;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use gpui::{
     AppContext as _, Context, Entity, FocusHandle, Focusable, FontWeight, SharedString,
     Subscription, Task, WeakEntity, Window, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, h_flex, v_flex};
+use gpui_component::{h_flex, v_flex};
 use std::collections::{HashMap, HashSet};
 
 pub struct CompareView {

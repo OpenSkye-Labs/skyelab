@@ -4,11 +4,12 @@
 
 use super::Settings;
 use super::widgets::DESC;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, Switch};
 use crate::workspace::thread_extras::prefs;
 use gpui::{AnyElement, Context, SharedString, Window, prelude::*};
 use gpui_component::{
-    ActiveTheme as _, h_flex,
+    h_flex,
     menu::{DropdownMenu as _, PopupMenuItem},
 };
 use skyelab_core::thread_defaults::ThreadField;

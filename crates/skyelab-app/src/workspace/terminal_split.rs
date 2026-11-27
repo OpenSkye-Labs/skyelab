@@ -2,11 +2,11 @@
 //! neighbours that resizes them when dragged.
 
 use super::terminal_panel::{TabEvent, TerminalPanel};
+use crate::ui::ActiveTheme as _;
 use gpui::{
     AnyElement, Context, DragMoveEvent, EntityId, IntoElement, Pixels, Render, Window, div,
     prelude::*, px, relative,
 };
-use gpui_component::ActiveTheme as _;
 use skyelab_core::terminal_layout::{Axis, PaneTree, WHOLE};
 
 /// The divider being dragged: which tab, the split's path from the root, and the divider's index in it.

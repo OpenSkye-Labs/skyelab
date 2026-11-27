@@ -4,11 +4,12 @@
 
 use super::pr_actions::{PrActions, Stage, Target, account_gh_dir};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, SkyeIcon};
 use gpui::{
     App, AppContext as _, Context, Global, IntoElement, SharedString, Task, Window, div, prelude::*,
 };
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
+use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 use skyelab_git::{Checks, GitHub, PrRow, PrStack};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

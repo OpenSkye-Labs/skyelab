@@ -3,11 +3,12 @@
 //! another account stay in the store but are neither listed nor used.
 
 use super::{SharedStore, lock};
+use crate::ui::ActiveTheme as _;
 use crate::ui::{self, Button, TextField};
 use gpui::{
     AppContext as _, Context, Entity, IntoElement, Render, SharedString, Window, div, prelude::*,
 };
-use gpui_component::{ActiveTheme as _, h_flex, input::InputState, v_flex};
+use gpui_component::{h_flex, input::InputState, v_flex};
 use skyelab_core::project_rules::{self as rules, Kind};
 use skyelab_store::project_rules::ProjectRule;
 use std::path::{Path, PathBuf};

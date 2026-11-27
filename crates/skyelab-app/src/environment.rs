@@ -3,8 +3,8 @@
 //! The client's update channel is unbounded, so `_drain` reads it for as long as this entity lives. Every client
 //! call returns a `Pending` that is only ever awaited (`recv_async`), never waited on, so the UI thread never blocks.
 
+use crate::ui::Theme;
 use gpui::{AppContext as _, Context, EventEmitter, Hsla, SharedString, Task};
-use gpui_component::Theme;
 use skyelab_client::{
     Client, DisconnectKind, Error, Hello, Pending, Project, Thread, ThreadEvent, Update,
 };

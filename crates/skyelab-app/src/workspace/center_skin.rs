@@ -352,7 +352,7 @@ impl TabGroupRenderer for CenterTabs {
             div()
                 .w_full()
                 .pr(crate::ui::window_controls::WINDOW_CONTROLS_W)
-                .bg(gpui_component::ActiveTheme::theme(cx).tokens.tab_bar)
+                .bg(crate::ui::ActiveTheme::theme(cx).tab_bar)
                 .child(bar)
                 .into_any_element()
         } else {
@@ -364,7 +364,7 @@ impl TabGroupRenderer for CenterTabs {
                 .w_full()
                 .flex()
                 .pl(crate::ui::MAC_TOP_PAD + gpui::px(8.))
-                .bg(gpui_component::ActiveTheme::theme(cx).tokens.tab_bar)
+                .bg(crate::ui::ActiveTheme::theme(cx).tab_bar)
                 .debug_selector(|| "zoomed-tab-bar".into())
                 .child(div().flex_1().min_w_0().child(bar))
                 .into_any_element()
@@ -447,8 +447,9 @@ impl TabGroupRenderer for CenterTabs {
 
 /// The hidden terminal drawer's strip: an icon, "Terminal", its key and a chevron, all one button.
 fn collapsed_drawer(window: &Window, cx: &App) -> AnyElement {
+    use crate::ui::ActiveTheme as _;
     use crate::ui::{self, SkyeIcon};
-    use gpui_component::{ActiveTheme as _, Icon, h_flex};
+    use gpui_component::{Icon, h_flex};
     let theme = cx.theme();
     h_flex()
         .id("drawer-collapsed")
@@ -463,7 +464,7 @@ fn collapsed_drawer(window: &Window, cx: &App) -> AnyElement {
         .gap_2()
         .border_t_1()
         .border_color(theme.border)
-        .bg(theme.tokens.tab_bar)
+        .bg(theme.tab_bar)
         .text_size(ui::META)
         .text_color(theme.muted_foreground)
         .cursor_pointer()

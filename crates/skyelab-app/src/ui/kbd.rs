@@ -2,11 +2,11 @@
 //! the platform's spelling of the keystroke (⌘K on macOS, Ctrl+K elsewhere).
 
 use super::{META, RADIUS_SM};
+use crate::ui::ActiveTheme as _;
 use gpui::{
     Action, App, IntoElement, KeyContext, Keystroke, ParentElement as _, RenderOnce, SharedString,
     Styled as _, Window, div, prelude::*, px,
 };
-use gpui_component::ActiveTheme as _;
 
 #[derive(IntoElement, Clone)]
 pub struct Kbd {

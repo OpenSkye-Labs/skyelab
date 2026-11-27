@@ -4,6 +4,7 @@
 use super::thread::ThreadView;
 use super::{NewTerminal, OpenBrowser, OpenDevices, Workspace, files::SearchFiles};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Kbd;
 use crate::ui::SkyeIcon;
 use gpui::{
@@ -11,7 +12,7 @@ use gpui::{
     Render, Subscription, Window, actions, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon,
+    Icon,
     dock::{BasePanel, Panel, PanelControl, PanelEvent},
     h_flex, v_flex,
 };

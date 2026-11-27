@@ -7,9 +7,10 @@ use super::env_picker::{ConnectTyped, EnvPicker, ForgetEnvironment, MachineKind,
 use crate::remote::Remote;
 use crate::ui;
 use crate::ui::A11yScrollArea as _;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, TextField};
 use gpui::{Context, Entity, IntoElement, SharedString, Subscription, Window, div, prelude::*};
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 
 pub struct MachinesPage {
     picker: Entity<EnvPicker>,

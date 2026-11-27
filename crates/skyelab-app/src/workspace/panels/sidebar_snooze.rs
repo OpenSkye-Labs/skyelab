@@ -130,7 +130,7 @@ pub(super) fn hover_actions(
     title: &str,
     snooze: &SnoozeMenu,
     now: i64,
-    theme: &gpui_component::Theme,
+    theme: &crate::ui::Theme,
 ) -> gpui::Stateful<gpui::Div> {
     use super::super::thread_list::{Shelf, ShelveThread};
     let (id, host) = (s.id, s.host.clone());

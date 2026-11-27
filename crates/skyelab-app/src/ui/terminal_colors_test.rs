@@ -3,8 +3,8 @@
 
 use super::contrast_test::ratio;
 use super::themes::{FAMILIES, ansi, apply, get, set};
+use crate::ui::Theme;
 use gpui::TestAppContext;
-use gpui_component::{Theme, ThemeMode};
 
 #[gpui::test]
 fn every_theme_has_readable_terminal_colors(cx: &mut TestAppContext) {
@@ -18,13 +18,9 @@ fn every_theme_has_readable_terminal_colors(cx: &mut TestAppContext) {
             for (mode, dark, list) in [("Light", false, colors.light), ("Dark", true, colors.dark)]
             {
                 let name = format!("{} {mode}", f.label);
-                let theme = &gpui_component::ThemeRegistry::global(cx).themes()[name.as_str()];
-                let bg = theme
-                    .colors
-                    .background
-                    .as_ref()
-                    .and_then(|b| super::themes::parse_hex(b))
-                    .expect("a background");
+                let bg = super::theme_load::resolve(f.json, dark, &Default::default())
+                    .expect("theme loads")
+                    .background;
                 // Black on a dark theme and white on a light one are the background's own side.
                 let exempt: &[usize] = if dark { &[0] } else { &[7, 15] };
                 for (i, c) in list.iter().enumerate() {
@@ -58,7 +54,14 @@ fn the_terminal_follows_the_family_and_the_code_font_size(cx: &mut TestAppContex
         let got = cx.global::<skyelab_terminal::AnsiColors>();
         assert_eq!(got.dark, want.dark);
         assert_eq!(got.light, want.light);
-        Theme::change(ThemeMode::Dark, None, cx);
+        crate::ui::themes::set(
+            skyelab_core::AppearanceSettings {
+                mode: skyelab_core::ColorMode::Dark,
+                ..crate::ui::themes::get(cx)
+            },
+            cx,
+        )
+        .detach();
         assert_eq!(
             Theme::global(cx).mono_font_size,
             gpui::px(16.),

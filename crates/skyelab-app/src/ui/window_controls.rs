@@ -4,11 +4,12 @@
 //! T3's Electron build does the same with `titleBarOverlay`.
 
 use super::HEADER_H;
+use crate::ui::ActiveTheme as _;
 use gpui::{
     App, InteractiveElement, IntoElement, ParentElement as _, Pixels, RenderOnce, Styled as _,
     Window, WindowControlArea, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, IconName, Sizable as _, h_flex};
+use gpui_component::{Icon, IconName, Sizable as _, h_flex};
 use std::sync::LazyLock;
 
 /// One caption button: Windows 11's 46 px wide, 32 px tall.

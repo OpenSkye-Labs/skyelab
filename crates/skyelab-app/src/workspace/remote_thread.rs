@@ -7,13 +7,14 @@ use super::thread_find::{Find, FindHost as _};
 use super::thread_items::render_item;
 use super::thread_model::{Record, apply, stamp_done};
 use crate::environment::{ConnState, EnvEvent, RemoteEnv};
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
     IntoElement, ListState, SharedString, Subscription, Window, actions, div, list, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, h_flex,
+    h_flex,
     input::{InputEvent, Textarea, TextareaState},
     v_flex,
 };

@@ -9,6 +9,7 @@ use super::thread_model::Item;
 use super::timeline_fold::{fold_key, folded_by};
 use super::turn_files::minimap::markdown_plain;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{
@@ -16,7 +17,7 @@ use gpui::{
     actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _, h_flex,
+    Sizable as _, h_flex,
     input::{Input, InputEvent, InputState},
 };
 use skyelab_agent::DeltaKind;

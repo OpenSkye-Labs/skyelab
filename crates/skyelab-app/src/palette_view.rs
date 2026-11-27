@@ -12,10 +12,11 @@ mod rows;
 pub(crate) use rows::footer;
 use rows::{back_row, row, search_field};
 
+use crate::ui::ActiveTheme as _;
 use gpui::Subscription;
 use gpui_component::input::{InputEvent, InputState};
 use gpui_component::{
-    ActiveTheme as _, IndexPath,
+    IndexPath,
     command::{Command, CommandGroup, CommandItem, CommandState},
 };
 

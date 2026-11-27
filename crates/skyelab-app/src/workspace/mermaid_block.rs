@@ -5,10 +5,11 @@
 use super::mermaid::{Block, Palette, Render};
 use super::tool_cards;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use gpui::{AnyElement, App, ObjectFit, SharedString, Window, div, img, prelude::*, px, relative};
 use gpui_component::text::MarkdownNode;
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 
 /// The markdown block renderer for [`super::mermaid::NODE`] nodes.
 pub(super) fn render(node: &MarkdownNode, window: &mut Window, cx: &mut App) -> AnyElement {
@@ -27,7 +28,7 @@ pub(super) fn render(node: &MarkdownNode, window: &mut Window, cx: &mut App) -> 
         theme.border,
     );
     // The plain code block's own background and corner (gpui-component's text view style).
-    let radius = theme.semantic_tokens().radius.md;
+    let radius = crate::ui::RADIUS_MD;
     let (card, border, muted, mono) = (
         theme.muted,
         theme.border,

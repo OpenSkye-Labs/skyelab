@@ -44,7 +44,7 @@ pub(super) fn sidebar_row(
     look: RowLook,
     snooze: &SnoozeMenu,
     now: i64,
-    theme: &gpui_component::Theme,
+    theme: &crate::ui::Theme,
 ) -> AnyElement {
     let RowLook { cards, searching } = look;
     let row = if item.project.is_some() {
@@ -87,7 +87,7 @@ fn thread_row(
     searching: bool,
     snooze: &SnoozeMenu,
     now: i64,
-    theme: &gpui_component::Theme,
+    theme: &crate::ui::Theme,
 ) -> gpui::Stateful<gpui::Div> {
     let action = item.action.boxed_clone();
     let empty = RowMarks::default();
@@ -311,12 +311,7 @@ fn thread_row(
 }
 
 /// A comparison group's "×3": shows or hides its threads under the row, without opening the Compare page.
-fn group_badge(
-    count: usize,
-    open: bool,
-    group: i64,
-    theme: &gpui_component::Theme,
-) -> impl IntoElement {
+fn group_badge(count: usize, open: bool, group: i64, theme: &crate::ui::Theme) -> impl IntoElement {
     h_flex()
         .id(SharedString::from(format!("compare-badge-{group}")))
         .role(gpui::accesskit::Role::Button)
@@ -362,7 +357,7 @@ fn plain_row(
     marks: Option<&RowMarks>,
     indent: bool,
     now: i64,
-    theme: &gpui_component::Theme,
+    theme: &crate::ui::Theme,
 ) -> gpui::Stateful<gpui::Div> {
     let action = item.action.boxed_clone();
     let is_project = item.account.is_some();

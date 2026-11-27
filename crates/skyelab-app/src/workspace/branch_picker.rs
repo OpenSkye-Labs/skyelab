@@ -5,6 +5,7 @@
 
 use super::thread::{ThreadView, ThreadViewEvent};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::TextField;
 use gpui::Focusable as _;
@@ -12,7 +13,7 @@ use gpui::{
     AppContext as _, Context, Entity, FontWeight, SharedString, Task, WeakEntity, Window, div,
     prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, h_flex, input::InputState, v_flex};
+use gpui_component::{h_flex, input::InputState, v_flex};
 use skyelab_git::{Branches, OnDirty, Status};
 use std::path::PathBuf;
 

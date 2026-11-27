@@ -4,9 +4,10 @@
 use super::changes::ChangesView;
 use super::changes_model::{self, Scope};
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, Checkbox};
 use gpui::{AnyElement, Context, FontWeight, SharedString, Window, div, prelude::*};
-use gpui_component::{ActiveTheme as _, h_flex, v_flex};
+use gpui_component::{h_flex, v_flex};
 
 /// A rewind asked for while a turn runs: `_watch` asks it again once the turn ends.
 pub(super) struct RewindWait {

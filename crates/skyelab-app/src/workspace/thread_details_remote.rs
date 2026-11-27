@@ -7,9 +7,9 @@ use super::super::thread::ThreadView;
 use super::On;
 use super::card::row;
 use crate::ui;
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, App, SharedString, div, prelude::*};
-use gpui_component::ActiveTheme as _;
 
 impl ThreadView {
     pub(super) fn remote_rows(&self, on: &On, cx: &App) -> Vec<AnyElement> {

@@ -3,11 +3,12 @@
 //! entity: built only when the pointer rests on the trigger, never per frame.
 
 use super::{Kbd, META, RADIUS_MD};
+use crate::ui::ActiveTheme as _;
 use gpui::{
     Action, AnyView, App, AppContext as _, Context, IntoElement, ParentElement as _, Render,
     SharedString, Styled as _, Window, div, prelude::FluentBuilder as _,
 };
-use gpui_component::{ActiveTheme as _, h_flex};
+use gpui_component::h_flex;
 
 pub struct Tooltip {
     text: SharedString,

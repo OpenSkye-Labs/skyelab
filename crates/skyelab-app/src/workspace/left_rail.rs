@@ -6,8 +6,9 @@ use super::gh_pages::{Kind as GhKind, OpenIssues, OpenPullRequests};
 use super::{CONTEXT, OpenBots, OpenHome, OpenSettings, OpenSettingsSection, OpenUsage, Workspace};
 use crate::settings::Section;
 use crate::ui::{self, Button, SkyeIcon};
+use crate::ui::{ActiveTheme as _, Theme};
 use gpui::{Action, App, Context, IntoElement, SharedString, WeakEntity, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Theme, dock::DockPlacement, v_flex};
+use gpui_component::{dock::DockPlacement, v_flex};
 
 /// Which primary destination in the left rail is currently active.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

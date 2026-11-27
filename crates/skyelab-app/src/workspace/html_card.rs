@@ -11,11 +11,12 @@ use super::thread_model::ToolItem;
 use crate::ui;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{ActiveTheme as _, Theme};
 use gpui::{
     AnyElement, AnyWindowHandle, App, AppContext as _, Context, FontWeight, Global, Hsla, Image,
     ImageFormat, IntoElement, Render, SharedString, Window, div, img, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, Theme, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 use serde_json::{Value, json};
 use skyelab_agent::mcp::HTML_MAX_CHARS;
 use skyelab_browser::page::{self, MAX_SHOT_HEIGHT, Page, PageTheme};
@@ -47,15 +48,16 @@ pub(super) fn page_theme(dark: bool, cx: &App) -> PageTheme {
     if current.is_dark() == dark {
         return theme_vars(current);
     }
-    // The other mode (an agent's preview): its colors from the config the app keeps for it.
-    let mut other = current.clone();
-    let config = if dark {
-        other.dark_theme.clone()
-    } else {
-        other.light_theme.clone()
-    };
-    other.apply_config(&config);
-    theme_vars(&other)
+    // The other mode (an agent's preview): the same family and accent, resolved for that mode.
+    let s = ui::themes::get(cx).clamped();
+    match ui::theme_load::resolve(ui::themes::family(&s.theme).json, dark, &s) {
+        Ok(mut other) => {
+            other.font_family = current.font_family.clone();
+            other.mono_font_family = current.mono_font_family.clone();
+            theme_vars(&other)
+        }
+        Err(_) => theme_vars(current),
+    }
 }
 
 fn theme_vars(t: &Theme) -> PageTheme {

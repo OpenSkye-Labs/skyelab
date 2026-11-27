@@ -7,6 +7,7 @@ use super::{
     icon_button, page_title, row, row_surface, section_title,
     toast::{self, Toast},
 };
+use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use gpui::{
     AppContext as _, Context, Element as _, Entity, IntoElement, ParentElement as _, Render,
@@ -15,7 +16,6 @@ use gpui::{
 };
 use gpui_base::test_support::snapshots;
 use gpui_component::{
-    ActiveTheme as _,
     input::InputState,
     menu::{DropdownMenu as _, PopupMenuItem},
     v_flex,

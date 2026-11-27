@@ -3,12 +3,13 @@
 use super::{OpenHome, OpenSettingsSection};
 use crate::settings::Section;
 use crate::ui::A11yScrollArea as _;
+use crate::ui::ActiveTheme as _;
 use crate::ui::{self, Button, Pill, SkyeIcon};
 use gpui::{
     App, Context, FocusHandle, Focusable, FontWeight, IntoElement, Render, Window, div, prelude::*,
     px,
 };
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 
 pub struct BotsPage {
     focus: FocusHandle,

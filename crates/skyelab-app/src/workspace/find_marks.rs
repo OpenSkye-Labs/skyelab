@@ -3,8 +3,8 @@
 
 use super::thread_items::ItemsView;
 use super::thread_model::Item;
+use crate::ui::ActiveTheme as _;
 use gpui::{AnyElement, Context, Hsla, SharedString, div, prelude::*};
-use gpui_component::ActiveTheme as _;
 use gpui_component::text::{RangeHighlight, RenderedText, TextViewState};
 use skyelab_agent::DeltaKind;
 use std::ops::Range;

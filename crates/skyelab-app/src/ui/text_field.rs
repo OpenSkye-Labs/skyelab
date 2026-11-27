@@ -5,12 +5,13 @@
 //! `appearance(false)`.
 
 use super::Size;
+use crate::ui::ActiveTheme as _;
 use gpui::{
     AnyElement, App, Entity, Focusable as _, IntoElement, ParentElement as _, RenderOnce,
     SharedString, Styled as _, Window, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, h_flex,
+    h_flex,
     input::{Input, InputState},
 };
 

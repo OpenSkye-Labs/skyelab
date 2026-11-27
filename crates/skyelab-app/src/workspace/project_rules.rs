@@ -3,13 +3,14 @@
 //! SkyeLab answers them itself (allow once, by the rule), so the agent's own rule grammar never sees them.
 
 use super::{ThreadView, lock};
+use crate::ui::ActiveTheme as _;
 use crate::ui::{self, Button, SegmentedControl, TextField};
 use anyhow::Context as _;
 use gpui::{
     AppContext as _, Context, Entity, IntoElement, Render, SharedString, WeakEntity, Window, div,
     prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, input::InputState, v_flex};
+use gpui_component::{input::InputState, v_flex};
 use serde_json::Value;
 use skyelab_agent::Mode;
 use skyelab_core::project_rules::{self as rules, Kind, Rule};

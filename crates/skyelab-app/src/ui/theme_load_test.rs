@@ -56,8 +56,10 @@ fn the_loader_reads_each_family_file_by_itself() {
                 (px(15.), px(12.)),
                 "{what} sizes"
             );
-            let radius = file_theme(&json, dark)["radius"].as_f64().expect("radius");
-            assert_eq!(t.radius, px(radius as f32), "{what} radius");
+            let radius = file_theme(&json, dark)["radius.lg"]
+                .as_f64()
+                .expect("radius.lg");
+            assert_eq!(t.radius_lg, px(radius as f32), "{what} radius.lg");
         }
     }
 }

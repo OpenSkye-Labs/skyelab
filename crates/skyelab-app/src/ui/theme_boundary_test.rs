@@ -12,10 +12,11 @@ const THEIRS: &[&str] = &[
     "ThemeConfig",
     "ThemeRegistry",
 ];
-/// The bridge, and the test that compares the two themes.
+/// The bridge, and the tests that check what it writes (the colors; our motion in gpui-component's widgets).
 const ALLOWED: &[&str] = &[
     "theme_bridge.rs",
     "theme_match_test.rs",
+    "motion_test.rs",
     "theme_boundary_test.rs",
 ];
 

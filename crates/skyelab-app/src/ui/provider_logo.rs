@@ -1,8 +1,8 @@
 //! The providers' own logos, drawn as images in their official colors: never a tinted icon, never recolored or faded
 //! (docs/design/third-party-marks.md). An account's color goes in a badge beside the logo, never on it.
 
+use crate::ui::ActiveTheme as _;
 use gpui::{App, Pixels, Styled as _, img};
-use gpui_component::ActiveTheme as _;
 use skyelab_core::Provider;
 
 const CLAUDE: &str = "brand/claude.svg";

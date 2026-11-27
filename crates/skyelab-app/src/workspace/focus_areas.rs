@@ -4,14 +4,12 @@
 
 use super::Workspace;
 use super::center::Page;
+use crate::ui::ActiveTheme as _;
 use gpui::{
     App, Context, FocusHandle, Focusable as _, Global, IntoElement, Window, actions, div,
     prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _,
-    dock::{DockPlacement, PaneRef},
-};
+use gpui_component::dock::{DockPlacement, PaneRef};
 
 actions!(skyelab, [FocusNextArea, FocusPreviousArea, FocusComposer]);
 
