@@ -346,3 +346,13 @@ mod timeline_menu_test;
 mod remote_delegation_tests;
 #[cfg(all(test, unix))]
 mod dock_tab_name_test;
+#[cfg(all(test, unix))]
+mod approval_view_all_test;
+#[cfg(test)]
+mod diff_viewer_test;
+#[cfg(test)]
+mod diff_viewer_page_up_test;
+#[cfg(test)]
+mod diff_viewer_drag_out_test;
+#[cfg(test)]
+mod diff_viewer_midpoint_test;

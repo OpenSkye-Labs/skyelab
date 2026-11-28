@@ -20,7 +20,7 @@ fi
 # account dir and args it got, then echoes every stdin line so tests can see what was sent.
 # A prompt starting "permit" asks to run `make deploy` ("permit tool" streams the Bash call first) (a can_use_tool control request; under bypassPermissions it
 # runs without asking and reports `fake_answer` "bypassed"), waits for the answer,
-# reports it as `fake_answer` and ends the turn ("permit write" asks a 2,000-line Write, "permit edit" an Edit and "permit multi" a two-edit MultiEdit
+# reports it as `fake_answer` and ends the turn ("permit write" asks a 2,000-line Write, "permit edit" an Edit, "permit multi" a two-edit MultiEdit and "permit big multi" one of 26 rows
 # instead); one starting "crash" writes to stderr and exits 3, and one starting
 # "partial" streams half an answer first (text deltas, no final message), then exits 3 the same way.
 # "hang" runs until Stop, then ends as Claude Code ends an aborted turn ("hang fail": a real API error instead).
@@ -146,6 +146,14 @@ while IFS= read -r line; do
       # A 2,000-line Write: the approval shows its first lines, not its JSON.
       body=$(awk 'BEGIN { for (i = 1; i <= 2000; i++) printf "fn line_%d() {}\\n", i }')
       printf '{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"Write","input":{"file_path":"%s/src/big.rs","content":"%s"},"tool_use_id":"toolu_p"}}\n' "$PWD" "$body"
+      IFS= read -r reply
+      printf '{"type":"fake_answer","reply":%s}\n' "$reply"
+      printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
+    *'"content":"permit big multi'*)
+      # 26 diff rows (one line for one, then twelve for twelve): past the card's 20, so it offers View all.
+      old=$(awk 'BEGIN { for (i = 1; i <= 12; i++) printf "let old_%d = %d;\\n", i, i }')
+      new=$(awk 'BEGIN { for (i = 1; i <= 12; i++) printf "let new_%d = %d;\\n", i, i }')
+      printf '{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"MultiEdit","input":{"file_path":"%s/src/lib.rs","edits":[{"old_string":"pub fn a() {}","new_string":"pub fn a() -> u8 { 1 }"},{"old_string":"%s","new_string":"%s"}]},"tool_use_id":"toolu_p"}}\n' "$PWD" "$old" "$new"
       IFS= read -r reply
       printf '{"type":"fake_answer","reply":%s}\n' "$reply"
       printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;

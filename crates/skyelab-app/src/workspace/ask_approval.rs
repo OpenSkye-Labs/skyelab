@@ -2,8 +2,9 @@
 //! file change shows as a diff, anything else as its description or escaped JSON (`ask_detail.rs`).
 
 use super::ask_cards::waiting_row;
-use super::ask_detail::{Detail, PREVIEW_LINES, Preview, detail, patch};
+use super::ask_detail::{Detail, PREVIEW_LINES, Preview, detail, whole};
 use super::diff_view;
+use super::diff_viewer::DiffViewer;
 use super::thread_items::{ItemsView, clip};
 use super::thread_model::{ApprovalItem, Item};
 use crate::ui;
@@ -13,9 +14,9 @@ use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
-    AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
+    AnyElement, App, Context, Focusable as _, FontWeight, IntoElement, SharedString, Window, div,
+    prelude::*, px,
 };
-use gpui_component::diff::{Diff, DiffFile, DiffState};
 use skyelab_agent::Decision;
 
 /// How tall an approval's diff or JSON gets before it scrolls (T3's `max-h-40`), so the answers stay in view.
@@ -302,7 +303,7 @@ fn approval_diff<V: ItemsView>(a: &ApprovalItem, p: Preview, cx: &mut Context<V>
     let rows = (0..d.lines.len()).flat_map(|ix| {
         let divider = breaks
             .contains(&ix)
-            .then(|| div().h(px(1.)).w_full().bg(theme.border).into_any_element());
+            .then(|| diff_view::break_line(theme).into_any_element());
         // Wrapped, never clipped: what a long line hides past the edge would still be written.
         let row = diff_view::line_row(&d, ix, true, theme).into_any_element();
         divider.into_iter().chain(std::iter::once(row))
@@ -347,10 +348,10 @@ fn approval_diff<V: ItemsView>(a: &ApprovalItem, p: Preview, cx: &mut Context<V>
                             Item::Approval(a) if a.id == id => Some(a),
                             _ => None,
                         });
-                        if let Some((title, patch)) =
-                            a.and_then(|a| Some((a.summary.clone(), patch(a)?)))
+                        if let Some((path, change)) =
+                            a.and_then(|a| Some((a.summary.clone(), whole(a)?)))
                         {
-                            view_all(title, &patch, window, cx);
+                            view_all(path, change, window, cx);
                         }
                     })),
             )
@@ -376,35 +377,22 @@ fn thousands(n: usize) -> String {
     out
 }
 
-/// The whole change in a dialog: gpui-component's read-only diff viewer, which lays out only the lines in view and
-/// wraps long ones, so a 2,000-line Write is all there to read before it is allowed.
-fn view_all(title: String, patch: &str, window: &mut Window, cx: &mut App) {
-    let body = match DiffFile::parse(patch) {
-        Ok(files) => {
-            let state = cx.new(|cx| DiffState::new(files, cx));
-            Ok(state)
-        }
-        Err(e) => Err(SharedString::from(format!(
-            "Couldn't draw this change: {e}"
-        ))),
-    };
+/// The whole change in a dialog, so a 2,000-line Write is all there to read before it is allowed. The viewer has the
+/// focus, so the keyboard reads it at once.
+fn view_all(path: String, change: Preview, window: &mut Window, cx: &mut App) {
+    let viewer = cx.new(|cx| DiffViewer::new(&path, change.lines, change.breaks, cx));
+    let focus = viewer.focus_handle(cx);
     let height = window.viewport_size().height * 0.7;
     crate::ui::open_dialog(window, cx, move |dialog, _, _| {
-        let body = match &body {
-            Ok(state) => Diff::new(state)
-                .soft_wrap(true)
-                .size_full()
-                .into_any_element(),
-            Err(why) => div().child(why.clone()).into_any_element(),
-        };
-        dialog.w(px(960.)).title(title.clone()).child(
+        dialog.w(px(960.)).title(path.clone()).child(
             div()
                 .debug_selector(|| "approval-view-all-dialog".into())
                 .w_full()
                 .h(height)
-                .child(body),
+                .child(viewer.clone()),
         )
     });
+    window.focus(&focus, cx);
 }
 
 /// What "Allow for this thread" covers, as its tooltip says it: a command allows only itself again (each agent's

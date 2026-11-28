@@ -127,6 +127,8 @@ use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
 mod cached_workspace;
 mod click;
 mod diff_view;
+mod diff_viewer;
+mod diff_viewer_select;
 #[cfg(test)]
 mod dock_restore_test;
 mod find_marks;
