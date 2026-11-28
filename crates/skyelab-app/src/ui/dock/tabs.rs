@@ -31,6 +31,8 @@ fn tool_button(id: &'static str, icon: SkyeIcon, cx: &App) -> Button {
         .size(rems(1.25))
         .px_0()
         .rounded(cx.theme().radius)
+        // Held (zoomed, menu open) in gpui-component's ghost fill, as these buttons always were.
+        .held_bg(cx.theme().secondary_active)
         .child(
             Icon::new(icon)
                 .size_3()
@@ -74,8 +76,6 @@ impl Tabs {
                     tool_button(id, icon, cx)
                         .tooltip_with_action(zoom_label, &ToggleZoom, None)
                         .selected(zoomed)
-                        // gpui-component's held ghost fill, which this button has always had.
-                        .when(zoomed, |b| b.bg(cx.theme().secondary_active))
                         .debug_selector(|| "dock-tab-bar-zoom-control".into())
                         .on_click(move |_, window, cx| group.toggle_zoom(window, cx)),
                 )

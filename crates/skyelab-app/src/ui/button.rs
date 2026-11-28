@@ -138,6 +138,7 @@ pub struct Button {
     children: Vec<AnyElement>,
     disabled: bool,
     selected: bool,
+    held_bg: Option<Hsla>,
     loading: bool,
     /// The loading spinner turns; off, it shows one still frame.
     spin: bool,
@@ -170,6 +171,7 @@ impl Button {
             children: Vec::new(),
             disabled: false,
             selected: false,
+            held_bg: None,
             loading: false,
             spin: true,
             caret: false,
@@ -268,6 +270,12 @@ impl Button {
 
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
+        self
+    }
+
+    /// The fill while selected (held), in place of the held hover fill.
+    pub fn held_bg(mut self, bg: Hsla) -> Self {
+        self.held_bg = Some(bg);
         self
     }
 
@@ -403,7 +411,10 @@ impl ParentElement for Button {
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.theme();
-        let c = colors(self.variant, self.selected, theme);
+        let mut c = colors(self.variant, self.selected, theme);
+        if let Some(bg) = self.held_bg.filter(|_| self.selected) {
+            c.bg = bg;
+        }
         let size = self.size;
         let interactive = !self.disabled && !self.loading;
         let square = self.square
