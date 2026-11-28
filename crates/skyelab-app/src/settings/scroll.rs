@@ -51,6 +51,7 @@ pub(crate) fn track_button(id: impl Into<ElementId>, button: gpui_base::Button) 
     TrackedButton {
         id: id.into(),
         button,
+        focus: None,
     }
 }
 
@@ -58,14 +59,25 @@ pub(crate) fn track_button(id: impl Into<ElementId>, button: gpui_base::Button) 
 pub(crate) struct TrackedButton {
     id: ElementId,
     button: gpui_base::Button,
+    focus: Option<FocusHandle>,
+}
+
+impl TrackedButton {
+    /// Tracks `focus` instead of a handle of its own, for a caller that dispatches to its button's handle.
+    pub(crate) fn focus(mut self, focus: Option<FocusHandle>) -> Self {
+        self.focus = focus;
+        self
+    }
 }
 
 impl RenderOnce for TrackedButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let focus = window
-            .use_keyed_state(self.id, cx, |_, cx| cx.focus_handle())
-            .read(cx)
-            .clone();
+        let focus = self.focus.unwrap_or_else(|| {
+            window
+                .use_keyed_state(self.id, cx, |_, cx| cx.focus_handle())
+                .read(cx)
+                .clone()
+        });
         let focused = focus.is_focused(window);
         track_focused(focused, self.button.track_focus(&focus))
     }
