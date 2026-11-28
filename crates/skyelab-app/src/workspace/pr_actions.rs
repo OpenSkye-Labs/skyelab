@@ -10,11 +10,11 @@ use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Checkbox, TextField};
 use crate::ui::{Icon, h_flex, v_flex};
+use crate::ui::{TextInput, TextInputEvent};
 use gpui::{
     App, AppContext as _, Context, Entity, IntoElement, Render, SharedString, Task, Window, div,
     prelude::*, px,
 };
-use gpui_component::input::{InputEvent, InputState};
 use skyelab_core::AccountsConfig;
 use skyelab_git::{Checks, GitHub, MergeMethod, ReviewComment, Verdict};
 use std::path::PathBuf;
@@ -72,7 +72,7 @@ pub(crate) struct PrActions {
     /// The running action is the merge: its button says so.
     pub(crate) merging: bool,
     pub(crate) error: Option<SharedString>,
-    pub(crate) body: Entity<InputState>,
+    pub(crate) body: Entity<TextInput>,
     /// Line comments from the PR's diff tab, sent with the review.
     pub(crate) comments: Vec<ReviewComment>,
     /// Opened from the PR's diff tab: no "View diff".
@@ -94,12 +94,12 @@ pub(crate) fn open(
     let accounts_file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
     let entity = cx.new(|cx| {
         let body = cx.new(|cx| {
-            InputState::new(window, cx)
+            TextInput::new(window, cx)
                 .placeholder("Leave a comment (needed to comment or request changes)")
         });
         // Comment and Request changes turn on as soon as there is text.
-        cx.subscribe(&body, |_, _, e: &InputEvent, cx| {
-            if matches!(e, InputEvent::Change) {
+        cx.subscribe(&body, |_, _, e: &TextInputEvent, cx| {
+            if matches!(e, TextInputEvent::Change) {
                 cx.notify();
             }
         })

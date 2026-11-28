@@ -26,7 +26,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
         view
     });
 
-    let set = |input: &Entity<InputState>, text: &str, cx: &mut gpui::VisualTestContext| {
+    let set = |input: &Entity<TextInput>, text: &str, cx: &mut gpui::VisualTestContext| {
         let text = text.to_string();
         input.update_in(cx, |s, window, cx| s.set_value(text, window, cx));
     };

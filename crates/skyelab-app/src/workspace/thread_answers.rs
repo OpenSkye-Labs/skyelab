@@ -2,11 +2,11 @@
 //! its cards name.
 
 use super::{ThreadView, ThreadViewEvent, lock};
+use crate::ui::TextInput;
 use crate::workspace::ask_cards::QuestionDraft;
 use crate::workspace::question_drafts;
 use crate::workspace::thread_items::ItemsView;
 use gpui::{App, AppContext as _, Context, Entity, Window};
-use gpui_component::input::InputState;
 use skyelab_agent::{Decision, Mode};
 
 impl ThreadView {
@@ -100,7 +100,7 @@ impl ThreadView {
         q: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Entity<InputState> {
+    ) -> Entity<TextInput> {
         question_drafts::other_input(&self.items, &mut self.drafts, id, q, window, cx)
     }
 
@@ -349,7 +349,7 @@ impl ItemsView for ThreadView {
         q: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Option<gpui::Entity<gpui_component::input::InputState>> {
+    ) -> Option<gpui::Entity<crate::ui::TextInput>> {
         Some(ThreadView::other_input(self, id, q, window, cx))
     }
     fn can_attach_answer_files(&self, cx: &App) -> bool {

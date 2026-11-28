@@ -7,9 +7,9 @@ use super::sidebar_views::views_button;
 use super::*;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
+use crate::ui::{TextInput, TextInputEvent};
 use crate::workspace::dispatch;
 use gpui::{AnyElement, ListAlignment, ListOffset, ListState, Subscription, list};
-use gpui_component::input::{InputEvent, InputState};
 
 /// Which account a project row runs on.
 #[derive(Clone)]
@@ -185,7 +185,7 @@ pub struct Sidebar {
     /// How many rows a paged shelf lists.
     paged_rows: usize,
     /// The thread filter (title and message text); hidden while another machine is shown.
-    pub search: Entity<InputState>,
+    pub search: Entity<TextInput>,
     pub searchable: bool,
     /// The project filter; `None` while another machine is shown.
     pub scope: Option<ScopeMenu>,
@@ -221,9 +221,9 @@ impl EventEmitter<SidebarSearch> for Sidebar {}
 
 impl Sidebar {
     pub fn new(sections: Vec<SidebarSection>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search threads"));
-        let _search = cx.subscribe(&search, |_, input, e: &InputEvent, cx| {
-            if matches!(e, InputEvent::Change) {
+        let search = cx.new(|cx| TextInput::new(window, cx).placeholder("Search threads"));
+        let _search = cx.subscribe(&search, |_, input, e: &TextInputEvent, cx| {
+            if matches!(e, TextInputEvent::Change) {
                 let text = input.read(cx).value();
                 cx.emit(SidebarSearch(text));
             }

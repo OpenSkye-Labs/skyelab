@@ -39,5 +39,9 @@ fn undo_restores_the_replaced_selection(cx: &mut TestAppContext) {
     assert_eq!(value(&view, vcx), "z");
     vcx.simulate_keystrokes(&cmd("z"));
     assert_eq!(value(&view, vcx), "hello");
-    assert_eq!(selection(&view, vcx), 0..5, "the selection comes back with the text");
+    assert_eq!(
+        selection(&view, vcx),
+        0..5,
+        "the selection comes back with the text"
+    );
 }

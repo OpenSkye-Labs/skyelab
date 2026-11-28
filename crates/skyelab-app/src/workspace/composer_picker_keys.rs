@@ -2,11 +2,11 @@
 //! Enter picks, Esc closes, and ⌘1–⌘9 (Ctrl elsewhere) pick the Nth row while the picker has the focus.
 
 use super::thread::ThreadView;
+use crate::ui::{TextInput, TextInputEvent};
 use gpui::{
     Action, AnyWindowHandle, AppContext as _, Context, Entity, FocusHandle, Focusable as _,
     KeyBinding, Subscription, Window, actions,
 };
-use gpui_component::input::{InputEvent, InputState};
 use skyelab_agent::CLAUDE_MODELS;
 use skyelab_core::Provider;
 use skyelab_store::ModelChoice;
@@ -25,7 +25,7 @@ pub(in crate::workspace) const PICKER_CONTEXT: &str = "ModelPicker";
 
 /// An open picker: its search field, the highlighted row, and where the focus goes back on close.
 pub(crate) struct PickerState {
-    pub search: Entity<InputState>,
+    pub search: Entity<TextInput>,
     pub hi: usize,
     back: Option<(AnyWindowHandle, FocusHandle)>,
     _search: Subscription,
@@ -35,7 +35,7 @@ pub(crate) struct PickerState {
 pub(in crate::workspace) type PickerRow = (Option<String>, String);
 
 pub(in crate::workspace) fn bind_keys(cx: &mut gpui::App) {
-    let input = Some("ModelPicker > Input");
+    let input = Some("ModelPicker > SkyeTextInput");
     let mut keys = vec![
         KeyBinding::new("up", PickerUp, input),
         KeyBinding::new("down", PickerDown, input),
@@ -75,10 +75,10 @@ impl ThreadView {
         self.list_codex_models(cx);
         self.list_cursor_models(cx);
         self.list_antigravity_models(cx);
-        let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search models…"));
+        let search = cx.new(|cx| TextInput::new(window, cx).placeholder("Search models…"));
         // Only a typed change: the field also notifies on focus and cursor blinks.
-        let _search = cx.subscribe(&search, |this, _, e: &InputEvent, cx| {
-            if matches!(e, InputEvent::Change)
+        let _search = cx.subscribe(&search, |this, _, e: &TextInputEvent, cx| {
+            if matches!(e, TextInputEvent::Change)
                 && let Some(p) = this.composer.picker.as_mut()
             {
                 p.hi = 0; // the list changed under the highlight

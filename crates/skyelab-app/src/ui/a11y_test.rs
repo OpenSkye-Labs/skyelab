@@ -10,6 +10,7 @@ use super::{
 };
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
+use crate::ui::TextInput;
 use crate::ui::v_flex;
 use gpui::{
     AppContext as _, Context, Element as _, Entity, IntoElement, ParentElement as _, Render,
@@ -17,7 +18,6 @@ use gpui::{
     accesskit, canvas, div,
 };
 use gpui_base::test_support::snapshots;
-use gpui_component::input::InputState;
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -31,7 +31,7 @@ fn setup(cx: &mut TestAppContext) {
 #[gpui::test]
 fn button_toggle_choice_and_decorative_checkbox_snapshots(cx: &mut TestAppContext) {
     struct Harness {
-        field: Entity<InputState>,
+        field: Entity<TextInput>,
     }
 
     impl Render for Harness {
@@ -107,7 +107,7 @@ fn button_toggle_choice_and_decorative_checkbox_snapshots(cx: &mut TestAppContex
 
     setup(cx);
     let (_, cx) = cx.add_window_view(|window, cx| Harness {
-        field: cx.new(|cx| InputState::new(window, cx).placeholder("main")),
+        field: cx.new(|cx| TextInput::new(window, cx).placeholder("main")),
     });
     cx.run_until_parked();
 

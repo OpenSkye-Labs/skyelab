@@ -9,7 +9,7 @@ fn fake_gh() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../skyelab-git/tests/fixtures/fake-gh.sh")
 }
 
-fn set(input: &Entity<InputState>, text: &str, cx: &mut VisualTestContext) {
+fn set(input: &Entity<TextInput>, text: &str, cx: &mut VisualTestContext) {
     let text = text.to_string();
     input.update_in(cx, |s, window, cx| s.set_value(text, window, cx));
 }

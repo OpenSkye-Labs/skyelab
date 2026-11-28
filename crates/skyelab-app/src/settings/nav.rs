@@ -274,10 +274,9 @@ impl Settings {
                         )
                         .child(
                             div().flex_1().min_w_0().child(
-                                Input::new(&self.search_input)
-                                    .appearance(false)
-                                    .small()
-                                    .aria_label("Search settings")
+                                crate::ui::TextField::new(&self.search_input)
+                                    .bare()
+                                    .accessibility_label("Search settings")
                                     .accessibility_id("settings-search"),
                             ),
                         )

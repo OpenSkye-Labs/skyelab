@@ -7,6 +7,7 @@ use super::thread::{ThreadView, ThreadViewEvent};
 use super::{SharedStore, Workspace};
 use crate::ui;
 use crate::ui::ActiveTheme as _;
+use crate::ui::TextInput;
 use crate::ui::{Button, Checkbox, TextField};
 use crate::ui::{h_flex, v_flex};
 use anyhow::{Context as _, Result, bail};
@@ -14,7 +15,6 @@ use gpui::{
     Action, AppContext as _, Context, Entity, FontWeight, SharedString, Task, WeakEntity, Window,
     div, prelude::*, px,
 };
-use gpui_component::input::InputState;
 use skyelab_core::{Account, AccountsConfig};
 use skyelab_store::ProjectScript;
 use skyelab_terminal::SpawnOptions;
@@ -184,8 +184,8 @@ pub struct ScriptMenu {
     project_id: i64,
     pub(super) open: bool,
     pub(super) scripts: Vec<ProjectScript>,
-    name: Entity<InputState>,
-    command: Entity<InputState>,
+    name: Entity<TextInput>,
+    command: Entity<TextInput>,
     setup: bool,
     pub(super) error: Option<SharedString>,
     _task: Option<Task<()>>,
@@ -199,8 +199,8 @@ impl ScriptMenu {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let name = cx.new(|cx| InputState::new(window, cx).placeholder("Name (Dev server)"));
-        let command = cx.new(|cx| InputState::new(window, cx).placeholder("Command (npm run dev)"));
+        let name = cx.new(|cx| TextInput::new(window, cx).placeholder("Name (Dev server)"));
+        let command = cx.new(|cx| TextInput::new(window, cx).placeholder("Command (npm run dev)"));
         let mut this = Self {
             owner,
             store,

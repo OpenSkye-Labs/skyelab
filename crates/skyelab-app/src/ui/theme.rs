@@ -57,6 +57,7 @@ pub struct Theme {
     pub popover_foreground: Hsla,
     pub ring: Hsla,
     pub selection: Hsla,
+    pub caret: Hsla,
     pub overlay: Hsla,
     pub link: Hsla,
     pub tab_bar: Hsla,

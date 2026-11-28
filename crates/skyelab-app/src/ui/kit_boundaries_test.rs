@@ -75,6 +75,12 @@ const ROWS: &[Row] = &[
         ],
         allowed: &["small_pieces_parity_test.rs"],
     },
+    Row {
+        stage: "6a single-line text",
+        crates: &["gpui_component", "gpui_base"],
+        names: &["InputState", "Input"],
+        allowed: &["text_input_parity_test.rs"],
+    },
 ];
 
 fn uses(src: &str, crates: &[&str]) -> Vec<(usize, String)> {
@@ -110,7 +116,9 @@ fn names_after_crate_path<'a>(line: &'a str, crates: &[&str]) -> Vec<&'a str> {
     for c in crates {
         let prefix = format!("{c}::");
         for (i, _) in line.match_indices(&prefix) {
-            out.extend(words(&line[i + prefix.len()..]).next());
+            let rest = &line[i + prefix.len()..];
+            let end = rest.find(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':'));
+            out.extend(rest[..end.unwrap_or(rest.len())].split("::"));
         }
     }
     out
@@ -223,9 +231,19 @@ fn the_scan_sees_imports_and_paths_but_not_longer_names() {
             "3 menus and popovers: f.rs:1: imports DropdownMenu",
             "3 menus and popovers: f.rs:7: imports HoverCard",
             "3 menus and popovers: f.rs:6: names menu",
+            "3 menus and popovers: f.rs:6: names PopupMenu",
             "3 menus and popovers: f.rs:7: names HoverCard",
         ]
     );
     let longer = ["use gpui_component::", "ThemeColorX;"].concat();
     assert!(hits_in(&longer, "f.rs", &ROWS[0]).is_empty());
+
+    let input = ROWS.iter().find(|r| r.stage.starts_with("6a")).expect("6a");
+    let src = "let f = gpui_component::input::Input::new(&state);\n\
+               use gpui_component::input::{InputEvent, TextareaState};\n\
+               let e: gpui_component::input::InputEvent = e;\n";
+    assert_eq!(
+        hits_in(src, "f.rs", input),
+        ["6a single-line text: f.rs:1: names Input"]
+    );
 }

@@ -132,7 +132,7 @@ pub(super) trait ItemsView: Sized + 'static {
         _q: usize,
         _window: &mut Window,
         _cx: &mut Context<Self>,
-    ) -> Option<gpui::Entity<gpui_component::input::InputState>> {
+    ) -> Option<gpui::Entity<crate::ui::TextInput>> {
         None
     }
     /// Whether files can go with a question's answer: only where the agent runs here (it gets their paths).

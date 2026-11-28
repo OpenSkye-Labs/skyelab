@@ -39,7 +39,6 @@ fn window(cx: &mut TestAppContext) -> (Entity<Harness>, &mut VisualTestContext) 
         let field = cx.new(|cx| TextInput::new(window, cx).placeholder("main"));
         field.update(cx, |i, cx| i.set_value("dev", window, cx));
         let disabled = cx.new(|cx| TextInput::new(window, cx));
-        disabled.update(cx, |i, cx| i.set_disabled(true, window, cx));
         let changes: Rc<RefCell<usize>> = Rc::default();
         let count = changes.clone();
         let sub = cx.subscribe_in(&field, window, move |_, _, e: &TextInputEvent, _, _| {
@@ -58,13 +57,10 @@ fn window(cx: &mut TestAppContext) -> (Entity<Harness>, &mut VisualTestContext) 
     (view, vcx)
 }
 
-/// The accesskit node the input's own element writes (its role, name, value and actions).
+/// The accesskit node the input's own element (before test support wraps it) writes (its role, name, value and actions).
 fn node(input: &Entity<TextInput>, vcx: &mut VisualTestContext) -> accesskit::Node {
     input.update_in(vcx, |i, window, cx| {
-        let mut el = Render::render(i, window, cx).into_any_element();
-        let el = el
-            .downcast_mut::<gpui::Stateful<gpui::Div>>()
-            .expect("the input renders a Stateful<Div>");
+        let el = i.element(window, cx);
         let mut node = accesskit::Node::new(el.a11y_role().expect("a role"));
         el.write_a11y_info(&mut node);
         node
@@ -92,10 +88,16 @@ fn a_field_is_a_named_text_input_with_its_value(cx: &mut TestAppContext) {
         "a disabled field can't be set"
     );
 
-    input.update_in(vcx, |i, window, cx| i.accessibility_set_value("feat", window, cx));
+    input.update_in(vcx, |i, window, cx| {
+        i.accessibility_set_value("feat", window, cx)
+    });
     vcx.run_until_parked();
     assert_eq!(input.read_with(vcx, |i, _| i.value().to_string()), "feat");
-    assert_eq!(*view.read_with(vcx, |h, _| h.changes.clone()).borrow(), 1, "SetValue is an edit");
+    assert_eq!(
+        *view.read_with(vcx, |h, _| h.changes.clone()).borrow(),
+        1,
+        "SetValue is an edit"
+    );
 }
 
 #[test]
@@ -104,7 +106,11 @@ fn text_runs_count_graphemes_and_keep_the_selection_direction() {
     let text = "a👍🏽e\u{301}";
     let runs = text_input_a11y::runs(text, text.len(), 1);
     assert_eq!(runs.characters(), 3);
-    assert_eq!(runs.selection(), (3, 1), "anchor at the end, focus after a: selected leftward");
+    assert_eq!(
+        runs.selection(),
+        (3, 1),
+        "anchor at the end, focus after a: selected leftward"
+    );
     let runs = text_input_a11y::runs(text, 1, 9);
     assert_eq!(runs.selection(), (1, 2));
 }

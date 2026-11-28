@@ -1,10 +1,10 @@
 use super::{Button, Size, Variant, icon_button};
+use crate::ui::{TextField, TextInput};
 use gpui::{
     AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _, IntoElement,
     Modifiers, ParentElement as _, Render, Styled as _, TestAppContext, VisualTestContext, Window,
     div, px,
 };
-use gpui_component::input::{Input, InputState};
 use std::{cell::Cell, rc::Rc};
 
 pub(super) fn setup(cx: &mut TestAppContext) {
@@ -24,7 +24,7 @@ struct Harness {
     clicks: Rc<Cell<usize>>,
     disabled: bool,
     loading: bool,
-    input: Entity<InputState>,
+    input: Entity<TextInput>,
 }
 
 impl Render for Harness {
@@ -39,7 +39,7 @@ impl Render for Harness {
                     .on_click(move |_, _, _| clicks.set(clicks.get() + 1)),
             ),
         );
-        col = col.child(div().w(px(200.)).child(Input::new(&self.input)));
+        col = col.child(div().w(px(200.)).child(TextField::new(&self.input)));
         for (vi, v) in [
             Variant::Primary,
             Variant::Secondary,
@@ -85,7 +85,7 @@ fn rig(
         clicks: c,
         disabled,
         loading,
-        input: cx.new(|cx| InputState::new(window, cx)),
+        input: cx.new(|cx| TextInput::new(window, cx)),
     });
     cx.run_until_parked();
     (view, clicks, cx)

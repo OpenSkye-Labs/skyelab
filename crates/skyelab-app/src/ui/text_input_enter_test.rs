@@ -19,20 +19,33 @@ fn enter_emits_and_propagates_escape_is_the_parents(cx: &mut TestAppContext) {
     vcx.simulate_keystrokes("enter");
     assert_eq!(
         events(&view, vcx),
-        [TextInputEvent::PressEnter { secondary: false, shift: false }]
+        [TextInputEvent::PressEnter {
+            secondary: false,
+            shift: false
+        }]
     );
     assert_eq!(enters.get(), 1, "Enter reaches the parent's binding too");
-    assert_eq!(value(&view, vcx), "abc", "a single-line Enter inserts nothing");
+    assert_eq!(
+        value(&view, vcx),
+        "abc",
+        "a single-line Enter inserts nothing"
+    );
 
     vcx.simulate_keystrokes(&cmd("enter"));
     assert_eq!(
         events(&view, vcx),
-        [TextInputEvent::PressEnter { secondary: true, shift: false }]
+        [TextInputEvent::PressEnter {
+            secondary: true,
+            shift: false
+        }]
     );
     vcx.simulate_keystrokes("shift-enter");
     assert_eq!(
         events(&view, vcx),
-        [TextInputEvent::PressEnter { secondary: false, shift: true }]
+        [TextInputEvent::PressEnter {
+            secondary: false,
+            shift: true
+        }]
     );
 
     vcx.simulate_keystrokes("escape");

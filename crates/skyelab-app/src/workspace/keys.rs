@@ -80,21 +80,12 @@ pub fn init(cx: &mut App) {
             KeyBinding::new(FILE_PICKER_KEY, NoAction, Some("Terminal")),
             // ctrl-shift-t opens a tab in many terminal programs; the shell may want it.
             KeyBinding::new(REOPEN_CLOSED_KEY, NoAction, Some("Terminal")),
-            // alt-left/right move by word in a shell; in a text field they would surprise more than help.
+            // alt-left/right move by word in a shell.
             KeyBinding::new(GO_BACK_KEY, NoAction, Some("Terminal")),
             KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Terminal")),
-            KeyBinding::new(GO_BACK_KEY, NoAction, Some("Input")),
-            KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Input")),
-        ]);
-    } else {
-        // A text field binds cmd-[ to Outdent; the prompt is focused on most pages, so history wins there.
-        cx.bind_keys([
-            KeyBinding::new(GO_BACK_KEY, GoBack, Some("Input")),
-            KeyBinding::new(GO_FORWARD_KEY, GoForward, Some("Input")),
-            // A text field binds cmd-shift-f to Replace; the prompt and the read-only preview have nothing to replace.
-            KeyBinding::new(SEARCH_FILES_KEY, files::SearchFiles, Some("Input")),
         ]);
     }
+    cx.bind_keys(field_bindings(MAC));
     crate::ui::bind_keys(cx);
     layout::bind_keys(cx);
     onboarding::bind_keys(cx);
@@ -108,4 +99,29 @@ pub fn init(cx: &mut App) {
     devices::bind_keys(cx);
     attention::init(cx);
     crate::palette::init(cx);
+}
+
+/// The workspace's keys inside a text field, on macOS (`mac`) or elsewhere: `Input` is gpui-component's text areas.
+pub(crate) fn field_bindings(mac: bool) -> Vec<KeyBinding> {
+    let fields = ["Input", crate::ui::text_input_keys::KEY_CONTEXT].map(Some);
+    fields
+        .into_iter()
+        .flat_map(|field| {
+            if mac {
+                // A text area binds cmd-[ to Outdent and cmd-shift-f to Replace; the prompt is focused on most pages
+                // and has nothing to replace, so history and the file search win.
+                vec![
+                    KeyBinding::new("cmd-[", GoBack, field),
+                    KeyBinding::new("cmd-]", GoForward, field),
+                    KeyBinding::new("cmd-shift-f", files::SearchFiles, field),
+                ]
+            } else {
+                // In a text field, leaving the page on alt-left/right would surprise more than help.
+                vec![
+                    KeyBinding::new("alt-left", NoAction, field),
+                    KeyBinding::new("alt-right", NoAction, field),
+                ]
+            }
+        })
+        .collect()
 }

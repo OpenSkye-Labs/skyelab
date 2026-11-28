@@ -12,12 +12,12 @@ use super::{
     Tabs, TextField, dialog_cancel, dialog_footer,
 };
 use crate::ui::ActiveTheme as _;
+use crate::ui::TextInput;
 use crate::ui::{h_flex, v_flex};
 use gpui::{
     App, AppContext as _, Context, Entity, FontWeight, IntoElement, ParentElement as _, Render,
     Styled as _, Window, actions, div, prelude::*, px,
 };
-use gpui_component::input::InputState;
 
 actions!(skyelab, [OpenUiGallery]);
 
@@ -54,11 +54,11 @@ pub struct UiGallery {
     check_on: bool,
     segment: usize,
     tab: usize,
-    field: Entity<InputState>,
-    search: Entity<InputState>,
-    port: Entity<InputState>,
-    invalid: Entity<InputState>,
-    locked: Entity<InputState>,
+    field: Entity<TextInput>,
+    search: Entity<TextInput>,
+    port: Entity<TextInput>,
+    invalid: Entity<TextInput>,
+    locked: Entity<TextInput>,
     /// The pointer is over the loading button: only then does its spinner turn, so an open gallery idles.
     spinning: bool,
     /// Counter bumped by "Replay row appear" so `appear_row` runs on demand (0 idle frames when untouched).
@@ -73,11 +73,11 @@ impl UiGallery {
             check_on: false,
             segment: 0,
             tab: 0,
-            field: cx.new(|cx| InputState::new(window, cx).placeholder("Branch name")),
-            search: cx.new(|cx| InputState::new(window, cx).placeholder("Search")),
-            port: cx.new(|cx| InputState::new(window, cx).default_value("5173")),
-            invalid: cx.new(|cx| InputState::new(window, cx).default_value("not a host")),
-            locked: cx.new(|cx| InputState::new(window, cx).placeholder("Disabled")),
+            field: cx.new(|cx| TextInput::new(window, cx).placeholder("Branch name")),
+            search: cx.new(|cx| TextInput::new(window, cx).placeholder("Search")),
+            port: cx.new(|cx| TextInput::new(window, cx).default_value("5173")),
+            invalid: cx.new(|cx| TextInput::new(window, cx).default_value("not a host")),
+            locked: cx.new(|cx| TextInput::new(window, cx).placeholder("Disabled")),
             spinning: false,
             appear_seq: 0,
             appear_at: None,

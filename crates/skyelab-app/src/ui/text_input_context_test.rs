@@ -6,8 +6,9 @@
 use crate::ui::{self, TextField, TextInput};
 use crate::workspace::GoBack;
 use gpui::{
-    AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _, IntoElement, KeyBinding, ParentElement as _,
-    Render, Styled as _, TestAppContext, VisualTestContext, Window, div, px,
+    AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _, IntoElement,
+    KeyBinding, ParentElement as _, Render, Styled as _, TestAppContext, VisualTestContext, Window,
+    div, px,
 };
 use std::{cell::Cell, rc::Rc};
 
@@ -33,7 +34,7 @@ fn page(cx: &mut TestAppContext, mac: bool) -> (Entity<Page>, &mut VisualTestCon
     let back = if mac { "cmd-[" } else { "alt-left" };
     cx.update(|cx| {
         cx.clear_key_bindings();
-        let ours = ui::text_input_keys::bindings(mac, cx);
+        let ours = ui::text_input_keys::bindings(mac);
         cx.bind_keys(ours);
         cx.bind_keys([KeyBinding::new(back, GoBack, Some("Workspace"))]);
         cx.bind_keys(crate::workspace::field_bindings(mac));
@@ -65,7 +66,11 @@ fn off_macos_alt_left_in_a_field_stays_on_the_page(cx: &mut TestAppContext) {
     let (view, vcx) = page(cx, false);
     let backs = view.read_with(vcx, |p, _| p.backs.clone());
     vcx.simulate_keystrokes("alt-left");
-    assert_eq!(backs.get(), 0, "alt-left in a field must not go back a page");
+    assert_eq!(
+        backs.get(),
+        0,
+        "alt-left in a field must not go back a page"
+    );
     assert_eq!(cursor(&view, vcx), 5, "and it isn't a caret move off macOS");
     vcx.simulate_keystrokes("ctrl-left");
     assert_eq!(cursor(&view, vcx), 3, "ctrl-left moves a word");

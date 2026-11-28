@@ -2,16 +2,12 @@
 //! Thin: every account rule lives in `skyelab_core::AccountsConfig`.
 
 use crate::ui::ActiveTheme as _;
-use crate::ui::Button;
+use crate::ui::{Button, TextInput, TextInputEvent};
 use anyhow::{Context as _, Result};
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, KeyBinding,
     KeyBindingContextPredicate, PathPromptOptions, SharedString, Subscription, Task, Window,
     actions, div, prelude::*,
-};
-use gpui_component::{
-    Sizable as _,
-    input::{Input, InputEvent, InputState},
 };
 use skyelab_core::{Account, AccountsConfig, Binding, Provider};
 use std::collections::HashMap;
@@ -107,11 +103,11 @@ pub struct Settings {
     pub(super) adding: bool,
     /// The provider the form saves the account with.
     pub(crate) provider: Provider,
-    pub(crate) id_input: Entity<InputState>,
-    pub(crate) label_input: Entity<InputState>,
-    pub(crate) dir_input: Entity<InputState>,
-    pub(super) gh_input: Entity<InputState>,
-    pub(super) test_input: Entity<InputState>,
+    pub(crate) id_input: Entity<TextInput>,
+    pub(crate) label_input: Entity<TextInput>,
+    pub(crate) dir_input: Entity<TextInput>,
+    pub(super) gh_input: Entity<TextInput>,
+    pub(super) test_input: Entity<TextInput>,
     /// Who is logged in to github.com in each account's GitHub config dir (`None`: nobody).
     pub(super) gh_logins: HashMap<String, Option<String>>,
     /// Why checking an account's GitHub login failed.
@@ -125,26 +121,26 @@ pub struct Settings {
     pub(super) binding_account: Option<SharedString>,
     pub section: Section,
     /// Settings → Chat's Codex, Cursor and Antigravity model fields, and why the last Chat or Diffs save failed.
-    pub(super) codex_model_input: Entity<InputState>,
-    pub(crate) cursor_model_input: Entity<InputState>,
-    pub(super) antigravity_model_input: Entity<InputState>,
+    pub(super) codex_model_input: Entity<TextInput>,
+    pub(crate) cursor_model_input: Entity<TextInput>,
+    pub(super) antigravity_model_input: Entity<TextInput>,
     /// "Custom model id…" was picked: the Codex text field shows.
     pub(super) codex_custom: bool,
     pub(super) threads_error: Option<String>,
     /// Settings → Chat → Visual replies' new-host field.
-    pub(super) page_host_input: Entity<InputState>,
+    pub(super) page_host_input: Entity<TextInput>,
     /// Chat and Worktrees edit this project folder's own defaults (`None`: All projects).
     pub scope: Option<PathBuf>,
     /// The local projects the scope menu lists (name, folder); the workspace sets them as the modal opens.
     pub projects: Vec<(SharedString, PathBuf)>,
     /// Settings → Keybindings' search, and the rows it leaves.
-    pub(super) keys_search: Entity<InputState>,
+    pub(super) keys_search: Entity<TextInput>,
     /// Where the focus was when the modal opened; it goes back there on close.
     pub return_focus: Option<FocusHandle>,
     /// The nav's search field.
-    pub(crate) search_input: Entity<InputState>,
+    pub(crate) search_input: Entity<TextInput>,
     /// Settings → General's editor command.
-    pub(super) editor_input: Entity<InputState>,
+    pub(super) editor_input: Entity<TextInput>,
     keys: Vec<keys::KeyRow>,
     /// The Sharing section's content; `None` without a tailnet hook.
     pub remote: Option<Entity<crate::remote::RemotePanel>>,
@@ -173,7 +169,7 @@ impl Settings {
     ) -> Self {
         let input = |placeholder: &str, window: &mut Window, cx: &mut Context<Self>| {
             let placeholder = placeholder.to_string();
-            cx.new(|cx| InputState::new(window, cx).placeholder(placeholder))
+            cx.new(|cx| TextInput::new(window, cx).placeholder(placeholder))
         };
         let id_input = input("work", window, cx);
         let label_input = input("Work", window, cx);
@@ -211,14 +207,14 @@ impl Settings {
         let subs = vec![
             // A redraw, not a notify: the workspace takes a Settings notify as "accounts saved" and re-reads them.
             cx.observe(&login, |_, _, cx| cx.refresh_windows()),
-            cx.subscribe(&test_input, |this, _, e: &InputEvent, cx| {
-                if matches!(e, InputEvent::Change) {
+            cx.subscribe(&test_input, |this, _, e: &TextInputEvent, cx| {
+                if matches!(e, TextInputEvent::Change) {
                     this.refresh_fs(cx);
                     cx.notify();
                 }
             }),
-            cx.subscribe(&keys_search, |this, _, e: &InputEvent, cx| {
-                if matches!(e, InputEvent::Change) {
+            cx.subscribe(&keys_search, |this, _, e: &TextInputEvent, cx| {
+                if matches!(e, TextInputEvent::Change) {
                     this.refresh_keys(cx);
                 }
             }),
@@ -231,40 +227,43 @@ impl Settings {
                     cx.emit(SettingsEvent::Closed)
                 }
             }),
-            cx.subscribe(&search_input, |_, _, e: &InputEvent, cx| {
-                if matches!(e, InputEvent::Change) {
+            cx.subscribe(&search_input, |_, _, e: &TextInputEvent, cx| {
+                if matches!(e, TextInputEvent::Change) {
                     cx.notify();
                 }
             }),
-            cx.subscribe(&editor_input, |this, _, e: &InputEvent, cx| {
-                if matches!(e, InputEvent::Blur | InputEvent::PressEnter { .. }) {
+            cx.subscribe(&editor_input, |this, _, e: &TextInputEvent, cx| {
+                if matches!(e, TextInputEvent::Blur | TextInputEvent::PressEnter { .. }) {
                     this.save_editor(cx);
                 }
             }),
             cx.subscribe_in(
                 &page_host_input,
                 window,
-                |this, _, e: &InputEvent, window, cx| {
-                    if matches!(e, InputEvent::PressEnter { .. }) {
+                |this, _, e: &TextInputEvent, window, cx| {
+                    if matches!(e, TextInputEvent::PressEnter { .. }) {
                         this.add_page_host(window, cx);
                     }
                 },
             ),
-            cx.subscribe(&codex_model_input, |this, _, e: &InputEvent, cx| {
-                if matches!(e, InputEvent::Blur | InputEvent::PressEnter { .. }) {
+            cx.subscribe(&codex_model_input, |this, _, e: &TextInputEvent, cx| {
+                if matches!(e, TextInputEvent::Blur | TextInputEvent::PressEnter { .. }) {
                     this.save_codex_model(cx);
                 }
             }),
-            cx.subscribe(&cursor_model_input, |this, _, e: &InputEvent, cx| {
-                if matches!(e, InputEvent::Blur | InputEvent::PressEnter { .. }) {
+            cx.subscribe(&cursor_model_input, |this, _, e: &TextInputEvent, cx| {
+                if matches!(e, TextInputEvent::Blur | TextInputEvent::PressEnter { .. }) {
                     this.save_cursor_model(cx);
                 }
             }),
-            cx.subscribe(&antigravity_model_input, |this, _, e: &InputEvent, cx| {
-                if matches!(e, InputEvent::Blur | InputEvent::PressEnter { .. }) {
-                    this.save_antigravity_model(cx);
-                }
-            }),
+            cx.subscribe(
+                &antigravity_model_input,
+                |this, _, e: &TextInputEvent, cx| {
+                    if matches!(e, TextInputEvent::Blur | TextInputEvent::PressEnter { .. }) {
+                        this.save_antigravity_model(cx);
+                    }
+                },
+            ),
         ];
         let locked = match (&path, error) {
             (None, _) => Some("no config directory on this OS, so nothing can be saved".into()),
@@ -395,41 +394,6 @@ impl Settings {
         self.test_result =
             (!text.is_empty()).then(|| self.config.resolve(Path::new(text)).cloned());
     }
-
-    fn bind_folder(&mut self, _: &BindFolder, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(account) = self.binding_account.clone() else {
-            self.error = Some("add an account first, then pick it to bind a folder".into());
-            cx.notify();
-            return;
-        };
-        let picked = cx.prompt_for_paths(PathPromptOptions {
-            files: false,
-            directories: true,
-            multiple: false,
-            prompt: Some("Bind".into()),
-        });
-        self._pick = Some(cx.spawn_in(window, async move |this, cx| {
-            let path = match picked.await {
-                Ok(Ok(Some(mut paths))) if !paths.is_empty() => Ok(paths.swap_remove(0)),
-                Ok(Ok(_)) | Err(_) => return, // cancelled, or the dialog went away
-                Ok(Err(e)) => Err(e),
-            };
-            // The view may be gone by now; nothing to do then.
-            let _ = this.update_in(cx, |this, window, cx| match path {
-                Ok(path) => {
-                    this.apply(
-                        |c| c.add_binding(Binding::new(path, account.to_string())),
-                        window,
-                        cx,
-                    );
-                }
-                Err(e) => {
-                    this.error = Some(format!("folder picker failed: {e:#}"));
-                    cx.notify();
-                }
-            });
-        }));
-    }
 }
 
 fn stale_bindings(config: &AccountsConfig) -> Vec<(PathBuf, Option<PathBuf>)> {
@@ -501,6 +465,8 @@ mod threads;
 mod visual_replies;
 pub(crate) mod widgets;
 
+#[cfg(test)]
+mod editor_blur_save_test;
 #[cfg(test)]
 mod outside_edit_test;
 #[cfg(test)]

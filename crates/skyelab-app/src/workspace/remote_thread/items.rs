@@ -86,7 +86,7 @@ impl ItemsView for RemoteThreadView {
         q: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Option<Entity<gpui_component::input::InputState>> {
+    ) -> Option<Entity<crate::ui::TextInput>> {
         Some(question_drafts::other_input(
             &self.items,
             &mut self.drafts,

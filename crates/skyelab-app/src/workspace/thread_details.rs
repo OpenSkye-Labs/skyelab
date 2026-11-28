@@ -72,7 +72,7 @@ pub struct Details {
     /// Who the Commit & push menu pushes as: the account's GitHub login, or why there is none.
     pub(in crate::workspace) gh_login: Option<SharedString>,
     /// The "Link pull request…" field and what was wrong with the last link.
-    pr_input: Option<Entity<gpui_component::input::InputState>>,
+    pr_input: Option<Entity<crate::ui::TextInput>>,
     pr_error: Option<SharedString>,
     /// Commits ahead of and behind the branch's upstream; `None` without one (or not read yet).
     sync: Option<(u32, u32)>,

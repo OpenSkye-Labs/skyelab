@@ -2,7 +2,7 @@
 //! its box, its text, a caret position and a selection exactly where today's did (gpui-component's `Input` in the
 //! same chrome, copied here from `text_field.rs` before the move), at the app's 14 px rem.
 
-use super::{ActiveTheme as _, Icon, SkyeIcon, Size, TextField, TextInput, h_flex};
+use super::{ActiveTheme as _, Icon, Size, SkyeIcon, TextField, TextInput, h_flex};
 use gpui::{
     AnyElement, AppContext as _, Bounds, Context, Entity, InteractiveElement as _, IntoElement,
     ParentElement as _, Pixels, Render, Styled as _, TestAppContext, Window, div, prelude::*, px,
@@ -73,8 +73,8 @@ impl Render for Pairs {
                 );
             }
             col = col.child(
-                    div()
-                        .debug_selector(move || sel(format!("ours-{n}")).into())
+                div()
+                    .debug_selector(move || sel(format!("ours-{n}")).into())
                     .child(ours),
             );
         }
@@ -105,10 +105,17 @@ fn our_field_lays_out_like_theirs(cx: &mut TestAppContext) {
     let mut bad = Vec::new();
     for (n, size, prefix) in cases() {
         let what = format!("{size:?} prefix {prefix}");
-        let a = vcx.debug_bounds(sel(format!("theirs-{n}"))).expect("theirs drawn");
-        let b = vcx.debug_bounds(sel(format!("ours-{n}"))).expect("ours drawn");
+        let a = vcx
+            .debug_bounds(sel(format!("theirs-{n}")))
+            .expect("theirs drawn");
+        let b = vcx
+            .debug_bounds(sel(format!("ours-{n}")))
+            .expect("ours drawn");
         if a.size != b.size {
-            bad.push(format!("{what} box: theirs {:?}, ours {:?}", a.size, b.size));
+            bad.push(format!(
+                "{what} box: theirs {:?}, ours {:?}",
+                a.size, b.size
+            ));
         }
         let (t, o) = view.read_with(vcx, |p, _| (p.theirs[n].clone(), p.ours[n].clone()));
         let theirs = t.read_with(vcx, |s, _| {
@@ -157,4 +164,94 @@ fn our_caret_is_one_pixel_wide_at_the_caret_position(cx: &mut TestAppContext) {
     let (caret, at) = (caret.expect("a caret"), at.expect("laid out"));
     assert_eq!(caret.size.width, px(1.), "theirs is CURSOR_WIDTH, 1 px");
     assert_eq!(caret.origin.x, at.origin.x);
+}
+
+/// The shapes the app uses besides the plain field: theirs as the call sites built them, then ours.
+struct Shapes {
+    theirs: Vec<Entity<InputState>>,
+    ours: Vec<Entity<TextInput>>,
+}
+
+const SHAPES: [&str; 4] = ["suffix", "cleanable", "bare", "bare large"];
+
+impl Render for Shapes {
+    fn render(&mut self, window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        window.set_rem_size(px(14.));
+        let unit = || div().child("port");
+        let field = |input: Input| {
+            let size = Size::Md;
+            let input = input.appearance(false).px_0().py_0().h_full();
+            h_flex()
+                .w_full()
+                .h(size.height())
+                .px(size.pad_x() - px(1.))
+                .border_1()
+                .child(input.text_size(size.text()))
+                .into_any_element()
+        };
+        let (t, o) = (&self.theirs, &self.ours);
+        let pairs = [
+            (
+                field(Input::new(&t[0]).suffix(unit())),
+                TextField::new(&o[0]).suffix(unit()),
+            ),
+            (
+                field(Input::new(&t[1]).cleanable(true)),
+                TextField::new(&o[1]).cleanable(true),
+            ),
+            (
+                gpui_component::Sizable::small(Input::new(&t[2]).appearance(false))
+                    .into_any_element(),
+                TextField::new(&o[2]).bare(),
+            ),
+            (
+                gpui_component::Sizable::large(Input::new(&t[3]).appearance(false))
+                    .p_0()
+                    .into_any_element(),
+                TextField::new(&o[3]).bare_large(),
+            ),
+        ];
+        let mut col = div().flex().flex_col().w(px(240.));
+        for (n, (theirs, ours)) in pairs.into_iter().enumerate() {
+            let boxed = |name: &str, el: AnyElement| {
+                let name = sel(format!("{name}-{n}"));
+                div().debug_selector(move || name.into()).child(el)
+            };
+            col = col
+                .child(boxed("theirs", theirs))
+                .child(boxed("ours", ours.into_any_element()));
+        }
+        col
+    }
+}
+
+#[gpui::test]
+fn the_other_shapes_lay_out_like_theirs(cx: &mut TestAppContext) {
+    super::button_test::setup(cx);
+    let (view, vcx) = cx.add_window_view(|window, cx| Shapes {
+        theirs: SHAPES
+            .map(|_| cx.new(|cx| InputState::new(window, cx).default_value("abc")))
+            .into(),
+        ours: SHAPES
+            .map(|_| cx.new(|cx| TextInput::new(window, cx).default_value("abc")))
+            .into(),
+    });
+    vcx.run_until_parked();
+    let mut bad = Vec::new();
+    for (n, what) in SHAPES.into_iter().enumerate() {
+        let a = vcx
+            .debug_bounds(sel(format!("theirs-{n}")))
+            .expect("theirs");
+        let b = vcx.debug_bounds(sel(format!("ours-{n}"))).expect("ours");
+        let (t, o) = view.read_with(vcx, |s, _| (s.theirs[n].clone(), s.ours[n].clone()));
+        let theirs = t.read_with(vcx, |s, _| s.text_bounds().map(|x| rel(x, a.origin)));
+        let ours = o.read_with(vcx, |s, _| s.text_bounds().map(|x| rel(x, b.origin)));
+        if (a.size, theirs) != (b.size, ours) {
+            bad.push(format!(
+                "{what}: theirs {:?} {theirs:?}\n  ours {:?} {ours:?}",
+                a.size, b.size
+            ));
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
 }

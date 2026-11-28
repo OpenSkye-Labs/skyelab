@@ -7,11 +7,11 @@ use crate::ui::SkyeIcon;
 use crate::ui::TextField;
 use crate::ui::dock::{BasePanel, Panel, PanelEvent};
 use crate::ui::{Icon, h_flex, v_flex};
+use crate::ui::{TextInput, TextInputEvent};
 use gpui::{
     App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, SharedString,
     Subscription, Task, Window, div, prelude::*, px, uniform_list,
 };
-use gpui_component::input::{InputEvent, InputState};
 use skyelab_core::files::{Found, search};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -44,7 +44,7 @@ enum Row {
 pub(in crate::workspace) struct SearchPanel {
     focus: FocusHandle,
     pub(in crate::workspace) root: PathBuf,
-    pub(in crate::workspace) input: Entity<InputState>,
+    pub(in crate::workspace) input: Entity<TextInput>,
     pub(in crate::workspace) found: Option<Found>,
     rows: Vec<Row>,
     error: Option<SharedString>,
@@ -57,9 +57,9 @@ pub(in crate::workspace) struct SearchPanel {
 
 impl SearchPanel {
     pub fn new(root: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Search in files"));
-        let _input = cx.subscribe(&input, |this, _, e: &InputEvent, cx| {
-            if matches!(e, InputEvent::Change) {
+        let input = cx.new(|cx| TextInput::new(window, cx).placeholder("Search in files"));
+        let _input = cx.subscribe(&input, |this, _, e: &TextInputEvent, cx| {
+            if matches!(e, TextInputEvent::Change) {
                 this.run(Duration::from_millis(150), cx);
             }
         });

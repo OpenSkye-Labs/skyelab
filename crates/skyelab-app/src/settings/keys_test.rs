@@ -19,6 +19,7 @@ fn lists_actions_with_their_keys_and_follows_the_file(cx: &mut TestAppContext) {
     cx.update(|cx| {
         gpui_component::init(cx);
         init(cx);
+        crate::ui::bind_keys(cx); // the search field's own keys (Backspace)
         crate::keymap::init(Some(file.clone()), cx);
     });
     let (view, cx) = cx.add_window_view(|window, cx| {

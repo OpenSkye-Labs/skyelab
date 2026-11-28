@@ -26,7 +26,9 @@ fn pinyin_composition_marks_then_commits_as_one_undo(cx: &mut TestAppContext) {
     let marked = field.update_in(vcx, |i, window, cx| i.marked_text_range(window, cx));
     assert_eq!(marked, None);
     assert_eq!(value(&view, vcx), "😀a你");
-    let sel = field.update_in(vcx, |i, window, cx| i.selected_text_range(false, window, cx));
+    let sel = field.update_in(vcx, |i, window, cx| {
+        i.selected_text_range(false, window, cx)
+    });
     assert_eq!(
         sel.map(|s: UTF16Selection| (s.range, s.reversed)),
         Some((4..4, false)),
@@ -34,7 +36,11 @@ fn pinyin_composition_marks_then_commits_as_one_undo(cx: &mut TestAppContext) {
     );
 
     vcx.simulate_keystrokes(&cmd("z"));
-    assert_eq!(value(&view, vcx), "😀a", "one undo takes the whole composition");
+    assert_eq!(
+        value(&view, vcx),
+        "😀a",
+        "one undo takes the whole composition"
+    );
 }
 
 #[gpui::test]
@@ -63,7 +69,11 @@ fn utf16_ranges_convert_to_bytes(cx: &mut TestAppContext) {
     field.update_in(vcx, |i, window, cx| {
         i.replace_text_in_range(Some(0..2), "x", window, cx)
     });
-    assert_eq!(value(&view, vcx), "xa你b", "a UTF-16 range replaces the emoji");
+    assert_eq!(
+        value(&view, vcx),
+        "xa你b",
+        "a UTF-16 range replaces the emoji"
+    );
 }
 
 #[gpui::test]
@@ -73,8 +83,13 @@ fn bounds_for_range_is_the_caret(cx: &mut TestAppContext) {
     let (text, caret) = field.read_with(vcx, |i, _| (i.text_bounds(), i.caret_bounds()));
     let text = text.expect("drawn");
     let caret = caret.expect("focused, so a caret");
-    let rect = field.update_in(vcx, |i, window, cx| i.bounds_for_range(3..3, text, window, cx));
+    let rect = field.update_in(vcx, |i, window, cx| {
+        i.bounds_for_range(3..3, text, window, cx)
+    });
     let rect = rect.expect("bounds for the caret position");
-    assert_eq!(rect.origin.x, caret.origin.x, "the IME window goes at the caret");
+    assert_eq!(
+        rect.origin.x, caret.origin.x,
+        "the IME window goes at the caret"
+    );
     assert!(rect.size.height > gpui::px(0.));
 }

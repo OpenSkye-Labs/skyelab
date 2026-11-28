@@ -23,12 +23,13 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::TextInput;
 use crate::ui::{h_flex, v_flex};
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, FontWeight, ListAlignment, ListOffset, ListState,
     MouseButton, SharedString, Task, Window, actions, div, list, prelude::*, px, uniform_list,
 };
-use gpui_component::input::{InputState, TextareaState};
+use gpui_component::input::TextareaState;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -64,7 +65,7 @@ pub struct ChangesView {
     pub(super) thread: Option<gpui::WeakEntity<ThreadView>>,
     /// A subject, then a blank line and a body when there is one.
     pub(super) commit_message: Entity<TextareaState>,
-    pub(super) pr_title: Entity<InputState>,
+    pub(super) pr_title: Entity<TextInput>,
     pub(super) pr_body: Entity<TextareaState>,
     /// Files ticked for the next commit; none ticked commits everything.
     pub(super) selected: HashSet<PathBuf>,
@@ -129,7 +130,7 @@ impl ChangesView {
                 .auto_grow(1, 6)
                 .placeholder("Commit message")
         });
-        let pr_title = cx.new(|cx| InputState::new(window, cx).placeholder("Pull request title"));
+        let pr_title = cx.new(|cx| TextInput::new(window, cx).placeholder("Pull request title"));
         let pr_body = cx.new(|cx| {
             TextareaState::new(window, cx)
                 .auto_grow(2, 6)

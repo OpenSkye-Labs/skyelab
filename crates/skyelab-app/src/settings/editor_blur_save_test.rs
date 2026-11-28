@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::workspace::thread_extras::prefs;
-use gpui::{Focusable as _, TestAppContext};
+use gpui::TestAppContext;
 
 #[gpui::test]
 fn the_editor_command_saves_when_its_field_blurs(cx: &mut TestAppContext) {
@@ -31,7 +31,11 @@ fn the_editor_command_saves_when_its_field_blurs(cx: &mut TestAppContext) {
     });
     cx.run_until_parked();
     cx.simulate_input("zed");
-    assert_eq!(input.read_with(cx, |i, _| i.value().to_string()), "zed", "typed into the field");
+    assert_eq!(
+        input.read_with(cx, |i, _| i.value().to_string()),
+        "zed",
+        "typed into the field"
+    );
     let saved = || skyelab_core::AppSettings::load(&path).expect("load").editor;
     assert_eq!(saved(), None, "typing alone doesn't save");
 

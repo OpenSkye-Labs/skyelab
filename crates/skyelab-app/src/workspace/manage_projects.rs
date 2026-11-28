@@ -7,8 +7,8 @@ use crate::ui;
 use crate::ui::Button;
 use crate::ui::TextField;
 use crate::ui::v_flex;
+use crate::ui::{TextInput, TextInputEvent};
 use gpui::{AppContext as _, Context, Entity, ParentElement as _, Window};
-use gpui_component::input::{InputEvent, InputState};
 
 impl Workspace {
     pub(super) fn manage_project(
@@ -143,7 +143,7 @@ impl Workspace {
         cx: &mut Context<Self>,
         done: impl Fn(&mut Self, String, &mut Window, &mut Context<Self>) + 'static,
     ) {
-        let input = cx.new(|cx| InputState::new(window, cx));
+        let input = cx.new(|cx| TextInput::new(window, cx));
         input.update(cx, |s, cx| s.set_value(current, window, cx));
         let done = std::rc::Rc::new(done);
         let submit = {
@@ -161,9 +161,9 @@ impl Workspace {
         self._dialog_input = Some(cx.subscribe_in(
             &input,
             window,
-            move |ws, input, e: &InputEvent, window, cx| {
+            move |ws, input, e: &TextInputEvent, window, cx| {
                 let text = input.read(cx).value().trim().to_owned();
-                if matches!(e, InputEvent::PressEnter { .. }) && !text.is_empty() {
+                if matches!(e, TextInputEvent::PressEnter { .. }) && !text.is_empty() {
                     crate::ui::close_dialog(window, cx);
                     on_enter(ws, text, window, cx);
                 }

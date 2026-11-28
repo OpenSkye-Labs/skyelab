@@ -179,10 +179,7 @@ pub(super) fn back_row(
 }
 
 /// The palette's search field at T3's large size: a 16 px icon and body-size text in a 48 px row over the list.
-pub(super) fn search_field(
-    field: &gpui::Entity<gpui_component::input::InputState>,
-    cx: &App,
-) -> gpui::Div {
+pub(super) fn search_field(field: &gpui::Entity<crate::ui::TextInput>, cx: &App) -> gpui::Div {
     let theme = cx.theme();
     h_flex()
         .debug_selector(|| "palette-search".into())
@@ -198,13 +195,10 @@ pub(super) fn search_field(
         )
         .child(
             div().flex_1().min_w_0().child(
-                gpui_component::Sizable::large(
-                    gpui_component::input::Input::new(field)
-                        .appearance(false)
-                        .aria_label("Search commands")
-                        .accessibility_id("palette-search"),
-                )
-                .p_0(),
+                crate::ui::TextField::new(field)
+                    .bare_large()
+                    .accessibility_label("Search commands")
+                    .accessibility_id("palette-search"),
             ),
         )
 }

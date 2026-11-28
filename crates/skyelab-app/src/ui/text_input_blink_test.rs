@@ -6,7 +6,10 @@ use super::text_input_harness::{field, focused, input};
 use gpui::{TestAppContext, VisualTestContext};
 use std::time::Duration;
 
-fn visible(view: &gpui::Entity<super::text_input_harness::Field>, vcx: &mut VisualTestContext) -> bool {
+fn visible(
+    view: &gpui::Entity<super::text_input_harness::Field>,
+    vcx: &mut VisualTestContext,
+) -> bool {
     let field = input(view, vcx);
     field.read_with(vcx, |i, _| i.caret_visible())
 }
@@ -33,7 +36,11 @@ fn blinks_then_holds_and_only_redraws_itself(cx: &mut TestAppContext) {
         [false, true, false, true, false, true, false, true, false],
         "a 500 ms phase for 4.5 s"
     );
-    assert_eq!(renders.get(), 0, "a cached view beside the field redrew while the caret blinked");
+    assert_eq!(
+        renders.get(),
+        0,
+        "a cached view beside the field redrew while the caret blinked"
+    );
 
     // Past 5 s idle it holds, shown, and nothing ticks any more.
     wait(vcx, 1_000);
@@ -62,7 +69,14 @@ fn an_unfocused_field_has_no_caret_and_no_timer(cx: &mut TestAppContext) {
     *renders.borrow_mut() = 0;
     assert!(!visible(&view, vcx));
     let field = input(&view, vcx);
-    assert!(field.read_with(vcx, |i, _| i.caret_bounds()).is_none(), "no caret drawn");
+    assert!(
+        field.read_with(vcx, |i, _| i.caret_bounds()).is_none(),
+        "no caret drawn"
+    );
     wait(vcx, 2_000);
-    assert_eq!(*renders.borrow(), 0, "nothing redraws an idle unfocused field");
+    assert_eq!(
+        *renders.borrow(),
+        0,
+        "nothing redraws an idle unfocused field"
+    );
 }

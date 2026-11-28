@@ -4,6 +4,7 @@
 
 use super::{ThreadView, lock};
 use crate::ui::ActiveTheme as _;
+use crate::ui::TextInput;
 use crate::ui::v_flex;
 use crate::ui::{self, Button, SegmentedControl, TextField};
 use anyhow::Context as _;
@@ -11,7 +12,6 @@ use gpui::{
     AppContext as _, Context, Entity, IntoElement, Render, SharedString, WeakEntity, Window, div,
     prelude::*, px,
 };
-use gpui_component::input::InputState;
 use serde_json::Value;
 use skyelab_agent::Mode;
 use skyelab_core::project_rules::{self as rules, Kind, Rule};
@@ -143,7 +143,7 @@ pub(in crate::workspace) struct RuleDialog {
     /// Exact or Prefix for a command; the proposed kind otherwise.
     pub(in crate::workspace) kind: Kind,
     /// The prefix (a command) or the glob (a file) the user edits.
-    pub(in crate::workspace) field: Entity<InputState>,
+    pub(in crate::workspace) field: Entity<TextInput>,
     /// The project and account it is saved under, in words.
     place: String,
     error: Option<SharedString>,
@@ -167,7 +167,7 @@ impl RuleDialog {
                 .unwrap_or_default(),
             _ => proposed.pattern.clone(),
         };
-        let field = cx.new(|cx| InputState::new(window, cx));
+        let field = cx.new(|cx| TextInput::new(window, cx));
         field.update(cx, |f, cx| f.set_value(start, window, cx));
         Self {
             thread,

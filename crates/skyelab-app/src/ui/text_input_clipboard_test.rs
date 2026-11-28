@@ -21,7 +21,11 @@ fn copy_cut_and_paste(cx: &mut TestAppContext) {
 
     vcx.write_to_clipboard(ClipboardItem::new_string("a\nb\tc\r".into()));
     vcx.simulate_keystrokes(&cmd("v"));
-    assert_eq!(value(&view, vcx), "alpha abc", "line breaks and tabs dropped");
+    assert_eq!(
+        value(&view, vcx),
+        "alpha abc",
+        "line breaks and tabs dropped"
+    );
 }
 
 #[gpui::test]

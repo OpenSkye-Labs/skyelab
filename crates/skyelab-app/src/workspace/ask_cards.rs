@@ -27,7 +27,7 @@ pub(super) const OTHER: usize = usize::MAX;
 #[derive(Default)]
 pub(super) struct QuestionDraft {
     pub(super) picked: Vec<BTreeSet<usize>>,
-    pub(super) other: Vec<Option<gpui::Entity<gpui_component::input::InputState>>>,
+    pub(super) other: Vec<Option<gpui::Entity<crate::ui::TextInput>>>,
     /// Files attached to each question's answer (T3's question attachments); the agent gets their paths.
     pub(super) files: Vec<Vec<std::path::PathBuf>>,
     /// The docked panel's question (T3 shows one at a time) and each question's answer typed in the composer, which

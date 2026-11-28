@@ -36,7 +36,11 @@ fn typing_moves_and_word_edits(cx: &mut TestAppContext) {
 #[gpui::test]
 fn line_moves_and_selections(cx: &mut TestAppContext) {
     let (view, vcx) = focused(cx, 300., "abc def");
-    assert_eq!(cursor(&view, vcx), 7, "set_value leaves the caret at the end");
+    assert_eq!(
+        cursor(&view, vcx),
+        7,
+        "set_value leaves the caret at the end"
+    );
     vcx.simulate_keystrokes("left left");
     assert_eq!(cursor(&view, vcx), 5);
     vcx.simulate_keystrokes("right");
@@ -64,7 +68,11 @@ fn deletes_by_character_word_and_line(cx: &mut TestAppContext) {
     assert_eq!(value(&view, vcx), " bar ");
     if cfg!(target_os = "macos") {
         vcx.simulate_keystrokes("end cmd-backspace");
-        assert_eq!(value(&view, vcx), "", "cmd-backspace deletes to the line start");
+        assert_eq!(
+            value(&view, vcx),
+            "",
+            "cmd-backspace deletes to the line start"
+        );
     }
 }
 
@@ -79,7 +87,11 @@ fn set_value_is_silent_and_not_undoable(cx: &mut TestAppContext) {
     assert!(events(&view, vcx).is_empty(), "set_value emits no Change");
     assert_eq!(cursor(&view, vcx), 3);
     vcx.simulate_keystrokes(&cmd("z"));
-    assert_eq!(value(&view, vcx), "abc", "set_value cleared the undo history");
+    assert_eq!(
+        value(&view, vcx),
+        "abc",
+        "set_value cleared the undo history"
+    );
 }
 
 #[gpui::test]
@@ -87,7 +99,11 @@ fn a_grapheme_cluster_is_one_step(cx: &mut TestAppContext) {
     let thumb = "👍🏽";
     let (view, vcx) = focused(cx, 300., &format!("a{thumb}b"));
     vcx.simulate_keystrokes("left left");
-    assert_eq!(cursor(&view, vcx), 1, "one left over the emoji with its skin tone");
+    assert_eq!(
+        cursor(&view, vcx),
+        1,
+        "one left over the emoji with its skin tone"
+    );
     vcx.simulate_keystrokes("right");
     assert_eq!(cursor(&view, vcx), 1 + thumb.len());
 
@@ -95,7 +111,11 @@ fn a_grapheme_cluster_is_one_step(cx: &mut TestAppContext) {
     let field = input(&view, vcx);
     vcx.update(|window, cx| field.update(cx, |i, cx| i.set_value(accented, window, cx)));
     vcx.simulate_keystrokes("left left");
-    assert_eq!(cursor(&view, vcx), 0, "e and its combining accent are one step");
+    assert_eq!(
+        cursor(&view, vcx),
+        0,
+        "e and its combining accent are one step"
+    );
     vcx.simulate_keystrokes("delete");
     assert_eq!(value(&view, vcx), "x", "delete takes the whole cluster");
 }
@@ -115,12 +135,21 @@ fn tab_reaches_an_enabled_field(cx: &mut TestAppContext) {
 fn a_disabled_field_takes_no_focus(cx: &mut TestAppContext) {
     let (view, vcx) = field(cx, 300., "x");
     let field = input(&view, vcx);
-    vcx.update(|window, cx| field.update(cx, |i, cx| i.set_disabled(true, window, cx)));
+    view.update(vcx, |v, cx| {
+        v.disabled = true;
+        cx.notify();
+    });
+    vcx.run_until_parked();
     let other = view.read_with(vcx, |v, _| v.other.clone());
     vcx.update(|window, cx| window.focus(&other, cx));
     vcx.simulate_keystrokes("shift-tab");
     let focused = vcx.update(|window, cx| field.focus_handle(cx).is_focused(window));
     assert!(!focused, "Tab skips a disabled field");
+    let inside = super::text_input_harness::range_bounds(&view, vcx, 0..1).center();
+    vcx.simulate_click(inside, gpui::Modifiers::none());
+    let focused = vcx.update(|window, cx| field.focus_handle(cx).is_focused(window));
+    assert!(!focused, "a click on a disabled field focuses nothing");
+    assert!(events(&view, vcx).is_empty());
 }
 
 /// Criterion 14's first half: one Focus, then one Blur; a click inside the focused field sends neither.
@@ -137,7 +166,10 @@ fn focus_then_blur_each_emit_once(cx: &mut TestAppContext) {
 
     let inside = super::text_input_harness::range_bounds(&view, vcx, 1..2).center();
     vcx.simulate_click(inside, gpui::Modifiers::none());
-    assert!(events(&view, vcx).is_empty(), "a click inside keeps the focus");
+    assert!(
+        events(&view, vcx).is_empty(),
+        "a click inside keeps the focus"
+    );
 
     let other = view.read_with(vcx, |v, _| v.other.clone());
     vcx.update(|window, cx| window.focus(&other, cx));

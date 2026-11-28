@@ -4,8 +4,8 @@
 
 use crate::ui::{self, TextField, TextInput, TextInputEvent};
 use gpui::{
-    AppContext as _, Bounds, Context, Entity, FocusHandle, Focusable as _, InteractiveElement as _, IntoElement,
-    ParentElement as _, Pixels, Render, Styled as _, Subscription, TestAppContext,
+    AppContext as _, Bounds, Context, Entity, FocusHandle, Focusable as _, InteractiveElement as _,
+    IntoElement, ParentElement as _, Pixels, Render, Styled as _, Subscription, TestAppContext,
     VisualTestContext, Window, div, px,
 };
 use std::{
@@ -20,6 +20,7 @@ gpui::actions!(text_input_harness, [ParentEnter, ParentEscape]);
 pub(super) struct Field {
     pub input: Entity<TextInput>,
     pub events: Rc<RefCell<Vec<TextInputEvent>>>,
+    pub disabled: bool,
     pub renders: Rc<RefCell<usize>>,
     /// `ParentEnter` / `ParentEscape` handled by the field's parent.
     pub enters: Rc<Cell<usize>>,
@@ -44,9 +45,11 @@ impl Render for Field {
             .flex()
             .flex_col()
             .child(
-                div()
-                    .w(self.width)
-                    .child(TextField::new(&self.input).accessibility_label("Field")),
+                div().w(self.width).child(
+                    TextField::new(&self.input)
+                        .disabled(self.disabled)
+                        .accessibility_label("Field"),
+                ),
             )
             .child(div().id("other").track_focus(&self.other).size(px(10.)))
             .child(ui::cached_view(
@@ -68,25 +71,19 @@ impl Render for Sibling {
     }
 }
 
-/// A `width` px field holding `text` (set with `set_value`, so no event), not focused yet.
-pub(super) fn field<'a>(
-    cx: &'a mut TestAppContext,
-    width: f32,
-    text: &str,
-) -> (Entity<Field>, &'a mut VisualTestContext) {
-    ui::button_test::setup(cx);
-    let text = text.to_string();
-    let (view, vcx) = cx.add_window_view(move |window, cx| {
+impl Field {
+    fn new(text: &str, width: f32, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let input = cx.new(|cx| TextInput::new(window, cx));
-        input.update(cx, |i, cx| i.set_value(text.clone(), window, cx));
+        input.update(cx, |i, cx| i.set_value(text, window, cx));
         let events: Rc<RefCell<Vec<TextInputEvent>>> = Rc::default();
         let log = events.clone();
         let sub = cx.subscribe_in(&input, window, move |_, _, e: &TextInputEvent, _, _| {
             log.borrow_mut().push(e.clone());
         });
-        Field {
+        Self {
             input,
             events,
+            disabled: false,
             renders: Rc::default(),
             enters: Rc::default(),
             escapes: Rc::default(),
@@ -97,7 +94,28 @@ pub(super) fn field<'a>(
             width: px(width),
             _sub: sub,
         }
+    }
+}
+
+/// A `width` px field holding `text` (set with `set_value`, so no event), not focused yet.
+pub(super) fn field<'a>(
+    cx: &'a mut TestAppContext,
+    width: f32,
+    text: &str,
+) -> (Entity<Field>, &'a mut VisualTestContext) {
+    ui::button_test::setup(cx);
+    let text = text.to_string();
+    let made: Rc<RefCell<Option<Entity<Field>>>> = Rc::default();
+    let out = made.clone();
+    // In the app's window root, which binds Tab.
+    let (_, vcx) = cx.add_window_view(move |window, cx| {
+        let view = cx.new(|cx| Field::new(&text, width, window, cx));
+        *out.borrow_mut() = Some(view.clone());
+        ui::window_root(view.into(), window, cx)
     });
+    let view = made.take().expect("made with the window");
+    // GPUI reports focus changes, and the caret shows, only in the active window.
+    vcx.update(|window, _| window.activate_window());
     vcx.run_until_parked();
     (view, vcx)
 }
@@ -156,7 +174,11 @@ pub(super) fn range_bounds(
 
 /// `mac` on macOS, `other` elsewhere: the two keymaps differ (alt- vs ctrl- word moves, cmd- vs ctrl- edits).
 pub(super) fn key(mac: &'static str, other: &'static str) -> &'static str {
-    if cfg!(target_os = "macos") { mac } else { other }
+    if cfg!(target_os = "macos") {
+        mac
+    } else {
+        other
+    }
 }
 
 /// The platform's command key plus `k` (`cmd-` on macOS, `ctrl-` elsewhere).
