@@ -90,7 +90,7 @@ reaches for these.
   pointer on it.
 - **`Spinner`** (`ui/spinner.rs`): `Spinner::new().size(px).color(..)`, the loader glyph turning; a loading `Button`
   draws it. Held still under reduce motion.
-- **`CopyButton`** (`ui/copy_button.rs`): `CopyButton::new(id).value(text).tooltip("Copy")`, a 20 px ghost square that
+- **`CopyButton`** (`ui/copy_button.rs`): `CopyButton::new(id).value(text).tooltip("Copy")`, a 1.25 rem ghost square that
   copies its text and shows a check for 2 s ("Copied" to a screen reader). Name it per item with
   `.accessibility_label("Copy reply: …")`.
 - **`StatusBar`** (`ui/status_bar.rs`): `.left(..)`, `.right(..)` and children for the center, in the theme's

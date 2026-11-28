@@ -71,6 +71,8 @@ icons! {
     Collapse => "collapse",
     Columns2 => "columns2",
     Copy => "copy",
+    CopyButton => "copy-button",
+    CopyButtonDone => "copy-button-done",
     Expand => "expand",
     ExternalLink => "external-link",
     File => "file",

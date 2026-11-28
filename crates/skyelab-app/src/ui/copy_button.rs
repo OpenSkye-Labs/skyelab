@@ -4,7 +4,7 @@
 use super::{ActiveTheme as _, Button, Icon, SkyeIcon};
 use gpui::{
     App, ClipboardItem, ElementId, IntoElement, ParentElement as _, RenderOnce, SharedString,
-    Styled as _, Window, prelude::FluentBuilder as _, px,
+    Styled as _, Window, prelude::FluentBuilder as _,
 };
 use std::time::Duration;
 
@@ -52,11 +52,11 @@ impl RenderOnce for CopyButton {
         let name = self.accessibility_label.unwrap_or_else(|| "Copy".into());
         let value = self.value;
         let theme = cx.theme();
-        // gpui-component's copy button, kept pixel for pixel: a 20 px square, the theme's radius, a 12 px icon.
+        // gpui-component's copy button, kept pixel for pixel: a 1.25 rem square, the theme's radius, a 0.75 rem icon.
         let icon = Icon::new(if is_copied {
-            SkyeIcon::Check
+            SkyeIcon::CopyButtonDone
         } else {
-            SkyeIcon::Copy
+            SkyeIcon::CopyButton
         })
         .size_3()
         .text_color(theme.secondary_foreground);
@@ -64,7 +64,7 @@ impl RenderOnce for CopyButton {
             .ghost()
             .xsmall()
             .square()
-            .size(px(20.))
+            .size_5()
             .rounded(theme.radius)
             .child(icon)
             .when_some(self.tooltip, |b, text| b.tooltip(text))

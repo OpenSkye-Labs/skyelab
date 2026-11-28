@@ -73,6 +73,8 @@ patching around it.
 
 - `ui::Spinner` turns `SkyeIcon::Loader` through `with_animation` and `Icon::transform`; GPUI holds it still under
   reduce motion, so it needs no check of its own.
+- Parity tests render at a 14 px rem (`window.set_rem_size`), as gpui-component's `Root` does in the app: a fixed
+  `px` size can match theirs at the test's default 16 px rem and still be off by 2.5 px on screen.
 - `ui::CopyButton` keeps its copied flag in `window.use_keyed_state` under its id, so give each one an id unique among
   its siblings; one flag picks the check icon and the "Copied" description.
 - `ui::StatusBar` centers its middle children only when both ends hold items, pushes them to the end after a left

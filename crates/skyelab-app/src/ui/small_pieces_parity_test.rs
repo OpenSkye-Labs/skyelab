@@ -20,7 +20,9 @@ fn sel(name: String) -> &'static str {
 struct Pairs(fn() -> Vec<(&'static str, AnyElement, AnyElement)>);
 
 impl Render for Pairs {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        // The app's rem: gpui-component's Root sets it to the theme's 14 px, and rem sizes must still match.
+        window.set_rem_size(px(14.));
         let mut col = div().flex().flex_col().items_start().w(px(600.));
         for (n, (_, theirs, ours)) in (self.0)().into_iter().enumerate() {
             col = col
@@ -88,6 +90,23 @@ fn our_spinner_glyph_is_the_one_it_drew_before() {
         .expect("load")
         .expect("in gpui-kit-assets");
     assert_eq!(ours, before);
+    for (icon, theirs) in [
+        (SkyeIcon::CopyButton, "icons/copy.svg"),
+        (SkyeIcon::CopyButtonDone, "icons/check.svg"),
+    ] {
+        let ours = AppAssets
+            .load(&icon.path())
+            .expect("load")
+            .expect("embedded");
+        let before = gpui_kit_assets::Assets
+            .load(theirs)
+            .expect("load")
+            .expect("there");
+        assert_eq!(
+            ours, before,
+            "{icon:?}: the copy button's glyphs are the ones it drew before"
+        );
+    }
     assert_eq!(
         super::spinner::GLYPH,
         SkyeIcon::Loader,
@@ -126,18 +145,39 @@ fn our_spinner_holds_still_under_reduce_motion(cx: &mut TestAppContext) {
     assert_eq!(spinner_frames(cx, true), 0);
 }
 
+/// The row under a reply (`timeline_menu.rs`): the copy button, faded, then the time.
+fn footer(copy: AnyElement) -> AnyElement {
+    super::h_flex()
+        .gap_1()
+        .text_size(super::META)
+        .child(div().opacity(0.6).child(copy))
+        .child("00:11")
+        .into_any_element()
+}
+
 fn copy_buttons() -> Vec<(&'static str, AnyElement, AnyElement)> {
-    vec![(
-        "icon only",
-        gpui_component::clipboard::Clipboard::new("t-0")
-            .value("x")
-            .tooltip("Copy")
-            .into_any_element(),
-        CopyButton::new("o-0")
-            .value("x")
-            .tooltip("Copy")
-            .into_any_element(),
-    )]
+    vec![
+        (
+            "icon only",
+            gpui_component::clipboard::Clipboard::new("t-0")
+                .value("x")
+                .tooltip("Copy")
+                .into_any_element(),
+            CopyButton::new("o-0")
+                .value("x")
+                .tooltip("Copy")
+                .into_any_element(),
+        ),
+        (
+            "in a reply's footer row",
+            footer(
+                gpui_component::clipboard::Clipboard::new("t-1")
+                    .value("x")
+                    .into_any_element(),
+            ),
+            footer(CopyButton::new("o-1").value("x").into_any_element()),
+        ),
+    ]
 }
 
 #[gpui::test]
