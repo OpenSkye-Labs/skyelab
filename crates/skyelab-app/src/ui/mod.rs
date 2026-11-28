@@ -83,6 +83,7 @@ mod popover;
 mod popover_follow_test;
 #[cfg(test)]
 mod popover_test;
+mod popup_place;
 mod surface;
 pub mod syntax;
 #[cfg(test)]

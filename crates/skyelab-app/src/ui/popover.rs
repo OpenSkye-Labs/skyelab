@@ -3,12 +3,13 @@
 
 use super::menu::POPUP_PRIORITY;
 use super::menu_render::popover_surface;
+use super::popup_place::popup_place;
 use super::v_flex;
 use gpui::{
-    Anchor, AnyElement, App, Bounds, Context, Edges, ElementId, FocusHandle,
-    InteractiveElement as _, IntoElement, KeyBinding, MouseButton, ParentElement as _, Pixels,
-    Point, RenderOnce, Role, StatefulInteractiveElement as _, StyleRefinement, Styled, Task,
-    Window, actions, anchored, canvas, deferred, div, point, prelude::FluentBuilder as _, px,
+    Anchor, AnyElement, App, Bounds, Context, ElementId, FocusHandle, InteractiveElement as _,
+    IntoElement, KeyBinding, MouseButton, ParentElement as _, Pixels, Point, RenderOnce, Role,
+    StatefulInteractiveElement as _, StyleRefinement, Styled, Task, Window, actions, canvas,
+    deferred, div, point, prelude::FluentBuilder as _, px,
 };
 use std::{rc::Rc, time::Duration};
 
@@ -66,16 +67,13 @@ fn host(
         .when_some(content, |d, content| {
             let corner = position(anchor, Bounds::new(Point::default(), bounds.size), offset);
             d.child(
-                div().absolute().top_0().left_0().size_0().child(
-                    deferred(
-                        anchored()
-                            .anchor(anchor)
-                            .offset(corner)
-                            .snap_to_window_with_margin(Edges::all(WINDOW_MARGIN))
-                            .child(div().occlude().child(content)),
-                    )
-                    .with_priority(POPUP_PRIORITY),
-                ),
+                deferred(popup_place(
+                    anchor,
+                    corner,
+                    WINDOW_MARGIN,
+                    div().occlude().child(content),
+                ))
+                .with_priority(POPUP_PRIORITY),
             )
         })
 }
