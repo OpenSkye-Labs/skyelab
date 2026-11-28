@@ -13,3 +13,12 @@ Part of [docs/gpui.md](../gpui.md).
   prepaint whenever its width changed, and test with one big wheel event, also after `simulate_resize`.
 - A test reading `window.painted_quads()`: quads come in drawing order (`order` is the layer, often equal), and a
   border is four quads of the full bounds masked to its edges, so check `content_mask` too.
+- **Scrolling up over rows the list never measured skips them.** `scroll_by` turns pixels into rows by the heights
+  it holds, and rows above the view carry only the one-row hint until laid out (after End, a scrollbar jump, a
+  resize). Move up at most the list's overdraw per frame (`diff_viewer_select.rs`, `UP_STEP`), for Page Up and for
+  a big upward wheel turn alike; downward is safe, as those rows were just drawn.
+- **A drag that leaves a list ends on another participant** (text behind a dialog shares its scope while
+  gpui-component's `Root` sets it), and the window's copy then takes that text. Keep the drag's last end over your
+  own text and copy from it in your own copy action.
+- In tests, `Hitbox::is_hovered` follows the last mouse move, not a simulated scroll event's position: check a
+  wheel handler's position against the hitbox bounds.

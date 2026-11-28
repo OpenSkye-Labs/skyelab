@@ -1,10 +1,11 @@
 //! Joins `DiffViewer`'s virtualized rows to the window's text selection (`gpui_base::TextSelection`). An endpoint is a
 //! content key, (line, byte of its drawn text), so a selection and its copy outlive the rows that scroll away.
 
+use super::diff_view::ROW_H;
 use gpui::{
-    AnyElement, App, Bounds, Element, ElementId, EntityId, GlobalElementId, HitboxBehavior,
-    InspectorElementId, LayoutId, ListState, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, Pixels, Point, SharedString, StyledText, TextLayout, Window, px,
+    AnyElement, App, Bounds, Element, ElementId, EntityId, GlobalElementId, Hitbox, HitboxBehavior,
+    InspectorElementId, LayoutId, ListState, Pixels, Point, ScrollEvent, SharedString, StyledText,
+    TextLayout, Window, px,
 };
 use gpui_base::{TextSelectionHandle, TextSelectionRegistration, TextSelectionRun};
 use std::{cell::RefCell, ops::Range, rc::Rc};
@@ -19,12 +20,17 @@ fn line_and_byte(key: u64) -> (usize, usize) {
     ((key >> 32) as usize, (key & 0xffff_ffff) as usize)
 }
 
-/// `text` as drawn: each tab reaches the next 4-column stop.
+/// How many columns `c` takes at `column`: a tab reaches the next 4-column stop.
+fn columns(c: char, column: usize) -> usize {
+    if c == '\t' { TAB - column % TAB } else { 1 }
+}
+
+/// `text` as drawn: each tab becomes spaces to its stop.
 pub(super) fn expand_tabs(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut column = 0;
     for c in text.chars() {
-        let width = if c == '\t' { TAB - column % TAB } else { 1 };
+        let width = columns(c, column);
         if c == '\t' {
             out.extend(std::iter::repeat_n(' ', width));
         } else {
@@ -39,14 +45,12 @@ pub(super) fn expand_tabs(text: &str) -> String {
 pub(super) fn source_byte(text: &str, drawn: usize) -> usize {
     let (mut column, mut at) = (0, 0);
     for (byte, c) in text.char_indices() {
-        let (columns, bytes) = match c {
-            '\t' => (TAB - column % TAB, TAB - column % TAB),
-            c => (1, c.len_utf8()),
-        };
+        let width = columns(c, column);
+        let bytes = if c == '\t' { width } else { c.len_utf8() };
         if drawn < at + bytes {
             return byte;
         }
-        column += columns;
+        column += width;
         at += bytes;
     }
     text.len()
@@ -68,23 +72,6 @@ pub(super) fn lines_between((from, to): (u64, u64)) -> std::ops::RangeInclusive<
     line_and_byte(from).0..=line_and_byte(to).0
 }
 
-/// The word, run of spaces or single other character at `byte` of `text`.
-fn word_at(text: &str, byte: usize) -> Range<usize> {
-    let class = |c: char| match c {
-        c if c == '_' || c.is_alphanumeric() => 1,
-        c if c.is_whitespace() => 2,
-        _ => 0,
-    };
-    let Some(c) = text.get(byte..).and_then(|t| t.chars().next()) else {
-        return text.len()..text.len();
-    };
-    let same = |other: &char| class(c) != 0 && class(*other) == class(c);
-    let len = |chars: &mut dyn Iterator<Item = char>| chars.map(char::len_utf8).sum::<usize>();
-    let start = byte - len(&mut text[..byte].chars().rev().take_while(same));
-    let end = byte + c.len_utf8();
-    start..end + len(&mut text[end..].chars().take_while(same))
-}
-
 struct Run {
     line: usize,
     text: SharedString,
@@ -92,17 +79,18 @@ struct Run {
     visible: Bounds<Pixels>,
 }
 
-/// A double or triple click: which, where, and whether its first end was already resolved.
-type Multi = (usize, Point<Pixels>, bool);
-
 /// Where the last frame drew each row's code.
 #[derive(Default)]
 pub(super) struct Geometry {
     origin: Point<Pixels>,
     scroll: Point<Pixels>,
     runs: Vec<Run>,
-    multi: Option<Multi>,
     hinted_width: Option<Pixels>,
+    /// How far a Page Up (or a big upward wheel turn) still has to go: it moves at most [`UP_STEP`] a frame, over rows
+    /// the list has measured, or it would jump over wrapped rows it only knew by their one-row hint.
+    pub(super) pending_up: Pixels,
+    /// Where the current drag's end was last over our text, for a drag that ends outside the viewer.
+    pub(super) last_cursor: Option<u64>,
     #[cfg(test)]
     pub(super) colored: std::collections::BTreeMap<usize, usize>,
 }
@@ -116,25 +104,25 @@ impl Geometry {
         })
     }
 
-    /// The key of the character at `point` (relative to the content, as the window selection asks). A double or triple
-    /// click resolves its two ends in turn: the word's or the line's start, then its end.
-    pub(super) fn key_at(&mut self, point: Point<Pixels>) -> Option<u64> {
-        if let Some((count, at, started)) = self.multi {
-            let run = self.run_at(at)?;
-            let byte = run.layout.index_for_position(at).unwrap_or_else(|ix| ix);
-            let range = if count >= 3 {
-                0..run.text.len()
-            } else {
-                word_at(&run.text, byte)
-            };
-            let found = key(run.line, if started { range.end } else { range.start });
-            self.multi = (!started).then_some((count, at, true));
-            return Some(found);
-        }
-        let at = point + self.origin + self.scroll;
+    /// The key of the character boundary nearest `point`, in window coordinates.
+    pub(super) fn key_at_window(&self, at: Point<Pixels>) -> Option<u64> {
         let run = self.run_at(at)?;
-        let byte = run.layout.index_for_position(at).unwrap_or_else(|ix| ix);
-        Some(key(run.line, byte))
+        let layout = run.layout.line_layouts();
+        let byte = match layout.first() {
+            Some(line) => line
+                .closest_index_for_position(
+                    at - run.layout.bounds().origin,
+                    run.layout.line_height(),
+                )
+                .unwrap_or_else(|ix| ix),
+            None => 0,
+        };
+        Some(key(run.line, byte.min(run.text.len())))
+    }
+
+    /// The key for `point`, relative to the content, as the window selection asks.
+    pub(super) fn key_at(&self, point: Point<Pixels>) -> Option<u64> {
+        self.key_at_window(point + self.origin + self.scroll)
     }
 }
 
@@ -210,7 +198,13 @@ pub(super) struct Layer {
     pub(super) selection: TextSelectionHandle,
     pub(super) geometry: Rc<RefCell<Geometry>>,
     pub(super) view: EntityId,
+    pub(super) hitbox: Option<Hitbox>,
 }
+
+/// The most a Page Up moves in one frame: within the rows the list lays out above the view ([`OVERDRAW`]).
+pub(super) const UP_STEP: Pixels = px(320.);
+/// How far above and below the view the list lays rows out.
+pub(super) const OVERDRAW: Pixels = px(400.);
 
 impl Element for Layer {
     type RequestLayoutState = ();
@@ -245,6 +239,7 @@ impl Element for Layer {
     ) {
         self.geometry.borrow_mut().runs.clear();
         let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
+        self.hitbox = Some(hitbox.clone());
         self.child.prepaint(window, cx);
         // GPUI's list forgets every row height, hints too, at a new width (its first layout included), and the wheel
         // and the scrollbar then stop at the last row measured.
@@ -253,6 +248,16 @@ impl Element for Layer {
             self.geometry.borrow_mut().hinted_width = Some(width);
             let _ = self.list.clone().with_uniform_item_height(self.row_height);
             cx.notify(self.view);
+        }
+        let pending = self.geometry.borrow().pending_up;
+        if pending > px(0.) {
+            let (list, geometry, view) = (self.list.clone(), self.geometry.clone(), self.view);
+            cx.defer(move |cx| {
+                let step = pending.min(UP_STEP);
+                list.scroll_by(-step);
+                geometry.borrow_mut().pending_up = pending - step;
+                cx.notify(view);
+            });
         }
         let scroll = self.list.scroll_px_offset_for_scrollbar();
         let text_bounds = {
@@ -289,23 +294,16 @@ impl Element for Layer {
             })
             .collect();
         self.selection.update_runs(&runs, cx);
-        let geometry = self.geometry.clone();
-        window.on_mouse_event(move |event: &MouseDownEvent, phase, _, _| {
-            if phase.capture() && event.button == MouseButton::Left {
-                geometry.borrow_mut().multi =
-                    (event.click_count >= 2).then_some((event.click_count, event.position, false));
-            }
-        });
-        let geometry = self.geometry.clone();
-        window.on_mouse_event(move |_: &MouseMoveEvent, phase, _, _| {
-            if phase.capture() {
-                geometry.borrow_mut().multi = None;
-            }
-        });
-        let geometry = self.geometry.clone();
-        window.on_mouse_event(move |_: &MouseUpEvent, phase, _, _| {
-            if phase.capture() {
-                geometry.borrow_mut().multi = None;
+        let (geometry, view, hitbox) = (self.geometry.clone(), self.view, self.hitbox.take());
+        window.on_mouse_event(move |event: &ScrollEvent, phase, _, cx| {
+            let up = event.delta.pixel_delta(px(ROW_H)).y;
+            let ours = hitbox
+                .as_ref()
+                .is_some_and(|h| h.bounds.contains(&event.position));
+            if phase.capture() && ours && up > UP_STEP {
+                geometry.borrow_mut().pending_up += up;
+                cx.stop_propagation();
+                cx.notify(view);
             }
         });
         self.child.paint(window, cx);
@@ -324,15 +322,5 @@ mod tests {
             .map(|drawn| source_byte(text, drawn))
             .into();
         assert_eq!(map, [0, 0, 1, 3, 3, 4, 5, 5]);
-    }
-
-    #[test]
-    fn a_word_stops_at_spaces_and_punctuation() {
-        let word = |byte| &"let a_é1 = f();"[word_at("let a_é1 = f();", byte)];
-        assert_eq!(
-            (word(0), word(5), word(3), word(13)),
-            ("let", "a_é1", " ", "(")
-        );
-        assert_eq!(word_at("ab", 2), 2..2);
     }
 }

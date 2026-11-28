@@ -348,3 +348,9 @@ mod dock_tab_name_test;
 mod approval_view_all_test;
 #[cfg(test)]
 mod diff_viewer_test;
+#[cfg(test)]
+mod diff_viewer_page_up_test;
+#[cfg(test)]
+mod diff_viewer_drag_out_test;
+#[cfg(test)]
+mod diff_viewer_midpoint_test;

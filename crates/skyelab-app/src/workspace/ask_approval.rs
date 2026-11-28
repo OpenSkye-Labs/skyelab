@@ -303,7 +303,7 @@ fn approval_diff<V: ItemsView>(a: &ApprovalItem, p: Preview, cx: &mut Context<V>
     let rows = (0..d.lines.len()).flat_map(|ix| {
         let divider = breaks
             .contains(&ix)
-            .then(|| div().h(px(1.)).w_full().bg(theme.border).into_any_element());
+            .then(|| diff_view::break_line(theme).into_any_element());
         // Wrapped, never clipped: what a long line hides past the edge would still be written.
         let row = diff_view::line_row(&d, ix, true, theme).into_any_element();
         divider.into_iter().chain(std::iter::once(row))

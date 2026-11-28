@@ -186,10 +186,7 @@ pub(in crate::workspace) fn colors(kind: LineKind, theme: &Theme) -> Option<(Hsl
 /// Line `ix` of `p` as a row; `wrap` lets a long line wrap under itself instead of clipping.
 pub(super) fn line_row(p: &Prepared, ix: usize, wrap: bool, theme: &Theme) -> gpui::Div {
     let (old, new, kind, text) = &p.lines[ix];
-    let styles = &theme.highlight_theme;
-    let runs = p.spans[ix]
-        .iter()
-        .filter_map(|(r, name)| Some((r.clone(), styles.style(name)?)));
+    let runs = syntax_runs(&p.spans[ix], theme);
     row_frame(new.or(*old), *kind, p.gutter, theme).child(
         div()
             .flex_1()
@@ -204,6 +201,22 @@ pub(super) fn line_row(p: &Prepared, ix: usize, wrap: bool, theme: &Theme) -> gp
             })
             .child(StyledText::new(text.clone()).with_highlights(runs)),
     )
+}
+
+/// A line's spans as the theme colors them.
+pub(super) fn syntax_runs<'a>(
+    spans: &'a Spans,
+    theme: &'a Theme,
+) -> impl Iterator<Item = (std::ops::Range<usize>, gpui::HighlightStyle)> + 'a {
+    let styles = &theme.highlight_theme;
+    spans
+        .iter()
+        .filter_map(|(r, name)| Some((r.clone(), styles.style(name)?)))
+}
+
+/// The line between a MultiEdit's edits.
+pub(super) fn break_line(theme: &Theme) -> gpui::Div {
+    div().h(px(1.)).w_full().bg(theme.border)
 }
 
 /// A row without its code: the tint, the gutter with its bar and `number`, the sign. The code is the next child.
