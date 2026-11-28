@@ -28,7 +28,6 @@ impl Dock {
     }
 }
 
-/// A dock as its renderer draws it.
 #[derive(Clone)]
 pub struct DockContext {
     area: WeakEntity<DockArea>,
@@ -143,7 +142,6 @@ impl DockArea {
         cx.notify();
     }
 
-    /// The edge was released: a bottom dock under its minimum closes or opens at it, whichever is nearer.
     fn end_resize(&mut self, at: DockPlacement, window: &mut Window, cx: &mut Context<Self>) {
         let strip = self.renderer.closed_dock_extent(at);
         if let Some(dock) = &mut self.docks[at as usize]

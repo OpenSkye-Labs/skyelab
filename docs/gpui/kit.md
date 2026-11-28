@@ -84,7 +84,8 @@ patching around it.
 - A group gets its `TabGroupRenderer` once and keeps it, because it holds the tab bar's scroll: one made per render
   snaps a wheeled bar back, one shared by groups scrolls their bars together.
 - Each group is a `RenderOnce` component, not built inside `DockArea::render`: GPUI renders it once that returns, so a
-  panel's title or toolbar may read the dock. Built inline it panics ("cannot read … while it is already being updated").
+  panel's title, toolbar, `focus_handle` and `closable` may read the dock while it draws. `closable` and `zoomable`
+  are also asked while a close or a zoom updates the dock, so a panel must not read the dock there yet (none does). Built inline it panics ("cannot read … while it is already being updated").
 - Groups are drawn by one entity, so anything keyed by element id carries the group's placement
   (`("tab-panel", placement)`), or two groups share a menu's open state.
 - The "…" menu's Zoom and Close are sent as `ToggleZoom` / `ClosePanel` from the shown panel's focus handle, so a

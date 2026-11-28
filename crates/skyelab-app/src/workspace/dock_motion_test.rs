@@ -44,7 +44,7 @@ fn closing_sidebar_collapses_on_the_spring_then_draws_nothing(cx: &mut TestAppCo
 
     cx.executor().advance_clock(Duration::from_millis(50));
     pending_frames(cx);
-    // Base sizes a frame from the value the skin computed in the one before (`center_skin.rs`).
+    // The dock sizes a frame from the value the skin computed in the one before (`center_skin.rs`).
     pending_frames(cx);
     let mid = closing_width(cx).expect("still closing after 50 ms");
     assert!(
@@ -78,8 +78,8 @@ fn reduce_motion_closes_the_dock_at_once(cx: &mut TestAppContext) {
     assert_eq!(pending_frames(cx), 0);
 }
 
-/// Base reads `closed_dock_extent` as the closed strip during a resize drag too, so an open dock must report base's
-/// own value there, never its open size.
+/// The dock reads `closed_dock_extent` as the closed strip during a resize drag too, so an open dock must report
+/// the skin's value there, never its open size.
 #[gpui::test]
 fn an_open_dock_reports_the_base_closed_extent(cx: &mut TestAppContext) {
     use crate::ui::dock::DockAreaRenderer as _;
@@ -90,7 +90,7 @@ fn an_open_dock_reports_the_base_closed_extent(cx: &mut TestAppContext) {
         assert_eq!(
             ws.dock_skin.closed_dock_extent(DockPlacement::Left),
             ws.dock_skin.skin.closed_dock_extent(DockPlacement::Left),
-            "the open sidebar reports base's closed extent"
+            "the open sidebar reports the skin's closed extent"
         );
     });
 }

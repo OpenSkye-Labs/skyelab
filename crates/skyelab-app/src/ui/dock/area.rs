@@ -27,7 +27,6 @@ impl DockLayout {
     }
 }
 
-/// A group's panels, in tab order, and which one is shown.
 pub struct GroupState {
     pub panels: Vec<PanelId>,
     pub active_ix: usize,
@@ -36,11 +35,8 @@ pub struct GroupState {
 pub(super) struct Group {
     pub panels: Vec<Arc<dyn PanelView>>,
     pub active_ix: usize,
-    /// The last `set_active` each panel heard.
-    told: HashMap<PanelId, bool>,
-    /// Holds the focus of a group with no panel.
-    pub focus: FocusHandle,
-    /// One for the group's whole life: it holds the tab bar's scroll.
+    last_told_active: HashMap<PanelId, bool>,
+    pub empty_focus: FocusHandle,
     pub renderer: Rc<dyn TabGroupRenderer>,
 }
 
@@ -83,8 +79,8 @@ impl DockArea {
         let groups = std::array::from_fn(|_| Group {
             panels: Vec::new(),
             active_ix: 0,
-            told: HashMap::new(),
-            focus: cx.focus_handle(),
+            last_told_active: HashMap::new(),
+            empty_focus: cx.focus_handle(),
             renderer: renderer.tab_group_renderer(),
         });
         Self {
@@ -142,7 +138,8 @@ impl DockArea {
         self.set_dock(DockPlacement::Center, layout, window, cx);
     }
 
-    /// Replaces the panels at `at`; a dock that wasn't there starts open.
+    /// Replaces the panels at `at`, for building the layout: a zoom stays and panels elsewhere aren't checked. A dock
+    /// that wasn't there starts open.
     pub fn set_dock(
         &mut self,
         at: DockPlacement,
@@ -178,8 +175,8 @@ impl DockArea {
         }
     }
 
-    /// Adds `panel` as the last tab at `at` and shows it there. Neither the focus nor the dock's open state changes;
-    /// `size` is the size of a dock that wasn't there.
+    /// Adds `panel` as the last tab at `at` and shows it there; one already docked is only selected where it is.
+    /// Neither the focus nor the dock's open state changes. `size` is the size of a dock that wasn't there.
     pub fn add_panel_view(
         &mut self,
         panel: Arc<dyn PanelView>,
@@ -210,7 +207,6 @@ impl DockArea {
         }
     }
 
-    /// A tab was clicked: shows it and focuses its panel.
     pub(super) fn select_tab(
         &mut self,
         at: DockPlacement,
@@ -268,7 +264,6 @@ impl DockArea {
         !self.locked && self.zoomed != Some(at) && self.group(at).panels.len() > 1
     }
 
-    /// A close asked for from the group at `at`.
     pub(super) fn close(
         &mut self,
         at: DockPlacement,
@@ -296,7 +291,6 @@ impl DockArea {
         }
     }
 
-    /// Zooming out always works; zooming in needs a zoomable shown tab.
     pub(super) fn toggle_zoom(
         &mut self,
         at: DockPlacement,
@@ -327,7 +321,6 @@ impl DockArea {
         }
     }
 
-    /// Whether the group at `at` is in a closed dock.
     pub(super) fn is_collapsed(&self, at: DockPlacement) -> bool {
         at != DockPlacement::Center && !self.is_dock_open(at)
     }
@@ -363,7 +356,6 @@ impl DockArea {
         .detach();
     }
 
-    /// What each panel must hear now; in a group, the tab that hides before the one that shows.
     fn active_changes(&mut self) -> Vec<(Arc<dyn PanelView>, bool)> {
         self.sync_scheduled = false;
         let mut changes = Vec::new();
@@ -371,12 +363,11 @@ impl DockArea {
             let collapsed = self.is_collapsed(at);
             let group = &mut self.groups[at as usize];
             let ids: Vec<_> = group.panels.iter().map(id_of).collect();
-            group.told.retain(|id, _| ids.contains(id));
+            group.last_told_active.retain(|id, _| ids.contains(id));
             let mut shows = None;
             for (ix, panel) in group.panels.iter().enumerate() {
                 let active = !collapsed && ix == group.active_ix;
-                let was = group.told.insert(ids[ix], active);
-                // A panel never shown doesn't hear that it is hidden.
+                let was = group.last_told_active.insert(ids[ix], active);
                 if was.unwrap_or(false) == active {
                     continue;
                 }

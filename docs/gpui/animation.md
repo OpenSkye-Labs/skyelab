@@ -51,7 +51,7 @@ things that switch, get selected or go away change at once.
 |---|---|---|---|---|
 | Palette open / close / selection | none | 0 | — | palette `DialogEntrance::None` |
 | Sidebar hide | width collapse | ~250 ms to rest | critically damped spring, ω ≈ 41 rad/s (`Spring::new(153 ms)`) | every dock's close (`center_skin.rs`) |
-| Sidebar show | width; 83% on the first frame | ~200 ms tail | same spring | instant (base opens docks at once) |
+| Sidebar show | width; 83% on the first frame | ~200 ms tail | same spring | instant (the dock opens at once) |
 | Split pane | spring + ~100 ms fade, new pane scales up from ~0.88 | ~250 ms | same spring | new pane fades 100 ms and its frame shrinks from 0.88 on `spring_ease` (`terminal_split.rs::appear`); the old pane takes its new size at once |
 | Zoom / close pane | rect morph; closing pane shrinks + fades, sibling grows | 150–250 ms | same spring | deferred: SkyeLab has no per-pane zoom, and a close would need the closed pane's last bounds to draw a fading copy |
 | Tab new / switch / close, settings page, hover, focus | none | 0 | — | already instant |
@@ -97,12 +97,12 @@ things that switch, get selected or go away change at once.
 - Reduce Motion works across platforms: macOS reads `defaults read com.apple.universalaccess reduceMotion`, Linux reads
   `gsettings get org.gnome.desktop.interface enable-animations`, and Settings → Appearance → Motion (`MotionMode::Reduced`)
   lets any platform turn animations and loading spinners off immediately (`ui::motion::apply_reduce_motion`).
-- A drag that base owns (a dock's resize handle, whose state is crate-private in gpui-component) can still be watched
+- A drag the dock skin owns (a dock's resize handle) can still be watched
   from the skin: paint a `canvas` over the dock that registers **capture-phase** window mouse listeners (the handle
   calls `stop_propagation` in bubble), arm on a press inside the handle's hit area (5 px at the edge), and act on the
   release only if `cx.has_active_drag()` (still set during the release's listeners), so a press with no drag (one
   under a dialog) never counts. Don't require the drag on moves: GPUI starts it a move late, so a quick flick lands
-  before it. Act through `window.defer`, after base's own mouse-up settles the drag (`center_skin.rs::track_sidebar_drag`).
+  before it. Act through `window.defer`, after the skin's own mouse-up settles the drag (`center_skin.rs::track_sidebar_drag`).
   The canvas needs `.absolute().inset_0()`: an absolute box with no offsets stays at its flow position (below the
   content), so its bounds were off the dock and every press missed.
 - A drag whose source disappears mid-drag (the hidden sidebar's restore handle, gone once the sidebar shows) keeps

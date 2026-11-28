@@ -60,7 +60,6 @@ impl DockPlacement {
     }
 }
 
-/// A panel's identity: its entity's id.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct PanelId(u64);
 
@@ -84,7 +83,6 @@ pub enum PanelControl {
     Menu,
 }
 
-/// How a dock panel behaves.
 pub trait BasePanel: Render + Focusable {
     fn panel_name(&self) -> &'static str;
 
@@ -97,8 +95,8 @@ pub trait BasePanel: Render + Focusable {
         true
     }
 
-    /// It became, or stopped being, its group's shown tab on screen: once per change, on the next tick. A removed
-    /// panel hears [`Self::on_removed`] instead.
+    /// It became, or stopped being, the shown tab of a group whose dock is open (another group's zoom doesn't count):
+    /// once per change, on the next tick. A removed panel hears [`Self::on_removed`] instead.
     fn set_active(&mut self, _active: bool, _: &mut Window, _: &mut Context<Self>) {}
 
     /// Its group zoomed in or out while it was the shown tab.
@@ -220,7 +218,6 @@ pub fn panel_handle<P: Panel>(panel: Entity<P>) -> Arc<dyn PanelView> {
     Arc::new(panel)
 }
 
-/// Where zoom goes for the group's shown panel: it must allow zooming at all and say where the control appears.
 fn zoom_control(group: &TabGroupContext, cx: &App) -> Option<PanelControl> {
     let panel = group.active_panel()?;
     panel.zoomable(cx).then(|| panel.zoom_control(cx)).flatten()

@@ -1,4 +1,4 @@
-//! What a dock's resize handle and a split's divider paint: a hairline at rest, and a pill that grows and firms up
+//! What a dock's resize handle paints: a hairline at rest, and a pill that grows and firms up
 //! as the pointer hovers, presses and drags. gpui-base owns the band, the cursor and the drag.
 
 use crate::ui::ActiveTheme as _;
@@ -62,10 +62,7 @@ pub(super) fn render(
                     _ => p.h(PILL).w(len).mt((PILL - px(1.)) * -0.5),
                 });
             // A dock edge's pill overhangs the dock's clip: deferred, it keeps its outer pixel.
-            d.child(match handle.edge() {
-                Some(_) => deferred(pill).into_any_element(),
-                None => pill.into_any_element(),
-            })
+            d.child(deferred(pill))
         })
         .into_any_element()
 }

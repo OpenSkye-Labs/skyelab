@@ -9,7 +9,6 @@ use gpui::{
 };
 use std::{rc::Rc, sync::Arc};
 
-/// How docks look.
 pub trait DockAreaRenderer: 'static {
     /// How much of a closed dock stays drawn.
     fn closed_dock_extent(&self, at: DockPlacement) -> Pixels;
@@ -27,7 +26,6 @@ pub trait DockAreaRenderer: 'static {
     fn tab_group_renderer(&self) -> Rc<dyn TabGroupRenderer>;
 }
 
-/// How one group looks.
 pub trait TabGroupRenderer: 'static {
     /// The group's outer box; the engine sizes it and tracks its focus.
     fn frame(&self, group: &TabGroupContext, window: &mut Window, cx: &mut App) -> Stateful<Div>;
@@ -99,7 +97,7 @@ impl TabGroupContext {
         self.closable
     }
 
-    /// Shows tab `ix` and focuses its panel.
+    /// Shows tab `ix` and focuses its panel; nothing changes when it already shows.
     pub fn select_tab(&self, ix: usize, window: &mut Window, cx: &mut App) {
         _ = self
             .area
@@ -120,22 +118,24 @@ impl TabGroupContext {
     }
 }
 
-/// One group, drawn after `DockArea::render` returns, so a title or a toolbar may read the dock.
+/// One group, drawn after `DockArea::render` returns, so what it asks a panel or a renderer may read the dock.
 #[derive(IntoElement)]
 struct GroupElement {
     context: TabGroupContext,
     renderer: Rc<dyn TabGroupRenderer>,
-    focus: FocusHandle,
+    empty_focus: FocusHandle,
 }
 
 impl RenderOnce for GroupElement {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let Self {
-            context,
+            mut context,
             renderer,
-            focus,
+            empty_focus,
         } = self;
-        let active = context.active_panel().map(|p| p.view());
+        let active = context.active_panel().cloned();
+        context.closable &= active.as_ref().is_some_and(|p| p.closable(cx));
+        let focus = active.as_ref().map_or(empty_focus, |p| p.focus_handle(cx));
         renderer
             .frame(&context, window, cx)
             .flex()
@@ -151,13 +151,10 @@ impl RenderOnce for GroupElement {
                     .flex()
                     .flex_col()
                     .when(!context.collapsed, |d| d.flex_1())
-                    // Or its content's wanted height floors it, and a virtualized list builds every row.
-                    .min_h(px(0.))
                     .overflow_hidden()
-                    .children(
-                        active
-                            .map(|panel| renderer.render_active_panel(panel, &context, window, cx)),
-                    ),
+                    .children(active.map(|panel| {
+                        renderer.render_active_panel(panel.view(), &context, window, cx)
+                    })),
             )
     }
 }
@@ -165,9 +162,8 @@ impl RenderOnce for GroupElement {
 impl DockArea {
     fn render_group(&self, at: DockPlacement, cx: &Context<Self>) -> AnyElement {
         let group = self.group(at);
-        let active = group.active_panel();
         GroupElement {
-            focus: active.map_or_else(|| group.focus.clone(), |p| p.focus_handle(cx)),
+            empty_focus: group.empty_focus.clone(),
             renderer: group.renderer.clone(),
             context: TabGroupContext {
                 area: cx.weak_entity(),
@@ -176,7 +172,7 @@ impl DockArea {
                 active_ix: group.active_ix,
                 zoomed: self.zoomed == Some(at),
                 collapsed: self.is_collapsed(at),
-                closable: self.may_close(at) && active.is_some_and(|p| p.closable(cx)),
+                closable: self.may_close(at),
             },
         }
         .into_any_element()

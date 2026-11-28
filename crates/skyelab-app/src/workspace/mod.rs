@@ -1,4 +1,4 @@
-//! The main window: sidebar, the center's one page, bottom terminals and a status bar, on gpui-component's dock.
+//! The main window: sidebar, the center's one page, bottom terminals and a status bar, on `ui::dock`.
 
 mod attention;
 pub(crate) mod background;

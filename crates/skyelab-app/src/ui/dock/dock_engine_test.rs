@@ -25,13 +25,22 @@ pub(super) struct Fix {
     log: Rc<RefCell<Vec<String>>>,
     /// Focused by `on_removed`, as a panel that hands the keys somewhere itself.
     focus_on_removed: Option<FocusHandle>,
-    /// Read by `title`, as a tab that shows something about its dock.
+    /// Read by what the dock asks while it draws.
     reads: Option<Entity<DockArea>>,
     pub focus: FocusHandle,
 }
 
+impl Fix {
+    fn read_dock(&self, cx: &gpui::App) {
+        if let Some(area) = &self.reads {
+            area.read(cx).is_zoomed();
+        }
+    }
+}
+
 impl Focusable for Fix {
-    fn focus_handle(&self, _: &gpui::App) -> FocusHandle {
+    fn focus_handle(&self, cx: &gpui::App) -> FocusHandle {
+        self.read_dock(cx);
         self.focus.clone()
     }
 }
@@ -51,7 +60,8 @@ impl BasePanel for Fix {
     fn panel_name(&self) -> &'static str {
         self.name
     }
-    fn closable(&self, _: &gpui::App) -> bool {
+    fn closable(&self, cx: &gpui::App) -> bool {
+        self.read_dock(cx);
         self.closable
     }
     fn zoomable(&self, _: &gpui::App) -> bool {
@@ -77,9 +87,7 @@ impl BasePanel for Fix {
 
 impl dock::Panel for Fix {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if let Some(area) = &self.reads {
-            area.read(cx).is_zoomed();
-        }
+        self.read_dock(cx);
         self.name
     }
     fn zoom_control(&self, _: &gpui::App) -> Option<PanelControl> {
@@ -449,7 +457,7 @@ fn each_group_keeps_its_own_tab_bar_scroll_across_redraws(cx: &mut TestAppContex
 }
 
 #[gpui::test]
-fn a_title_may_read_the_dock(cx: &mut TestAppContext) {
+fn what_the_dock_asks_while_drawing_may_read_it(cx: &mut TestAppContext) {
     let mut rig = rig(cx);
     let a = rig.fix("A", false, true);
     let area = rig.area.clone();

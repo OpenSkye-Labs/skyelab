@@ -105,7 +105,6 @@ impl Skin {
                 let (moved, moving) = (dock.clone(), resizing.clone());
                 window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, cx| {
                     if phase.bubble() && moving.get() == Some(placement) {
-                        // The engine opens, closes and sizes the dock from the pointer.
                         moved.resize_to(e.position, window, cx);
                     }
                 });
