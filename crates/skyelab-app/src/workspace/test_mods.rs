@@ -319,6 +319,8 @@ mod devices_toggle_test;
 #[cfg(all(test, unix))]
 mod dock_menu_test;
 #[cfg(all(test, unix))]
+mod dock_terminal_menu_test;
+#[cfg(all(test, unix))]
 mod terminal_controls_test;
 #[cfg(all(test, unix))]
 mod onboarding_docks_test;
@@ -340,3 +342,5 @@ mod tab_context_menu_test;
 mod timeline_menu_test;
 #[cfg(all(test, unix))]
 mod remote_delegation_tests;
+#[cfg(all(test, unix))]
+mod dock_tab_name_test;

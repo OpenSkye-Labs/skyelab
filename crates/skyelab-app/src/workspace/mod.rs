@@ -159,6 +159,7 @@ mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
 use crate::ui::ActiveTheme as _;
+use crate::ui::dock::{DockArea, DockLayout, DockPlacement, panel_handle};
 use crate::ui::v_flex;
 use center::{Center, Page};
 pub use github::{AntigravityBin, CodexBin, CursorBin, GhBin};
@@ -167,7 +168,6 @@ use gpui::{
     App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Task, WeakEntity,
     Window, div, prelude::*, px,
 };
-use gpui_component::dock::{DockArea, DockLayout, DockPlacement, DockSkin, panel_handle};
 use panels::{BrowserPanel, Sidebar, TerminalsEmpty, Welcome};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Project, Store, Thread};
@@ -364,21 +364,20 @@ impl Workspace {
         let details = cx.new(details_panel::DetailsPanel::new);
         let surfaces = cx.new(surfaces::SurfacesPanel::new);
 
-        // gpui-component's skin, the center drawn uncached (`center_skin.rs`).
+        // Our dock skin, the center drawn uncached (`center_skin.rs`).
         let mut skins = None;
         let workspace = cx.weak_entity();
         let dock = cx.new(|cx| {
-            let s = DockSkin::new(cx);
+            let s = crate::ui::dock::Skin::new(cx);
             let ours = std::rc::Rc::new(center_skin::CenterSkin::new(
                 s.clone(),
                 center.entity_id(),
                 workspace.clone(),
             ));
-            skins = Some((s, ours.clone()));
+            skins = Some(ours.clone());
             DockArea::new("workspace", None, window, cx).with_renderer(ours)
         });
-        let (skin, dock_skin) = skins.expect("the dock area's constructor ran");
-        skin.set_toggle_button_visible(false, cx);
+        let dock_skin = skins.expect("the dock area's constructor ran");
         dock.update(cx, |dock, cx| {
             let tabs = |panel, cx: &App| DockLayout::tabs().panel_view(panel, cx);
             dock.set_center(tabs(panel_handle(center.clone()), cx), window, cx);

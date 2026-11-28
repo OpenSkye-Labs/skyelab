@@ -52,8 +52,13 @@ const ROWS: &[Row] = &[
             "HoverCard",
             "BaseHoverCard",
         ],
-        // terminal_tab.rs fills the "…" menu gpui-component's dock draws for a panel (stage 5).
-        allowed: &["menu_parity_test.rs", "terminal_tab.rs"],
+        allowed: &["menu_parity_test.rs"],
+    },
+    Row {
+        stage: "5a dock skin",
+        crates: &["gpui_component"],
+        names: &["dock"],
+        allowed: &["dock_parity_test.rs"],
     },
     Row {
         stage: "4a small pieces",

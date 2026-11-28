@@ -9,6 +9,7 @@ use super::thread_model::Item;
 use super::{Workspace, lock};
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::dock::{Panel, PanelEvent};
 use crate::ui::{h_flex, v_flex};
 use anyhow::{Result, bail};
 use gpui::Global;
@@ -16,7 +17,6 @@ use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, SharedString,
     Subscription, WeakEntity, Window, actions, div, prelude::*, px,
 };
-use gpui_component::dock::{Panel, PanelEvent};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{NewThread, Store, Thread};
 
@@ -201,7 +201,7 @@ impl SideChatPanel {
 
 impl EventEmitter<PanelEvent> for SideChatPanel {}
 
-impl gpui_component::dock::BasePanel for SideChatPanel {
+impl crate::ui::dock::BasePanel for SideChatPanel {
     fn panel_name(&self) -> &'static str {
         "SideChat"
     }
@@ -214,6 +214,9 @@ impl gpui_component::dock::BasePanel for SideChatPanel {
 }
 
 impl Panel for SideChatPanel {
+    fn tab_name(&self, cx: &App) -> Option<SharedString> {
+        Some(self.view.read(cx).title())
+    }
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let title = self.view.read(cx).title();
         crate::workspace::tab_context_menu::tab_title(
@@ -222,7 +225,7 @@ impl Panel for SideChatPanel {
             title,
         )
     }
-    fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
+    fn zoom_control(&self, _: &App) -> Option<crate::ui::dock::PanelControl> {
         None
     }
 }

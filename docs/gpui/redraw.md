@@ -61,7 +61,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   inside it notifies. Uncached ancestors don't refresh anything. So the cache boundary goes on the expensive part,
   with no cached view above it that a frequent notifier also sits under. Zed works the same way: its panes aren't
   cached views, so an editor's caret blink re-renders the pane but not the cached views beside it.
-- gpui-component's skin draws every dock panel cached (`render_active_panel` in its `tab_panel.rs`). The center's
+- Our dock skin draws every dock panel cached (`render_active_panel` in `ui/dock/tabs.rs`, as gpui-component's did). The center's
   thread page has a frequent notifier, the composer: gpui-base's text area is a view of its own (`InputBaseState`
   is `Render`) and notifies on each caret blink phase. With `Center` cached, each blink missed the cache and
   rebuilt every visible timeline row, and a cached timeline view under it didn't help (measured on branch

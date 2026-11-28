@@ -7,12 +7,12 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Kbd;
 use crate::ui::SkyeIcon;
+use crate::ui::dock::{BasePanel, Panel, PanelControl, PanelEvent};
 use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, KeyBinding,
     Render, Subscription, Window, actions, div, prelude::*,
 };
-use gpui_component::dock::{BasePanel, Panel, PanelControl, PanelEvent};
 
 actions!(
     skyelab,
@@ -113,6 +113,9 @@ impl BasePanel for SurfacesPanel {
 }
 
 impl Panel for SurfacesPanel {
+    fn tab_name(&self, _: &App) -> Option<gpui::SharedString> {
+        Some("Open a surface".into())
+    }
     // T3's "+" that opens this list.
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::workspace::tab_context_menu::tab_title(
@@ -268,10 +271,10 @@ impl Workspace {
         if let Some(layout) = self
             .dock
             .read(cx)
-            .layout(gpui_component::dock::DockPlacement::Right)
+            .layout(crate::ui::dock::DockPlacement::Right)
         {
             layout.root().walk(&mut |node| {
-                if let gpui_component::dock::PaneRef::Tabs { panels, .. } = node.kind() {
+                if let crate::ui::dock::PaneRef::Tabs { panels, .. } = node.kind() {
                     n += panels.len();
                 }
             });

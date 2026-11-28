@@ -1,4 +1,4 @@
-//! gpui-component's dock skin, except that the center panel and side chat panels are drawn uncached. The skin draws
+//! Our dock skin (`ui::dock::Skin`), except that the center panel and side chat panels are drawn uncached. The skin draws
 //! every panel as a cached view, and a cached view that misses its cache builds its whole subtree again (GPUI sets
 //! `window.refreshing`). The composer's text area is a view, so each caret blink dirtied its panel and rebuilt every
 //! timeline row. Uncached, these panels cache what they need themselves: a thread page's timeline is a cached view
@@ -14,16 +14,16 @@
 //! [`HIDE_BELOW`] the sidebar fades; releasing there hides it through the toggle (`Workspace::hide_sidebar_from_drag`).
 
 use crate::ui::A11yScrollArea as _;
+use crate::ui::dock::BasePanelView as PanelView;
+use crate::ui::dock::{
+    DockAreaRenderer, DockContext, DockPlacement, DropIndicator, NodeId, PanelState, Skin,
+    TabGroupContext, TabGroupRenderer,
+};
 use gpui::{
     AnyElement, AnyView, App, Axis, Bounds, Div, EntityId, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, Pixels, Stateful, WeakEntity, Window, canvas, div, prelude::*,
 };
 use gpui_base::ResizeHandleContext;
-use gpui_base::dock::PanelView;
-use gpui_component::dock::{
-    DockAreaRenderer, DockContext, DockPlacement, DockSkin, DropIndicator, NodeId, PanelState,
-    TabGroupContext, TabGroupRenderer,
-};
 use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -40,9 +40,9 @@ pub(super) struct SidebarDrag {
     pub hide: bool,
 }
 
-/// [`DockSkin`] with the panel `center` and every side chat panel drawn uncached.
+/// [`Skin`] with the panel `center` and every side chat panel drawn uncached.
 pub(super) struct CenterSkin {
-    pub skin: Rc<DockSkin>,
+    pub skin: Rc<Skin>,
     pub center: EntityId,
     /// Left, right, bottom: the extent each dock was last drawn at, and its size when last open.
     pub drawn: [Cell<Drawn>; 3],
@@ -64,11 +64,7 @@ fn extent_id(at: DockPlacement) -> gpui::ElementId {
 }
 
 impl CenterSkin {
-    pub fn new(
-        skin: Rc<DockSkin>,
-        center: EntityId,
-        workspace: WeakEntity<super::Workspace>,
-    ) -> Self {
+    pub fn new(skin: Rc<Skin>, center: EntityId, workspace: WeakEntity<super::Workspace>) -> Self {
         Self {
             skin,
             center,
@@ -417,7 +413,7 @@ impl TabGroupRenderer for CenterTabs {
         if !thread_page || group.is_collapsed() {
             return self.tabs.render_active_panel(panel, group, window, cx);
         }
-        // The skin's box (`render_active_panel` in gpui-component's tab_panel.rs) around the view, not cached.
+        // The skin's box (`render_active_panel` in `ui/dock/tabs.rs`) around the view, not cached.
         div()
             .id("tab-content")
             .overflow_y_scroll()

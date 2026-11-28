@@ -3,11 +3,11 @@
 use super::env_mode::{OpenRemoteThread, SelectRemoteProject};
 use super::{OpenThread, SelectProject, Workspace};
 use crate::palette::{self, Entry, Kind, OpenCommandPalette};
+use crate::ui::dock::DockPlacement;
 use crate::ui::{Kbd, SkyeIcon};
 use gpui::{
     Action, App, AppContext as _, Context, Entity, FocusHandle, Focusable, SharedString, Window,
 };
-use gpui_component::dock::DockPlacement;
 use std::rc::Rc;
 
 fn dispatch(label: String, kind: Kind, action: Box<dyn Action>) -> Entry {

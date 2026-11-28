@@ -7,13 +7,13 @@
 use super::files::PreviewPanel;
 use super::terminal_panel::TerminalPanel;
 use super::{NewTerminal, Workspace};
+use crate::ui::dock::{DockPlacement, PanelId, TabGroupContext};
 use crate::ui::{PopupMenu, PopupMenuItem};
 use gpui::{
     AnyElement, App, Context, DismissEvent, Entity, FocusHandle, Focusable as _,
     InteractiveElement as _, IntoElement, MouseButton, Pixels, Point, Subscription, WeakEntity,
     Window, anchored, deferred, div, prelude::*, px,
 };
-use gpui_component::dock::{DockPlacement, PanelId, TabGroupContext};
 use skyelab_core::terminal_layout::Axis;
 
 #[path = "tab_hits.rs"]
@@ -291,7 +291,7 @@ impl Workspace {
     /// Whether a right-panel tab can be closed (either directly closable, or an unsaved Preview that asks first).
     fn right_panel_can_close(
         &self,
-        panel: &std::sync::Arc<dyn gpui_base::dock::PanelView>,
+        panel: &std::sync::Arc<dyn crate::ui::dock::BasePanelView>,
         cx: &App,
     ) -> bool {
         panel.closable(cx) || self.unsaved_preview(panel.panel_id(cx), cx).is_some()

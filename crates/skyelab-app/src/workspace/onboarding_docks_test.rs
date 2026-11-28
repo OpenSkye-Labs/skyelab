@@ -3,7 +3,7 @@
 
 use super::worktree_thread_test::{fixture, open_thread};
 use super::*;
-use gpui_component::dock::DockPlacement;
+use crate::ui::dock::DockPlacement;
 
 #[gpui::test]
 fn opening_onboarding_hides_the_drawer_and_the_right_panel(cx: &mut gpui::TestAppContext) {

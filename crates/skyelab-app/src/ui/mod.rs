@@ -54,6 +54,7 @@ mod dialog_stack_test;
 mod dialog_test;
 #[cfg(test)]
 mod dialog_title_strip_test;
+pub mod dock;
 mod dropdown;
 #[cfg(test)]
 mod dropdown_keys_test;

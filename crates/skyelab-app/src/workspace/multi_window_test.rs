@@ -6,7 +6,7 @@ use super::thread::ThreadViewEvent;
 use super::threads_test::{fixture, open_workspace, setup};
 use super::*;
 use gpui::{AnyWindowHandle, TestAppContext, VisualTestContext};
-use gpui_component::dock::DockPlacement;
+use crate::ui::dock::DockPlacement;
 
 /// Runs `f` on `ws` inside its own window (`cx` may belong to another window).
 pub(super) fn in_window<R>(

@@ -74,6 +74,7 @@ icons! {
     // ui::CopyButton only: the glyphs it drew under gpui-component, kept for look parity.
     CopyButton => "copy-button",
     CopyButtonDone => "copy-button-done",
+    Ellipsis => "ellipsis",
     Expand => "expand",
     ExternalLink => "external-link",
     File => "file",

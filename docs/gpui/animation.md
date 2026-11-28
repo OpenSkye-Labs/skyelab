@@ -67,7 +67,7 @@ things that switch, get selected or go away change at once.
   keyed element state, asks for frames only while moving, settles within `epsilon` (use `SPRING_PX`, 0.5, over
   pixels or it chases sub-pixels), and adopts the target at once under `reduce_motion`. Its first call adopts the
   target, so keep calling it at rest (`with_travel(false)`) where a later change must animate from the current value.
-- gpui-component's docks have no motion and a closed dock renders nothing. A `DockAreaRenderer` can still animate a
+- The dock skin (`ui::dock::Skin`) has no motion of its own and a closed dock renders nothing. A `DockAreaRenderer` can still animate a
   close: base asks `closed_dock_extent(placement)` how big to draw a closed dock and renders its content when that
   is above 0, so the skin answers with the spring's last value (`center_skin.rs`). Base also reads that hook as the
   bottom dock's closed strip during a resize drag, so report more only while a close runs, started by the toggle

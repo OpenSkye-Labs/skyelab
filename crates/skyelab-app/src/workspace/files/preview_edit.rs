@@ -123,7 +123,7 @@ impl PreviewPanel {
     /// The tab's Close (its menu): asks first when there are edits, then closes. The × is hidden while dirty.
     pub(super) fn close_panel(
         &mut self,
-        _: &gpui_component::dock::ClosePanel,
+        _: &crate::ui::dock::ClosePanel,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {

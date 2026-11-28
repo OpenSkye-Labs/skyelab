@@ -6,8 +6,8 @@ use super::Workspace;
 use super::terminal_panel::{CloseTerminal, TerminalPanel};
 use super::thread_extras::prefs;
 use crate::ui::Button;
+use crate::ui::dock::DockPlacement;
 use gpui::{AppContext as _, Context, Entity, EntityId, SharedString, Window, prelude::*};
-use gpui_component::dock::DockPlacement;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -194,7 +194,7 @@ impl Workspace {
             let empty = cx.new(super::panels::TerminalsEmpty::new);
             self.dock.update(cx, |dock, cx| {
                 dock.add_panel_view(
-                    gpui_component::dock::panel_handle(empty.clone()),
+                    crate::ui::dock::panel_handle(empty.clone()),
                     DockPlacement::Bottom,
                     None,
                     window,

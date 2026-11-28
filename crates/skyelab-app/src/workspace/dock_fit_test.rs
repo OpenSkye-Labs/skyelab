@@ -3,7 +3,7 @@
 use super::layout::ToggleRightPanel;
 use super::threads_test::{fixture, open_workspace, setup};
 use gpui::{TestAppContext, px, size};
-use gpui_component::dock::DockPlacement;
+use crate::ui::dock::DockPlacement;
 
 #[gpui::test]
 fn a_narrow_window_keeps_room_for_the_thread(cx: &mut TestAppContext) {

@@ -6,14 +6,12 @@ mod source;
 pub(super) use source::{DeviceSource, HubSource};
 
 use super::{OpenDevices, Workspace};
+use crate::ui::dock::{BasePanel, DockPlacement, Panel, PanelEvent};
 use gpui::{
     App, BackgroundExecutor, Context, Entity, EventEmitter, FocusHandle, Focusable, Image,
     ImageFormat, KeyBinding, PathPromptOptions, Subscription, Task, Window, actions, prelude::*,
 };
-use gpui_component::{
-    dock::{BasePanel, DockPlacement, Panel, PanelEvent},
-    input::{InputEvent, InputState},
-};
+use gpui_component::input::{InputEvent, InputState};
 use skyelab_devices::{Device, DeviceState, Error, Listing, Platform};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -429,6 +427,9 @@ impl BasePanel for DevicesPanel {
 }
 
 impl Panel for DevicesPanel {
+    fn tab_name(&self, _: &App) -> Option<gpui::SharedString> {
+        Some("Devices".into())
+    }
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::workspace::tab_context_menu::tab_title(
             cx.entity_id().into(),

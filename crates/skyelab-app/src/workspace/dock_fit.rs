@@ -4,8 +4,8 @@
 //! then keeps at least `MIN_RIGHT`.
 
 use super::Workspace;
+use crate::ui::dock::DockPlacement;
 use gpui::{Context, Pixels, Window, px};
-use gpui_component::dock::DockPlacement;
 
 /// The thread page's narrowest: the composer's chips and the header still fit.
 pub(super) const MIN_CENTER: Pixels = px(360.);
