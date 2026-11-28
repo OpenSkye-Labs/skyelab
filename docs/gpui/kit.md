@@ -66,8 +66,21 @@ patching around it.
   toggles it, a press outside or Escape closes it. `ui::HoverCard` opens after its open delay on hover and stays
   while the pointer is on the trigger or the card.
 - GPUI has no `aria_disabled`: wrap the element last with `a11y_disabled(el, disabled)` (`ui/a11y_disabled.rs`).
-- Never import gpui-component's or gpui-base's menu, popover or hover card: `kit_boundaries_test` fails on it. The
-  one exception is `workspace/terminal_tab.rs`, which fills the "…" menu gpui-component's dock draws (stage 5).
+- Never import gpui-component's or gpui-base's menu, popover or hover card: `kit_boundaries_test` fails on it.
+
+## Dock (`ui/dock/`)
+
+- Two layers. gpui-base's dock is the engine (layout tree, tab groups, dock sizes, zoom, open/closed state); our
+  `ui::dock::Skin` draws it (tab bars, the toolbar with zoom and the "…" menu, resize handles, the closed bottom
+  strip) through `DockAreaRenderer` / `TabGroupRenderer`. Stage 5b replaces the engine behind the same names, so the
+  app imports every dock name from `ui::dock`, never from gpui-base or gpui-component (`kit_boundaries_test`).
+- A panel implements gpui-base's `BasePanel` plus our `ui::dock::Panel` (`title`, `title_suffix`, `dropdown_menu`
+  on `ui::PopupMenu`, `zoom_control`, `title_bar`) and is installed with `ui::dock::panel_handle(entity)`; a panel
+  added without it draws its panel name and no menu items.
+- The "…" menu's Zoom and Close are sent as `ToggleZoom` / `ClosePanel` from the shown panel's focus handle, so a
+  panel's own handler (an unsaved preview) runs before the group's. A locked dock (the workspace's) offers no Close.
+- Sizes follow gpui-component's, so the app looks the same: the toolbar buttons are 1.25 rem (the app's rem is under
+  16 px, so a pixel size moves them), tabs 32 px. `dock_parity_test` draws both skins at a 14 px rem.
 
 ## Windows
 

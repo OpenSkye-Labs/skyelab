@@ -69,9 +69,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `Focusable`: F6 and the dock focus a panel by that handle, and a handle of the wrapper's own leaves the inner
   view's key context (`Thread`) off the dispatch path, so mod+F, Esc and the rest do nothing (`side_chat.rs`).
 - A press on a dock tab focuses the tab button (gpui-base's `Tab` focuses itself on mouse-down), and `select_tab`
-  moves focus into the panel only when the tab changes: a click on the tab already shown left mod+F and Esc dead. The
-  tab bar wrapper in `center_skin.rs` focuses the group's shown panel on mouse-up when no panel of the group holds
-  focus. Its toolbar occludes, so a menu opened there keeps its focus. Test a tab click with `debug_bounds("dock-tab-N")`
+  moves focus into the panel only when the tab changes: a click on the tab already shown left mod+F and Esc dead.
+  Our skin's tab click focuses the panel itself (`ui/dock/tabs.rs`), and the tab bar wrapper in `center_skin.rs`
+  focuses the group's shown panel on mouse-up when no panel of the group holds focus. Its toolbar occludes, so a menu opened there keeps its focus. Test a tab click with `debug_bounds("dock-tab-N")`
   (the right dock draws last, so its tabs own those selectors).
 - gpui-component's `EditorState::new` is `searchable(true)`: mod+F opens the library's own search panel. For our find
   bar set `.searchable(false)` (the editor then propagates its `Search` action, and GPUI tries the next binding for the
@@ -82,5 +82,5 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   a find bar, before that bar's own outer-context binding: check for the child (find bar open) and `cx.propagate()`
   (`files/preview_edit.rs`).
 - To ask before a dock tab closes, return `closable() == false` while it must not close (the tab hides its ×) and
-  handle `dock::ClosePanel` (the tab menu's Close) on the panel: ask, then dispatch `ClosePanel` again once it may
-  close. There is no close-request hook in gpui-component's dock.
+  handle `ui::dock::ClosePanel` (the tab menu's Close) on the panel: ask, then dispatch `ClosePanel` again once it may
+  close. There is no close-request hook in the dock.
