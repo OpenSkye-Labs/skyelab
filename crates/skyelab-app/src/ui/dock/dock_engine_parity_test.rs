@@ -288,12 +288,18 @@ const SIDES_CLOSED: Spec = &[
     (Side::Right, &[("A", true)], 400., false),
 ];
 
+/// Wider together than the window: docks keep their size, and the right one overhangs.
+const TOO_WIDE: Spec = &[
+    (Side::Left, &[("Left", false)], 500., true),
+    (Side::Right, &[("A", true)], 700., true),
+];
+
 const ZOOM: &str = "dock-tab-bar-zoom-control";
 
 #[gpui::test]
 fn our_engine_lays_out_like_gpui_base_s(cx: &mut TestAppContext) {
     super::super::button_test::setup(cx);
-    let cases: [(&str, Spec, Then, &[&'static str]); 7] = [
+    let cases: [(&str, Spec, Then, &[&'static str]); 8] = [
         (
             "two tabs",
             TWO_TABS,
@@ -344,6 +350,12 @@ fn our_engine_lays_out_like_gpui_base_s(cx: &mut TestAppContext) {
             &["content-Center"],
         ),
         ("zoomed", ALL, Then::Zoom("A"), &["content-A", ZOOM]),
+        (
+            "too wide",
+            TOO_WIDE,
+            Then::Nothing,
+            &["content-Left", "content-A"],
+        ),
     ];
     for (name, spec, then, selectors) in cases {
         let mut measured = Vec::new();

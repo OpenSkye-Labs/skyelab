@@ -450,6 +450,9 @@ fn zoom_fills_the_area_and_always_zooms_out(cx: &mut TestAppContext) {
     rig.dock(DockPlacement::Bottom, &[&bottom], 200.);
     assert_eq!(rig.zoom_from(&bottom), [""; 0], "not zoomable");
     assert!(!rig.zoomed());
+    // The engine refuses it too, whatever a renderer asks.
+    rig.act(|area, window, cx| area.toggle_zoom(DockPlacement::Bottom, window, cx));
+    assert!(!rig.zoomed());
 
     assert_eq!(rig.zoom_from(&a), ["A zoomed true"]);
     assert!(rig.zoomed() && !rig.drawn("content-Center") && !rig.drawn("content-Bottom"));
