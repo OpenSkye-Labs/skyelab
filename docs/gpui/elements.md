@@ -193,9 +193,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   y-only-scroll box cuts a long line at the edge with no sign, so a permission card could show `# config` while the
   line goes on to `; curl … | sh`. Approval diffs use `diff_view::line_row(.., wrap: true, ..)` (rows `min_h`, not
   `h`); clipping is fine only for text that is shown in full elsewhere (the Changes tab, the edit card).
-- **A long read-only text or diff: gpui-component's `diff::Diff`**, not a hand-made list. `DiffFile::parse` a unified
-  patch into a `DiffState` entity and draw `Diff::new(&state).soft_wrap(true).size_full()`: it lays out only the
-  lines in view, wraps long ones and highlights by the path's language (the approval's View all, `ask_approval.rs`).
+- **A long read-only diff: `DiffViewer`** (kit.md, "Diff viewer"; the approval's View all), not a column of rows; how it selects
+  and scrolls: [lists.md](lists.md).
 - **Dialogs need gpui-component's `Root` at the window's top**, tests included: `window.open_dialog` panics with
   "component window state is missing" otherwise. `one_view` (`claude_folded_turns_test.rs`) wraps its `ThreadView`
   in `Root` for that.

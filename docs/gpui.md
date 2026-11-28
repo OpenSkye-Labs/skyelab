@@ -93,6 +93,7 @@ See [gpui/accessibility.md](gpui/accessibility.md).
 ## SkyeLab's own UI kit
 
 How kit components, windows and dialogs are built: [gpui/kit.md](gpui/kit.md).
+Virtualized lists (selection, row heights): [gpui/lists.md](gpui/lists.md).
 
 ## Testing
 

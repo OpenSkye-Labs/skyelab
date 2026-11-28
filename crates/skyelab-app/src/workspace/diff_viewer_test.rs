@@ -101,32 +101,25 @@ fn selected(vcx: &mut VisualTestContext, lines: usize) -> Vec<(usize, std::ops::
             f32::from(text.right()) * scale,
         );
         let middle = f32::from(text.center().y) * scale;
-        let over: Vec<_> = quads
-            .iter()
-            .filter(|q| {
-                let (x, y, w, h) = (
-                    q.bounds.origin.x.0,
-                    q.bounds.origin.y.0,
-                    q.bounds.size.width.0,
-                    q.bounds.size.height.0,
-                );
-                y <= middle
-                    && middle < y + h
-                    && x < right
-                    && x + w > left
-                    && !q.background.is_transparent()
-            })
-            .collect();
-        let Some(mark) = over.iter().find(|q| q.background.as_solid() == Some(color)) else {
+        let spans = |b: &gpui::Bounds<gpui::ScaledPixels>, x: Option<f32>| {
+            let (l, t) = (b.origin.x.0, b.origin.y.0);
+            let (r, b) = (l + b.size.width.0, t + b.size.height.0);
+            t <= middle && middle < b && x.map_or(l < right && r > left, |x| l <= x && x < r)
+        };
+        let Some(at) = quads.iter().position(|q| {
+            q.background.as_solid() == Some(color) && spans(&q.bounds, None)
+        }) else {
             continue;
         };
-        let under = over
-            .iter()
-            .filter(|q| q.background.as_solid() != Some(color));
-        assert!(
-            under.clone().all(|q| q.order < mark.order),
-            "line {ix}: the selection is painted under the row"
-        );
+        let mark = &quads[at];
+        let inside = Some(mark.bounds.origin.x.0 + mark.bounds.size.width.0 / 2.);
+        // Quads come in the order they are drawn; a border's quads are masked to its edges.
+        let over = quads[at + 1..].iter().filter(|q| {
+            !q.background.is_transparent()
+                && spans(&q.bounds, inside)
+                && spans(&q.content_mask.bounds, inside)
+        });
+        assert_eq!(over.count(), 0, "line {ix}: something is painted over the selection");
         // The test text system gives every character the same width; code here is ASCII but for one `é`.
         let chars = vcx.update(|_, _| COLUMNS.with(|c| c.borrow()[ix]));
         let column = |x: f32| ((x - left) / (right - left) * chars as f32).round() as usize;
@@ -212,7 +205,7 @@ fn the_wheel_and_the_scrollbar_reach_the_whole_change_after_a_resize_too(cx: &mu
             "the scrollbar covers {max:?} ({size:?})"
         );
         let at = code(vcx, 3).expect("line 4").center();
-        vcx.simulate_event(gpui::ScrollWheelEvent {
+        vcx.simulate_event(gpui::ScrollEvent {
             position: at,
             delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-100. * ROW_H))),
             ..Default::default()
@@ -345,7 +338,7 @@ fn tabs_draw_to_four_column_stops_and_copy_as_tabs(cx: &mut TestAppContext) {
     drag(
         vcx,
         point(x(5.), text.center().y),
-        point(x(10.9), text.center().y),
+        point(text.right() + px(5.), text.center().y),
     );
     let part = copied(vcx).expect("copied");
     assert!(part.ends_with("o\tbar") && !part.contains(' '), "{part:?}");

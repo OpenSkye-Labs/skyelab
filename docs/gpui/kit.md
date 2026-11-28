@@ -82,6 +82,16 @@ patching around it.
 - Sizes follow gpui-component's, so the app looks the same: the toolbar buttons are 1.25 rem (the app's rem is under
   16 px, so a pixel size moves them), tabs 32 px. `dock_parity_test` draws both skins at a 14 px rem.
 
+## Diff viewer (`workspace/diff_viewer.rs`, `workspace/diff_viewer_select.rs`)
+
+- A whole change to read is a `DiffViewer` entity (`DiffViewer::new(path, lines, breaks, cx)`; the approval's View all):
+  the approval card's rows (`diff_view::row_frame`), every line, nothing folded, only the rows in view built. Give it a
+  bounded height and the focus.
+- Keys live in the `SkyeDiff` context: arrows, Page Up / Down, Home, End, select all, copy. Copy gives code alone,
+  tabs as tabs.
+- Syntax is parsed in the background, each MultiEdit edit on its own, lines over 1,000 bytes not at all.
+- Never import gpui-component's `diff`: `kit_boundaries_test` fails on it. Markdown is still theirs until stage 7b.
+
 ## Small pieces (`ui/spinner.rs`, `ui/copy_button.rs`, `ui/status_bar.rs`, `ui/toast.rs`)
 
 - `ui::Spinner` turns `SkyeIcon::Loader` through `with_animation` and `Icon::transform`; GPUI holds it still under

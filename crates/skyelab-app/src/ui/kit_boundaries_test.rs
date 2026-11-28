@@ -75,6 +75,12 @@ const ROWS: &[Row] = &[
         ],
         allowed: &["small_pieces_parity_test.rs"],
     },
+    Row {
+        stage: "7a diff viewer",
+        crates: &["gpui_component"],
+        names: &["diff", "Diff", "DiffFile", "DiffState"],
+        allowed: &[],
+    },
 ];
 
 fn uses(src: &str, crates: &[&str]) -> Vec<(usize, String)> {

@@ -103,6 +103,7 @@ pub fn init(cx: &mut App) {
     thread_find::bind_keys(cx);
     skyelab_browser::bind_keys(cx);
     changes::bind_keys(cx);
+    diff_viewer::bind_keys(cx);
     terminal_panel::bind_keys(cx);
     terminal_tab::bind_keys(cx);
     devices::bind_keys(cx);
