@@ -7,15 +7,12 @@ use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
 use crate::ui::dock::{BasePanel, Panel, PanelEvent};
-use crate::ui::{Icon, h_flex};
+use crate::ui::{Icon, PopupMenu, PopupMenuItem, h_flex};
 use gpui::{
     App, ClickEvent, Context, EventEmitter, Focusable as _, IntoElement, KeyBinding, SharedString,
     Window, actions, div, prelude::*, px,
 };
-use gpui_component::{
-    input::{InputEvent, InputState},
-    menu::{PopupMenu, PopupMenuItem},
-};
+use gpui_component::input::{InputEvent, InputState};
 
 actions!(skyelab, [CancelTerminalRename]);
 
@@ -242,8 +239,8 @@ impl Panel for TerminalPanel {
     fn title_suffix(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         Some(self.controls(cx))
     }
-    /// The "…" menu (gpui-component always draws it, with Zoom) also holds the drawer's own controls, so it is
-    /// never a menu of one item.
+    /// The "…" menu (the dock always draws it, with Zoom) also holds the drawer's own controls, so it is never a
+    /// menu of one item.
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

@@ -13,12 +13,14 @@ fn menu_items(cx: &mut VisualTestContext) -> Vec<String> {
         .find(|s| s.role() == Some(Role::Menu) && s.visible())
         .expect("our menu (role Menu) is open")
         .bounds();
-    snaps
+    // Snapshots don't come in screen order: read the items top to bottom.
+    let mut items: Vec<_> = snaps
         .iter()
         .filter(|s| s.role() == Some(Role::MenuItem) && s.visible())
         .filter(|s| menu.contains(&s.bounds().center()))
-        .filter_map(|s| s.label().map(str::to_owned))
-        .collect()
+        .collect();
+    items.sort_by(|a, b| a.bounds().origin.y.partial_cmp(&b.bounds().origin.y).unwrap_or(std::cmp::Ordering::Equal));
+    items.iter().filter_map(|s| s.label().map(str::to_owned)).collect()
 }
 
 #[gpui::test]

@@ -319,6 +319,8 @@ mod devices_toggle_test;
 #[cfg(all(test, unix))]
 mod dock_menu_test;
 #[cfg(all(test, unix))]
+mod dock_terminal_menu_test;
+#[cfg(all(test, unix))]
 mod terminal_controls_test;
 #[cfg(all(test, unix))]
 mod onboarding_docks_test;

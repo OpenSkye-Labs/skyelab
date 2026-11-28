@@ -271,6 +271,12 @@ impl Button {
         self
     }
 
+    /// Whether Tab stops on the button (on by default).
+    pub fn tab_stop(mut self, tab_stop: bool) -> Self {
+        self.base = self.base.tab_stop(tab_stop);
+        self
+    }
+
     /// Held down: a toggle that is on, or a trigger whose menu is open.
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;

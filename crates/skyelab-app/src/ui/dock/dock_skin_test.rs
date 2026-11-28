@@ -8,9 +8,9 @@ use crate::ui::dock::{
 };
 use crate::ui::{PopupMenu, PopupMenuItem};
 use gpui::{
-    AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement as _,
-    IntoElement, Modifiers, MouseButton, ParentElement as _, Render, Role, Styled as _,
-    TestAppContext, VisualTestContext, Window, div, point, px, size,
+    AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable,
+    InteractiveElement as _, IntoElement, Modifiers, MouseButton, ParentElement as _, Render, Role,
+    Styled as _, TestAppContext, VisualTestContext, Window, div, point, px, size,
 };
 use gpui_base::test_support::snapshots;
 use std::{cell::Cell, rc::Rc};
@@ -70,7 +70,12 @@ impl dock::Panel for Fix {
     fn zoom_control(&self, _: &gpui::App) -> Option<PanelControl> {
         self.zoom.then_some(PanelControl::Both)
     }
-    fn dropdown_menu(&mut self, menu: PopupMenu, _: &mut Window, _: &mut Context<Self>) -> PopupMenu {
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) -> PopupMenu {
         let clicked = self.clicked.clone();
         menu.item(PopupMenuItem::new("Fixture item").on_click(move |_, _, _| clicked.set(true)))
     }
@@ -175,14 +180,23 @@ fn a_clicked_tab_is_shown_and_takes_the_focus(cx: &mut TestAppContext) {
     let (_area, p, vcx) = area(cx, true, false);
     assert!(vcx.debug_bounds("content-A").is_some(), "A shows first");
     click(vcx, "dock-tab-1");
-    assert!(vcx.debug_bounds("content-B").is_some(), "B shows after its tab is clicked");
-    assert!(vcx.debug_bounds("content-A").is_none(), "and A no longer does");
-    let focused = p.b.update_in(vcx, |b, window, _| b.focus.is_focused(window));
+    assert!(
+        vcx.debug_bounds("content-B").is_some(),
+        "B shows after its tab is clicked"
+    );
+    assert!(
+        vcx.debug_bounds("content-A").is_none(),
+        "and A no longer does"
+    );
+    let focused =
+        p.b.update_in(vcx, |b, window, _| b.focus.is_focused(window));
     assert!(focused, "the click moved focus into B");
     // Clicking the tab already shown still focuses it (gpui-base only moves focus when the tab changes).
-    p.center.update_in(vcx, |c, window, cx| c.focus.focus(window, cx));
+    p.center
+        .update_in(vcx, |c, window, cx| c.focus.focus(window, cx));
     click(vcx, "dock-tab-1");
-    let focused = p.b.update_in(vcx, |b, window, _| b.focus.is_focused(window));
+    let focused =
+        p.b.update_in(vcx, |b, window, _| b.focus.is_focused(window));
     assert!(focused, "a click on the shown tab focuses it too");
 }
 
@@ -209,10 +223,21 @@ fn menu_items(vcx: &mut VisualTestContext) -> Vec<String> {
         .find(|s| s.role() == Some(Role::Menu) && s.visible())
         .expect("our menu (role Menu) is open")
         .bounds();
-    snaps
+    // Snapshots don't come in screen order: read the items top to bottom.
+    let mut items: Vec<_> = snaps
         .iter()
         .filter(|s| s.role() == Some(Role::MenuItem) && s.visible())
         .filter(|s| menu.contains(&s.bounds().center()))
+        .collect();
+    items.sort_by(|a, b| {
+        a.bounds()
+            .origin
+            .y
+            .partial_cmp(&b.bounds().origin.y)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    items
+        .iter()
         .filter_map(|s| s.label().map(str::to_owned))
         .collect()
 }
@@ -221,9 +246,16 @@ fn menu_items(vcx: &mut VisualTestContext) -> Vec<String> {
 fn the_menu_holds_the_panel_s_items_then_zoom(cx: &mut TestAppContext) {
     let (area, p, vcx) = area(cx, true, false);
     click(vcx, "dock-tab-bar-menu");
-    assert_eq!(menu_items(vcx), ["Fixture item", "Zoom In"], "A is not closable: no Close");
+    assert_eq!(
+        menu_items(vcx),
+        ["Fixture item", "Zoom In"],
+        "A is not closable: no Close"
+    );
     click_label(vcx, "Fixture item");
-    assert!(p.a.read_with(vcx, |a, _| a.clicked.get()), "the panel's item ran");
+    assert!(
+        p.a.read_with(vcx, |a, _| a.clicked.get()),
+        "the panel's item ran"
+    );
     click(vcx, "dock-tab-bar-menu");
     click_label(vcx, "Zoom In");
     assert!(zoomed(&area, vcx), "the menu's Zoom In zooms");
@@ -235,14 +267,22 @@ fn a_locked_dock_offers_no_close(cx: &mut TestAppContext) {
     let (_area, _p, vcx) = area(cx, true, false);
     click(vcx, "dock-tab-1");
     click(vcx, "dock-tab-bar-menu");
-    assert_eq!(menu_items(vcx), ["Fixture item", "Zoom In"], "B is closable, the dock is locked");
+    assert_eq!(
+        menu_items(vcx),
+        ["Fixture item", "Zoom In"],
+        "B is closable, the dock is locked"
+    );
 }
 
 #[gpui::test]
 fn close_in_the_menu_removes_only_that_tab(cx: &mut TestAppContext) {
     let (area, p, vcx) = area(cx, false, false);
     click(vcx, "dock-tab-bar-menu");
-    assert_eq!(menu_items(vcx), ["Fixture item", "Zoom In"], "A is not closable");
+    assert_eq!(
+        menu_items(vcx),
+        ["Fixture item", "Zoom In"],
+        "A is not closable"
+    );
     vcx.simulate_keystrokes("escape");
     vcx.run_until_parked();
     click(vcx, "dock-tab-1");
@@ -262,9 +302,8 @@ fn close_in_the_menu_removes_only_that_tab(cx: &mut TestAppContext) {
 #[gpui::test]
 fn the_handles_resize_and_the_bottom_one_closes_its_dock(cx: &mut TestAppContext) {
     let (area, _p, vcx) = area(cx, true, true);
-    let right = |vcx: &mut VisualTestContext| {
-        area.read_with(vcx, |a, _| a.dock_size(DockPlacement::Right))
-    };
+    let right =
+        |vcx: &mut VisualTestContext| area.read_with(vcx, |a, _| a.dock_size(DockPlacement::Right));
     assert_eq!(right(vcx), Some(px(400.)));
     // The right dock's left edge sits at 600; its handle straddles it.
     let y = px(100.);
@@ -273,7 +312,11 @@ fn the_handles_resize_and_the_bottom_one_closes_its_dock(cx: &mut TestAppContext
     vcx.simulate_mouse_move(point(px(500.), y), MouseButton::Left, Modifiers::none());
     vcx.simulate_mouse_up(point(px(500.), y), MouseButton::Left, Modifiers::none());
     vcx.run_until_parked();
-    assert_eq!(right(vcx), Some(px(500.)), "100 px toward the center makes it 100 px wider");
+    assert_eq!(
+        right(vcx),
+        Some(px(500.)),
+        "100 px toward the center makes it 100 px wider"
+    );
 
     // The bottom dock's top edge sits at 500 (700 - 200); dragged to the window's bottom, it closes.
     let x = px(200.);

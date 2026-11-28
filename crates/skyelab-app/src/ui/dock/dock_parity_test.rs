@@ -1,7 +1,7 @@
 //! Stage 5a acceptance: our dock skin lays a dock out exactly as gpui-component's `DockSkin` does. The same panels are
 //! drawn under each skin in a window of the same size, in two layouts so every selector names one element: a center
 //! without a title bar beside a right dock with two tabs (one zoomable), and a center over a bottom dock, open and
-//! then closed to its strip. Every tab, the zoom button and each panel's content region must have the same bounds.
+//! then closed to its strip (the center's height measures it). Every tab, the zoom button and each panel's content region must have the same bounds.
 
 use crate::ui::dock as ours;
 use gpui::{
@@ -9,7 +9,9 @@ use gpui::{
     InteractiveElement as _, IntoElement, ParentElement as _, Pixels, Render, Styled as _,
     TestAppContext, VisualTestContext, Window, div, px, size,
 };
-use gpui_base::dock::{DockArea, DockAreaRenderer, DockLayout, DockPlacement, PanelEvent, PanelView};
+use gpui_base::dock::{
+    DockArea, DockAreaRenderer, DockLayout, DockPlacement, PanelEvent, PanelView,
+};
 use gpui_component::dock as theirs;
 use std::{rc::Rc, sync::Arc};
 
@@ -98,7 +100,8 @@ const RIGHT: [&str; 5] = [
     "content-Center",
     "content-A",
 ];
-const BOTTOM: [&str; 3] = ["dock-tab-0", "content-Center", "content-Bottom"];
+// One panel alone gets a title bar, not tabs: its strip shows in the center's height.
+const BOTTOM: [&str; 2] = ["content-Center", "content-Bottom"];
 
 fn fix(name: &'static str, zoom: bool, title_bar: bool, cx: &mut gpui::App) -> Entity<Fix> {
     cx.new(|cx| Fix {
@@ -126,18 +129,22 @@ type Drawn = Vec<Option<Bounds<Pixels>>>;
 fn draw(skin: Skin, layout: Layout, cx: &mut TestAppContext) -> (Drawn, Drawn) {
     let mut built = None;
     let (_host, vcx) = cx.add_window_view(|window, cx| {
+        let mut their_skin = None;
         let area = cx.new(|cx| {
             let renderer: Rc<dyn DockAreaRenderer> = match skin {
                 Skin::Theirs => {
                     let s = theirs::DockSkin::new(cx);
-                    // As the workspace sets it (workspace/mod.rs).
-                    s.set_toggle_button_visible(false, cx);
+                    their_skin = Some(s.clone());
                     s
                 }
                 Skin::Ours => ours::Skin::new(cx),
             };
             DockArea::new("parity", None, window, cx).with_renderer(renderer)
         });
+        // As the workspace sets it, once the area exists (workspace/mod.rs before stage 5a).
+        if let Some(s) = their_skin {
+            s.set_toggle_button_visible(false, cx);
+        }
         built = Some(area.clone());
         Host(area)
     });
@@ -167,7 +174,11 @@ fn draw(skin: Skin, layout: Layout, cx: &mut TestAppContext) -> (Drawn, Drawn) {
         area.set_locked(true, window, cx);
     });
     vcx.run_until_parked();
-    let selectors: &[&'static str] = if layout == Layout::Right { &RIGHT } else { &BOTTOM };
+    let selectors: &[&'static str] = if layout == Layout::Right {
+        &RIGHT
+    } else {
+        &BOTTOM
+    };
     let open = bounds(vcx, selectors);
     if layout == Layout::Right {
         return (open, Vec::new());
@@ -186,9 +197,15 @@ fn our_dock_skin_lays_out_like_gpui_component_s(cx: &mut TestAppContext) {
         let (their_open, their_closed) = draw(Skin::Theirs, layout, cx);
         let (our_open, our_closed) = draw(Skin::Ours, layout, cx);
         for (i, s) in selectors.iter().enumerate() {
-            assert!(their_open[i].is_some(), "theirs draws {s} with the dock open");
+            assert!(
+                their_open[i].is_some(),
+                "theirs draws {s} with the dock open"
+            );
             assert_eq!(our_open[i], their_open[i], "{s}, dock open");
         }
-        assert_eq!(our_closed, their_closed, "the closed bottom dock and its strip");
+        assert_eq!(
+            our_closed, their_closed,
+            "the closed bottom dock and its strip"
+        );
     }
 }
