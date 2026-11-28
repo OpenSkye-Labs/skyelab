@@ -5,7 +5,7 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
-use crate::ui::dock::{BasePanel, Panel, PanelEvent};
+use crate::ui::dock::{BasePanel, Panel};
 use crate::ui::{Icon, h_flex, v_flex};
 use crate::ui::{TextInput, TextInputEvent};
 use gpui::{
@@ -258,8 +258,6 @@ impl Drop for SearchPanel {
         self.cancel.store(true, Ordering::Relaxed);
     }
 }
-
-impl EventEmitter<PanelEvent> for SearchPanel {}
 impl EventEmitter<PreviewAt> for SearchPanel {}
 
 impl BasePanel for SearchPanel {

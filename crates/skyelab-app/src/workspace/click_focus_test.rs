@@ -145,16 +145,8 @@ fn sidebar_button(how: Focus, cx: &mut TestAppContext) {
 /// The right dock's tabs, counted the way F6 finds them.
 fn right_tabs(r: &Rig, cx: &mut VisualTestContext) -> usize {
     r.ws.read_with(cx, |ws, cx| {
-        let dock = ws.dock.read(cx);
-        let mut n = 0;
-        if let Some(layout) = dock.layout(DockPlacement::Right) {
-            layout.root().walk(&mut |node| {
-                if let crate::ui::dock::PaneRef::Tabs { panels, .. } = node.kind() {
-                    n += panels.len();
-                }
-            });
-        }
-        n
+        let group = ws.dock.read(cx).tabs(DockPlacement::Right);
+        group.map_or(0, |g| g.panels.len())
     })
 }
 

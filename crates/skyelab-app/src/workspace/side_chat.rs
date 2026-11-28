@@ -9,13 +9,13 @@ use super::thread_model::Item;
 use super::{Workspace, lock};
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
-use crate::ui::dock::{Panel, PanelEvent};
+use crate::ui::dock::Panel;
 use crate::ui::{h_flex, v_flex};
 use anyhow::{Result, bail};
 use gpui::Global;
 use gpui::{
-    App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, SharedString,
-    Subscription, WeakEntity, Window, actions, div, prelude::*, px,
+    App, AppContext as _, Context, Entity, FocusHandle, Focusable, SharedString, Subscription,
+    WeakEntity, Window, actions, div, prelude::*, px,
 };
 use skyelab_core::AccountsConfig;
 use skyelab_store::{NewThread, Store, Thread};
@@ -198,8 +198,6 @@ impl SideChatPanel {
         });
     }
 }
-
-impl EventEmitter<PanelEvent> for SideChatPanel {}
 
 impl crate::ui::dock::BasePanel for SideChatPanel {
     fn panel_name(&self) -> &'static str {

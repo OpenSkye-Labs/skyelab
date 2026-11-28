@@ -6,12 +6,12 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
-use crate::ui::dock::{BasePanel, Panel, PanelEvent};
+use crate::ui::dock::{BasePanel, Panel};
 use crate::ui::{Icon, PopupMenu, PopupMenuItem, h_flex};
 use crate::ui::{TextInput, TextInputEvent};
 use gpui::{
-    App, ClickEvent, Context, EventEmitter, Focusable as _, IntoElement, KeyBinding, SharedString,
-    Window, actions, div, prelude::*, px,
+    App, ClickEvent, Context, Focusable as _, IntoElement, KeyBinding, SharedString, Window,
+    actions, div, prelude::*, px,
 };
 
 actions!(skyelab, [CancelTerminalRename]);
@@ -215,8 +215,6 @@ impl TerminalPanel {
             ))
     }
 }
-
-impl EventEmitter<PanelEvent> for TerminalPanel {}
 
 impl BasePanel for TerminalPanel {
     fn panel_name(&self) -> &'static str {

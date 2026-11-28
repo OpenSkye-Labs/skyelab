@@ -20,7 +20,7 @@ impl gpui::Render for CachedWorkspace {
         if !window.is_a11y_active() {
             return workspace;
         }
-        // GPUI 0.3.14 doesn't re-emit a reused cached view's a11y nodes, and gpui-component's dock caches every
+        // GPUI 0.3.14 doesn't re-emit a reused cached view's a11y nodes, and our dock skin caches every
         // panel, so a frame that redraws only some views would send a tree missing the rest. A cached view is reused
         // only while the opacity it is drawn at stays the same, so every other frame draws the workspace at the
         // next opacity below 1: no cache under it matches, and no pixel changes.

@@ -18,7 +18,7 @@ struct TabHits {
 impl Global for TabHits {}
 
 /// Wraps a dock panel's title so right-clicks on the title or its surrounding tab padding identify `panel_id`.
-/// gpui-component's dock gives its tab no accessible name, so the title is a button named `name`: an accessibility
+/// The title is a button named `name`: an accessibility
 /// press lands as a click on its center, inside the tab, which selects it. `None` while the title holds a control of
 /// its own (a rename field), which a button would hide.
 pub(in crate::workspace) fn tab_title(
@@ -68,7 +68,6 @@ pub(super) fn tab_at(
     let panels: Vec<(PanelId, bool)> = group
         .panels()
         .iter()
-        .filter(|p| p.visible(cx))
         .map(|p| (p.panel_id(cx), p.closable(cx)))
         .collect();
     let hits = cx.try_global::<TabHits>()?;

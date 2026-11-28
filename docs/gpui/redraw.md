@@ -73,6 +73,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   frames, 4,902 to 266 timeline rows, 0 rows in the seconds the caret blinks. Tests: `blink_redraw_test.rs`, `side_chat_blink_test.rs`.
 - The list inside `TimelineView` notifies `TimelineView` on a wheel scroll (the view that drew it), not `ThreadView`.
   Whatever reads the scroll position each frame (the minimap's current tick) is drawn by `TimelineView` too.
+- `Window::focus` refreshes the window, and a refreshing window misses every cached view. A redraw test that means
+  to prove a cache holds must not move the focus on the way (select a dock tab with `select_panel`, not a click), and
+  asserts that the changed view rendered exactly once, or a view that never redraws passes too (`dock_redraw_test.rs`).
 - Subscriptions to a view that can close live in a map keyed by its `EntityId` and are removed when it closes. A
   one-shot wait removes its own `Subscription` once it fires.
 
