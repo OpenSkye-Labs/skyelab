@@ -65,7 +65,9 @@ fn host(
                 .left_0(),
         )
         .when_some(content, |d, content| {
-            let corner = position(anchor, Bounds::new(Point::default(), bounds.size), offset);
+            // Relative to the placer, which flows right below the trigger.
+            let trigger = Bounds::new(point(px(0.), -bounds.size.height), bounds.size);
+            let corner = position(anchor, trigger, offset);
             d.child(
                 deferred(popup_place(
                     anchor,
