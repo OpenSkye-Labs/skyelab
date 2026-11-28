@@ -132,6 +132,8 @@ type Drawn = Vec<Option<Bounds<Pixels>>>;
 fn draw(skin: Skin, layout: Layout, cx: &mut TestAppContext) -> (Drawn, Drawn) {
     let mut built = None;
     let (_host, vcx) = cx.add_window_view(|window, cx| {
+        // Under 16 px, as in the app: rem-sized pieces (the toolbar buttons) then differ from pixel-sized ones.
+        window.set_rem_size(px(14.));
         let mut their_skin = None;
         let area = cx.new(|cx| {
             let renderer: Rc<dyn DockAreaRenderer> = match skin {
