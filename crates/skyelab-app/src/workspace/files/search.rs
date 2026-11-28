@@ -272,6 +272,9 @@ impl BasePanel for SearchPanel {
 }
 
 impl Panel for SearchPanel {
+    fn tab_name(&self, _: &App) -> Option<SharedString> {
+        Some("Search".into())
+    }
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::workspace::tab_context_menu::tab_title(
             cx.entity_id().into(),

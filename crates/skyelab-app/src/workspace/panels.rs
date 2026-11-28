@@ -34,6 +34,10 @@ macro_rules! panel {
             }
         }
         impl Panel for $ty {
+            fn tab_name(&self, _: &App) -> Option<SharedString> {
+                let $this = self;
+                Some(($title).into())
+            }
             fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
                 let $this = &*self;
                 let title: SharedString = ($title).into();
@@ -297,6 +301,9 @@ impl BasePanel for BrowserPanel {
     }
 }
 impl Panel for BrowserPanel {
+    fn tab_name(&self, cx: &App) -> Option<SharedString> {
+        Some(self.tab_title(cx))
+    }
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         {
             let title = self.tab_title(cx);

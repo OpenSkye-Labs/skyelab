@@ -342,3 +342,5 @@ mod tab_context_menu_test;
 mod timeline_menu_test;
 #[cfg(all(test, unix))]
 mod remote_delegation_tests;
+#[cfg(all(test, unix))]
+mod dock_tab_name_test;

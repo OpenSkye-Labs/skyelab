@@ -413,7 +413,7 @@ impl TabGroupRenderer for CenterTabs {
         if !thread_page || group.is_collapsed() {
             return self.tabs.render_active_panel(panel, group, window, cx);
         }
-        // The skin's box (`render_active_panel` in gpui-component's tab_panel.rs) around the view, not cached.
+        // The skin's box (`render_active_panel` in `ui/dock/tabs.rs`) around the view, not cached.
         div()
             .id("tab-content")
             .overflow_y_scroll()

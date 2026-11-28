@@ -55,8 +55,9 @@ impl Render for Fix {
 }
 
 impl gpui_base::dock::Panel for Fix {
+    // Not the title: a tab must be named by its own title, not its panel type.
     fn panel_name(&self) -> &'static str {
-        self.name
+        "Fixture"
     }
     fn closable(&self, _: &gpui::App) -> bool {
         self.closable
@@ -64,6 +65,9 @@ impl gpui_base::dock::Panel for Fix {
 }
 
 impl dock::Panel for Fix {
+    fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
+        Some(self.name.into())
+    }
     fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         self.name
     }

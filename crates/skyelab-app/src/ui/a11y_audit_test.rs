@@ -283,16 +283,22 @@ fn custom_clickables_and_ui_rows_declare_role_and_label() {
         }
 
         // ScrollIntoView sends vertical wheel events only: a synthetic horizontal one would also reach every vertical
-        // page around it, which GPUI scrolls vertically by it. The image viewer pans a picture and holds no controls;
-        // the dock's tab strip scrolls its tabs sideways (as gpui-component's did), and a vertical page there would
-        // scroll the tabs, so it registers no area either.
-        let sideways_ok = rel == "workspace/image_viewer.rs" || rel == "ui/dock/tabs.rs";
+        // page around it, which GPUI scrolls vertically by it. The image viewer pans a picture and holds no controls.
+        // The dock's one tab strip scrolls its tabs sideways and registers no area: a vertical page there would scroll
+        // the tabs.
+        let dock_strip = |call: &str| rel == "ui/dock/tabs.rs" && call == ".overflow_x_scroll()";
+        if rel == "ui/dock/tabs.rs" && masked.matches(".overflow_x_scroll()").count() > 1 {
+            violations.push(format!("{rel}: only the tab strip may scroll sideways"));
+        }
         for call in [".overflow_x_scroll()", ".overflow_scroll()"] {
             let mut from = 0;
             while let Some(at) = masked[from..].find(call) {
                 let pos = from + at;
                 from = pos + call.len();
-                if !sideways_ok && !rel.starts_with("skyelab-browser/") {
+                if rel != "workspace/image_viewer.rs"
+                    && !dock_strip(call)
+                    && !rel.starts_with("skyelab-browser/")
+                {
                     violations.push(format!(
                         "{rel}:{}: `{call}` scrolls sideways, which agent-desktop can't scroll a control into (docs/gpui/accessibility.md §7)",
                         line_number(masked, pos)
@@ -312,8 +318,7 @@ fn custom_clickables_and_ui_rows_declare_role_and_label() {
                 while let Some(at) = masked[from..].find(call) {
                     let pos = from + at;
                     from = pos + call.len();
-                    let sideways_strip = sideways_ok && call != ".overflow_y_scroll()";
-                    if !sideways_strip
+                    if !dock_strip(call)
                         && !statement_forward(masked, pos).contains(".a11y_scroll_area(")
                     {
                         violations.push(format!(

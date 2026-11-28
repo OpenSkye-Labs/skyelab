@@ -214,6 +214,9 @@ impl crate::ui::dock::BasePanel for SideChatPanel {
 }
 
 impl Panel for SideChatPanel {
+    fn tab_name(&self, cx: &App) -> Option<SharedString> {
+        Some(self.view.read(cx).title())
+    }
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let title = self.view.read(cx).title();
         crate::workspace::tab_context_menu::tab_title(

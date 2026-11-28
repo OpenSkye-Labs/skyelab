@@ -7,9 +7,9 @@ use super::{
 };
 use crate::ui::ActiveTheme as _;
 use gpui::{
-    AnyElement, App, AppContext as _, Axis, Context, Div, Element, Empty, InteractiveElement as _,
-    IntoElement, MouseMoveEvent, MouseUpEvent, ParentElement as _, Pixels, Render, Stateful, Style,
-    Styled as _, WeakEntity, Window, div, px,
+    AnyElement, App, AppContext as _, Axis, Context, Div, Empty, InteractiveElement as _,
+    IntoElement, MouseMoveEvent, MouseUpEvent, ParentElement as _, Pixels, Render, Stateful,
+    Styled as _, WeakEntity, Window, canvas, div, px,
 };
 use gpui_base::{HandleEdge, LayoutDirection, ResizeHandleContext};
 use std::{cell::Cell, rc::Rc};
@@ -84,11 +84,7 @@ impl DockAreaRenderer for Skin {
             .relative()
             .child(content)
             .child(self.resize_handle(dock, cx))
-            .child(ResizeTracker {
-                dock: dock.clone(),
-                resizing: self.resizing.clone(),
-                area: self.area.clone(),
-            })
+            .child(self.resize_tracker(dock))
             .into_any_element()
     }
 
@@ -126,74 +122,32 @@ impl Skin {
     }
 }
 
-/// Turns the window's pointer moves into a dock resize while a handle is dragged: the pointer leaves the handle, so
-/// only window-level listeners, registered at paint, can follow it.
-struct ResizeTracker {
-    dock: DockContext,
-    resizing: Rc<Cell<Option<DockPlacement>>>,
-    area: WeakEntity<DockArea>,
-}
-
-impl Element for ResizeTracker {
-    type RequestLayoutState = ();
-    type PrepaintState = ();
-
-    fn id(&self) -> Option<gpui::ElementId> {
-        None
-    }
-
-    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-        None
-    }
-
-    fn request_layout(
-        &mut self,
-        _: Option<&gpui::GlobalElementId>,
-        _: Option<&gpui::InspectorElementId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> (gpui::LayoutId, ()) {
-        (window.request_layout(Style::default(), None, cx), ())
-    }
-
-    fn prepaint(
-        &mut self,
-        _: Option<&gpui::GlobalElementId>,
-        _: Option<&gpui::InspectorElementId>,
-        _: gpui::Bounds<Pixels>,
-        _: &mut (),
-        _: &mut Window,
-        _: &mut App,
-    ) {
-    }
-
-    fn paint(
-        &mut self,
-        _: Option<&gpui::GlobalElementId>,
-        _: Option<&gpui::InspectorElementId>,
-        _: gpui::Bounds<Pixels>,
-        _: &mut (),
-        _: &mut (),
-        window: &mut Window,
-        _: &mut App,
-    ) {
-        let placement = self.dock.placement();
-        let (dock, resizing) = (self.dock.clone(), self.resizing.clone());
-        window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, cx| {
-            if phase.bubble() && resizing.get() == Some(placement) {
-                // Base opens, closes and sizes the dock from the pointer.
-                dock.resize_to(e.position, window, cx);
-            }
-        });
-        let (dock, resizing, area) = (self.dock.clone(), self.resizing.clone(), self.area.clone());
-        window.on_mouse_event(move |_: &MouseUpEvent, phase, window, cx| {
-            if !phase.bubble() || resizing.get() != Some(placement) {
-                return;
-            }
-            resizing.set(None);
-            dock.end_resize(window, cx);
-            // A dock's size isn't in the layout tree, so nothing else tells a subscriber to save it.
-            let _ = area.update(cx, |_, cx| cx.emit(DockEvent::LayoutChanged));
-        });
+impl Skin {
+    /// Turns the window's pointer moves into a dock resize while a handle is dragged: the pointer leaves the handle,
+    /// so only window-level listeners, registered at paint, can follow it.
+    fn resize_tracker(&self, dock: &DockContext) -> impl IntoElement + use<> {
+        let (dock, resizing, area) = (dock.clone(), self.resizing.clone(), self.area.clone());
+        canvas(
+            |_, _, _| (),
+            move |_, (), window, _| {
+                let placement = dock.placement();
+                let (moved, moving) = (dock.clone(), resizing.clone());
+                window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, cx| {
+                    if phase.bubble() && moving.get() == Some(placement) {
+                        // Base opens, closes and sizes the dock from the pointer.
+                        moved.resize_to(e.position, window, cx);
+                    }
+                });
+                window.on_mouse_event(move |_: &MouseUpEvent, phase, window, cx| {
+                    if !phase.bubble() || resizing.get() != Some(placement) {
+                        return;
+                    }
+                    resizing.set(None);
+                    dock.end_resize(window, cx);
+                    // A dock's size isn't in the layout tree, so nothing else tells a subscriber to save it.
+                    let _ = area.update(cx, |_, cx| cx.emit(DockEvent::LayoutChanged));
+                });
+            },
+        )
     }
 }

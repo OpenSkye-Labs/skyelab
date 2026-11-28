@@ -28,7 +28,8 @@ use std::{any::Any, sync::Arc};
 gpui::actions!(
     skyelab_dock,
     [
-        /// Fills the window with the focused panel's group, or puts it back.
+        /// Fills the window with the focused panel's group, or puts it back; a panel offering no zoom control isn't
+        /// zoomed in.
         ToggleZoom,
         /// Closes the focused group's shown tab, when the group allows it.
         ClosePanel
@@ -45,7 +46,7 @@ pub enum PanelControl {
 
 /// What a dock panel shows in its tab bar, on top of gpui-base's behavior trait.
 pub trait Panel: BasePanel {
-    /// The tab's accessible name; the panel name when `None`.
+    /// The tab's accessible name (the title's text); the panel name when `None`.
     fn tab_name(&self, _: &App) -> Option<SharedString> {
         None
     }

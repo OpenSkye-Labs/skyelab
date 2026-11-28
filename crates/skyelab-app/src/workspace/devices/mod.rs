@@ -427,6 +427,9 @@ impl BasePanel for DevicesPanel {
 }
 
 impl Panel for DevicesPanel {
+    fn tab_name(&self, _: &App) -> Option<gpui::SharedString> {
+        Some("Devices".into())
+    }
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::workspace::tab_context_menu::tab_title(
             cx.entity_id().into(),

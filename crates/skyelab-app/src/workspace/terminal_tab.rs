@@ -229,6 +229,9 @@ impl BasePanel for TerminalPanel {
 }
 
 impl Panel for TerminalPanel {
+    fn tab_name(&self, _: &App) -> Option<SharedString> {
+        Some(self.tab_label())
+    }
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         super::tab_context_menu::tab_title(
             cx.entity_id().into(),

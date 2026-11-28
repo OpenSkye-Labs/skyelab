@@ -172,7 +172,14 @@ impl Tabs {
             .iter()
             .map(|&ix| {
                 let selected = !collapsed && Some(ix) == shown_ix;
-                self.tab(group, ix, selected, window, cx)
+                self.tab(
+                    group,
+                    ix,
+                    selected,
+                    Some(&ix) == visible.first(),
+                    window,
+                    cx,
+                )
             })
             .collect();
         let suffix = (!collapsed).then(|| {
@@ -249,19 +256,19 @@ impl Tabs {
         group: &TabGroupContext,
         ix: usize,
         selected: bool,
+        first: bool,
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
         let panel = &group.panels()[ix];
-        let name = PanelHandle::of(panel).and_then(|h| h.0.tab_name(cx));
-        let label = name.clone().unwrap_or_else(|| panel.panel_name(cx).into());
-        let title = match name {
-            Some(name) => name.into_any_element(),
-            None => panel_title(panel, window, cx),
-        };
+        let collapsed = group.is_collapsed();
+        let label = PanelHandle::of(panel)
+            .and_then(|h| h.0.tab_name(cx))
+            .unwrap_or_else(|| panel.panel_name(cx).into());
+        let title = panel_title(panel, window, cx);
         let theme = cx.theme();
-        // The first tab meets the bar's start edge, so it drops that border.
-        let left = if ix == 0 { px(0.) } else { px(1.) };
+        // The first shown tab meets the bar's start edge, so it drops that border.
+        let start_border = if first { px(0.) } else { px(1.) };
         let (ring, border, hover_fg) = (theme.ring, theme.border, theme.tab_active_foreground);
         let group_ = group.clone();
         let focus = panel.focus_handle(cx);
@@ -288,7 +295,7 @@ impl Tabs {
             .h(TAB_H)
             .overflow_hidden()
             .text_sm()
-            .border_l(left)
+            .border_l(start_border)
             .border_r(px(1.))
             .map(|t| {
                 if selected {
@@ -319,7 +326,9 @@ impl Tabs {
                 last_active.set(Some(ix));
                 group_.select_tab(ix, window, cx);
                 // Base moves focus into the panel only when the tab changes; a click on the shown tab focuses it too.
-                focus.focus(window, cx);
+                if !collapsed {
+                    focus.focus(window, cx);
+                }
             })
             .into_any_element()
     }

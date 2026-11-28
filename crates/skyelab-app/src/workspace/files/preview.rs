@@ -331,6 +331,9 @@ impl BasePanel for PreviewPanel {
 }
 
 impl Panel for PreviewPanel {
+    fn tab_name(&self, _: &App) -> Option<SharedString> {
+        Some(self.title_text())
+    }
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::workspace::tab_context_menu::tab_title(
             cx.entity_id().into(),
