@@ -58,7 +58,13 @@ const ROWS: &[Row] = &[
         stage: "5a dock skin",
         crates: &["gpui_component"],
         names: &["dock"],
-        allowed: &["dock_parity_test.rs"],
+        allowed: &["dock_engine_parity_test.rs"],
+    },
+    Row {
+        stage: "5b dock engine",
+        crates: &["gpui_base"],
+        names: &["dock", "PANEL_MIN_SIZE"],
+        allowed: &["dock_engine_parity_test.rs"],
     },
     Row {
         stage: "4a small pieces",

@@ -1,30 +1,24 @@
-//! Our look for gpui-base's dock area: the frames, the split dividers, each dock's resize handle and the closed bottom
-//! dock's strip. Tab groups are drawn by `tabs.rs`.
+//! Our dock look: each dock's resize handle and the closed bottom dock's strip. Tab groups are drawn by `tabs.rs`.
 
 use super::{
-    CLOSED_BOTTOM_STRIP, DockArea, DockAreaRenderer, DockContext, DockEvent, DockPlacement, NodeId,
-    TabGroupRenderer,
+    CLOSED_BOTTOM_STRIP, DockArea, DockAreaRenderer, DockContext, DockPlacement, TabGroupRenderer,
 };
-use crate::ui::ActiveTheme as _;
 use gpui::{
-    AnyElement, App, AppContext as _, Axis, Context, Div, Empty, InteractiveElement as _,
-    IntoElement, MouseMoveEvent, MouseUpEvent, ParentElement as _, Pixels, Render, Stateful,
-    Styled as _, WeakEntity, Window, canvas, div, px,
+    AnyElement, App, AppContext as _, Context, Empty, IntoElement, MouseMoveEvent, MouseUpEvent,
+    ParentElement as _, Pixels, Render, Styled as _, Window, canvas, div, px,
 };
-use gpui_base::{HandleEdge, LayoutDirection, ResizeHandleContext};
+use gpui_base::HandleEdge;
 use std::{cell::Cell, rc::Rc};
 
-/// Our dock look. Install it while the area is built: it needs the area's own handle.
+/// Our dock look.
 pub struct Skin {
-    area: WeakEntity<DockArea>,
     /// The dock whose handle is being dragged; only one can be.
     resizing: Rc<Cell<Option<DockPlacement>>>,
 }
 
 impl Skin {
-    pub fn new(cx: &mut Context<DockArea>) -> Rc<Self> {
+    pub fn new(_: &mut Context<DockArea>) -> Rc<Self> {
         Rc::new(Self {
-            area: cx.weak_entity(),
             resizing: Rc::default(),
         })
     }
@@ -48,42 +42,19 @@ impl DockAreaRenderer for Skin {
         }
     }
 
-    fn frame(&self, _: &mut Window, _: &mut App) -> Stateful<Div> {
-        div().id("dock-area")
-    }
-
-    fn center_frame(&self, _: &mut Window, _: &mut App) -> Stateful<Div> {
-        div().id("dock-area-center")
-    }
-
-    fn render_split_handle(
-        &self,
-        handle: &ResizeHandleContext,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Option<AnyElement> {
-        Some(super::handle::render(handle, window, cx))
-    }
-
-    fn split_frame(&self, node: NodeId, _: Axis, _: &mut Window, cx: &mut App) -> Stateful<Div> {
-        div()
-            .id(("dock-split-frame", node.as_u64()))
-            .bg(cx.theme().tab_bar)
-    }
-
     fn render_dock(
         &self,
         dock: &DockContext,
         content: AnyElement,
         _: &mut Window,
-        cx: &mut App,
+        _: &mut App,
     ) -> AnyElement {
         div()
             .flex()
             .size_full()
             .relative()
             .child(content)
-            .child(self.resize_handle(dock, cx))
+            .child(self.resize_handle(dock))
             .child(self.resize_tracker(dock))
             .into_any_element()
     }
@@ -94,7 +65,7 @@ impl DockAreaRenderer for Skin {
 }
 
 impl Skin {
-    fn resize_handle(&self, dock: &DockContext, cx: &App) -> impl IntoElement + use<> {
+    fn resize_handle(&self, dock: &DockContext) -> impl IntoElement + use<> {
         let placement = dock.placement();
         // One id per dock: they render under one stateful parent, and a shared id would share their drag state.
         let id = match placement {
@@ -104,7 +75,7 @@ impl Skin {
             DockPlacement::Center => "resize-handle-center",
         };
         // The dock clips to its box, so each handle hugs the dock's edge toward the center.
-        let edge = match placement.physical(LayoutDirection::global(cx)) {
+        let edge = match placement {
             DockPlacement::Left => HandleEdge::Trailing,
             _ => HandleEdge::Leading,
         };
@@ -126,7 +97,7 @@ impl Skin {
     /// Turns the window's pointer moves into a dock resize while a handle is dragged: the pointer leaves the handle,
     /// so only window-level listeners, registered at paint, can follow it.
     fn resize_tracker(&self, dock: &DockContext) -> impl IntoElement + use<> {
-        let (dock, resizing, area) = (dock.clone(), self.resizing.clone(), self.area.clone());
+        let (dock, resizing) = (dock.clone(), self.resizing.clone());
         canvas(
             |_, _, _| (),
             move |_, (), window, _| {
@@ -134,7 +105,7 @@ impl Skin {
                 let (moved, moving) = (dock.clone(), resizing.clone());
                 window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, cx| {
                     if phase.bubble() && moving.get() == Some(placement) {
-                        // Base opens, closes and sizes the dock from the pointer.
+                        // The engine opens, closes and sizes the dock from the pointer.
                         moved.resize_to(e.position, window, cx);
                     }
                 });
@@ -144,8 +115,6 @@ impl Skin {
                     }
                     resizing.set(None);
                     dock.end_resize(window, cx);
-                    // A dock's size isn't in the layout tree, so nothing else tells a subscriber to save it.
-                    let _ = area.update(cx, |_, cx| cx.emit(DockEvent::LayoutChanged));
                 });
             },
         )

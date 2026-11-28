@@ -2,8 +2,7 @@
 //! the "…" menu, and the shown panel drawn as a cached view.
 
 use super::{
-    ClosePanel, PanelControl, PanelHandle, TabGroupContext, TabGroupRenderer, ToggleZoom,
-    panel_title, zoom_control,
+    ClosePanel, PanelControl, TabGroupContext, TabGroupRenderer, ToggleZoom, zoom_control,
 };
 use crate::ui::{
     A11yScrollArea as _, ActiveTheme as _, Button, Icon, PopupMenuItem, SkyeIcon, h_flex,
@@ -40,7 +39,7 @@ fn tool_button(id: &'static str, icon: SkyeIcon, cx: &App) -> Button {
         )
 }
 
-/// One group's renderer; base builds one per group, so the tab bar's scroll position is that group's.
+/// One group's renderer; the engine asks for one per group, so the tab bar's scroll position is that group's.
 #[derive(Default)]
 pub(super) struct Tabs {
     scroll: ScrollHandle,
@@ -59,7 +58,7 @@ impl Tabs {
         let toolbar_zoom = control == Some(PanelControl::Both);
         let menu_zoom = control.is_some();
         let closable = group.is_closable();
-        let panel = group.active_panel().and_then(PanelHandle::of).cloned();
+        let panel = group.active_panel().cloned();
         let focus = group.active_panel().map(|p| p.focus_handle(cx));
         let zoom_label = if zoomed { "Zoom Out" } else { "Zoom In" };
         let zoom = match (zoomed, toolbar_zoom) {
@@ -86,7 +85,7 @@ impl Tabs {
                     .debug_selector(|| "dock-tab-bar-menu".into())
                     .dropdown_menu_with_anchor(Anchor::TopRight, move |menu, window, cx| {
                         let menu = match &panel {
-                            Some(p) => p.0.dropdown_menu(menu, window, cx),
+                            Some(p) => p.dropdown_menu(menu, window, cx),
                             None => menu,
                         };
                         // Sent from the shown panel, so a panel's own handler (an unsaved preview) runs first.
@@ -122,7 +121,7 @@ impl Tabs {
         cx: &mut App,
     ) -> AnyElement {
         let panel = &group.panels()[ix];
-        let suffix = PanelHandle::of(panel).and_then(|h| h.0.title_suffix(window, cx));
+        let suffix = panel.title_suffix(window, cx);
         h_flex()
             .justify_between()
             .h(px(30.))
@@ -137,7 +136,7 @@ impl Tabs {
                     .overflow_hidden()
                     .text_ellipsis()
                     .whitespace_nowrap()
-                    .child(panel_title(panel, window, cx)),
+                    .child(panel.title(window, cx)),
             )
             .children(suffix)
             .child(
@@ -151,42 +150,19 @@ impl Tabs {
     }
 
     /// A group of several panels: a scrolling row of tabs, then the panel's suffix and the toolbar.
-    fn tab_bar(
-        &self,
-        group: &TabGroupContext,
-        visible: &[usize],
-        window: &mut Window,
-        cx: &mut App,
-    ) -> AnyElement {
+    fn tab_bar(&self, group: &TabGroupContext, window: &mut Window, cx: &mut App) -> AnyElement {
         let collapsed = group.is_collapsed();
         let active_ix = group.active_ix();
-        let shown = group.active_panel().map(|p| p.panel_id(cx));
-        let shown_ix =
-            shown.and_then(|id| group.panels().iter().position(|p| p.panel_id(cx) == id));
-        if self.last_active.replace(Some(active_ix)) != Some(active_ix)
-            && let Some(at) = visible.iter().position(|ix| *ix == active_ix)
-        {
-            self.scroll.scroll_to_item(at);
+        if self.last_active.replace(Some(active_ix)) != Some(active_ix) {
+            self.scroll.scroll_to_item(active_ix);
         }
-        let tabs: Vec<AnyElement> = visible
-            .iter()
-            .map(|&ix| {
-                let selected = !collapsed && Some(ix) == shown_ix;
-                self.tab(
-                    group,
-                    ix,
-                    selected,
-                    Some(&ix) == visible.first(),
-                    window,
-                    cx,
-                )
-            })
+        let tabs: Vec<AnyElement> = (0..group.panels().len())
+            .map(|ix| self.tab(group, ix, !collapsed && ix == active_ix, window, cx))
             .collect();
         let suffix = (!collapsed).then(|| {
             let panel_suffix = group
                 .active_panel()
-                .and_then(PanelHandle::of)
-                .and_then(|h| h.0.title_suffix(window, cx));
+                .and_then(|p| p.title_suffix(window, cx));
             let toolbar = self.toolbar(group, cx);
             let theme = cx.theme();
             h_flex()
@@ -256,19 +232,18 @@ impl Tabs {
         group: &TabGroupContext,
         ix: usize,
         selected: bool,
-        first: bool,
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
         let panel = &group.panels()[ix];
         let collapsed = group.is_collapsed();
-        let label = PanelHandle::of(panel)
-            .and_then(|h| h.0.tab_name(cx))
+        let label = panel
+            .tab_name(cx)
             .unwrap_or_else(|| panel.panel_name(cx).into());
-        let title = panel_title(panel, window, cx);
+        let title = panel.title(window, cx);
         let theme = cx.theme();
-        // The first shown tab meets the bar's start edge, so it drops that border.
-        let start_border = if first { px(0.) } else { px(1.) };
+        // The first tab meets the bar's start edge, so it drops that border.
+        let start_border = if ix == 0 { px(0.) } else { px(1.) };
         let (ring, border, hover_fg) = (theme.ring, theme.border, theme.tab_active_foreground);
         let group_ = group.clone();
         let focus = panel.focus_handle(cx);
@@ -325,7 +300,7 @@ impl Tabs {
                 // The tab bar shows a clicked tab itself; the change must not scroll it again.
                 last_active.set(Some(ix));
                 group_.select_tab(ix, window, cx);
-                // Base moves focus into the panel only when the tab changes; a click on the shown tab focuses it too.
+                // The engine moves focus into the panel only when the tab changes; a click on the shown tab focuses it too.
                 if !collapsed {
                     focus.focus(window, cx);
                 }
@@ -338,7 +313,8 @@ impl TabGroupRenderer for Tabs {
     fn frame(&self, group: &TabGroupContext, _: &mut Window, cx: &mut App) -> Stateful<Div> {
         let control = zoom_control(group, cx);
         div()
-            .id("tab-panel")
+            // One id per group: they share parents, and a shared id would share the "…" menu's state.
+            .id(("tab-panel", group.placement() as usize))
             .bg(cx.theme().background)
             // A collapsed group is a strip with no content to act on.
             .when(!group.is_collapsed(), |d| {
@@ -369,23 +345,11 @@ impl TabGroupRenderer for Tabs {
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
-        let visible: Vec<usize> = group
-            .panels()
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| p.visible(cx))
-            .map(|(ix, _)| ix)
-            .collect();
-        match visible.as_slice() {
+        match group.panels() {
             [] => Empty.into_any_element(),
-            [ix] => {
-                let panel = &group.panels()[*ix];
-                if PanelHandle::of(panel).is_some_and(|h| !h.0.title_bar(cx)) {
-                    return Empty.into_any_element();
-                }
-                self.title_bar(group, *ix, window, cx)
-            }
-            _ => self.tab_bar(group, &visible, window, cx),
+            [panel] if !panel.title_bar(cx) => Empty.into_any_element(),
+            [_] => self.title_bar(group, 0, window, cx),
+            _ => self.tab_bar(group, window, cx),
         }
     }
 

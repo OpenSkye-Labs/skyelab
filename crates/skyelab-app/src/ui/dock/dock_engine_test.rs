@@ -394,7 +394,7 @@ fn each_group_keeps_its_own_tab_bar_scroll_across_redraws(cx: &mut TestAppContex
     assert!(left(&mut rig, "dock-tab-0") < start);
 
     // The user wheels the bar back; a redraw (a streamed delta) must not scroll it to the shown tab again.
-    rig.vcx.simulate_event(gpui::ScrollWheelEvent {
+    rig.vcx.simulate_event(gpui::ScrollEvent {
         position: gpui::point(px(800.), px(16.)),
         delta: gpui::ScrollDelta::Pixels(gpui::point(px(2000.), px(0.))),
         ..Default::default()
@@ -424,7 +424,7 @@ fn each_group_keeps_its_own_tab_bar_scroll_across_redraws(cx: &mut TestAppContex
         tab.expect("the tab is laid out").bounds().left()
     };
     let (right_at, drawer_at) = (named(&mut rig, "A"), named(&mut rig, "Drawer"));
-    rig.vcx.simulate_event(gpui::ScrollWheelEvent {
+    rig.vcx.simulate_event(gpui::ScrollEvent {
         position: gpui::point(px(800.), px(16.)),
         delta: gpui::ScrollDelta::Pixels(gpui::point(px(-60.), px(0.))),
         ..Default::default()

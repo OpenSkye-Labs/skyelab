@@ -6,10 +6,10 @@ mod source;
 pub(super) use source::{DeviceSource, HubSource};
 
 use super::{OpenDevices, Workspace};
-use crate::ui::dock::{BasePanel, DockPlacement, Panel, PanelEvent};
+use crate::ui::dock::{BasePanel, DockPlacement, Panel};
 use gpui::{
-    App, BackgroundExecutor, Context, Entity, EventEmitter, FocusHandle, Focusable, Image,
-    ImageFormat, KeyBinding, PathPromptOptions, Subscription, Task, Window, actions, prelude::*,
+    App, BackgroundExecutor, Context, Entity, FocusHandle, Focusable, Image, ImageFormat,
+    KeyBinding, PathPromptOptions, Subscription, Task, Window, actions, prelude::*,
 };
 use gpui_component::input::{InputEvent, InputState};
 use skyelab_devices::{Device, DeviceState, Error, Listing, Platform};
@@ -417,8 +417,6 @@ impl Focusable for DevicesPanel {
         self.focus.clone()
     }
 }
-
-impl EventEmitter<PanelEvent> for DevicesPanel {}
 
 impl BasePanel for DevicesPanel {
     fn panel_name(&self) -> &'static str {

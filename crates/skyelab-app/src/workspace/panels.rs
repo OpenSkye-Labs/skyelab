@@ -3,7 +3,7 @@
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
-use crate::ui::dock::{BasePanel, Panel, PanelEvent};
+use crate::ui::dock::{BasePanel, Panel};
 use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, SharedString,
@@ -20,7 +20,6 @@ macro_rules! panel {
         panel!($ty, $name, closable: $closable, title_bar: $title_bar, removed: |_this, _window, _cx| {}, |$this| $title);
     };
     ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, removed: |$rthis:ident, $rwindow:ident, $rcx:ident| $removed:block, |$this:ident| $title:expr) => {
-        impl EventEmitter<PanelEvent> for $ty {}
         impl BasePanel for $ty {
             fn panel_name(&self) -> &'static str {
                 $name
@@ -283,7 +282,6 @@ pub struct AgentOwner {
 pub struct CloseBrowser;
 
 impl EventEmitter<CloseBrowser> for BrowserPanel {}
-impl EventEmitter<PanelEvent> for BrowserPanel {}
 impl BasePanel for BrowserPanel {
     fn panel_name(&self) -> &'static str {
         "Browser"

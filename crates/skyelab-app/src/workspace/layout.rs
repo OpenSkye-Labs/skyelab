@@ -280,11 +280,8 @@ impl Workspace {
         cx: &App,
     ) -> bool {
         let dock = self.dock.read(cx);
-        let Some(tree) = dock.layout(at).filter(|_| dock.is_dock_open(at)) else {
-            return false;
-        };
-        let node = tree.find_panel_node(panel).and_then(|n| tree.find_node(n));
-        matches!(node.map(|n| n.kind()), Some(crate::ui::dock::PaneRef::Tabs { panels, active_ix }) if panels.get(active_ix) == Some(&panel))
+        let group = dock.tabs(at).filter(|_| dock.is_dock_open(at));
+        group.is_some_and(|g| g.panels.get(g.active_ix) == Some(&panel))
     }
 
     /// A dock changed: refresh the toggles, and save the layout once things settle.
@@ -443,7 +440,7 @@ impl Workspace {
             .dock
             .read(cx)
             .dock_size(DockPlacement::Left)
-            .unwrap_or(gpui_base::PANEL_MIN_SIZE);
+            .unwrap_or(crate::ui::dock::PANEL_MIN_SIZE);
         Some(
             gpui::div()
                 .absolute()
@@ -492,7 +489,7 @@ impl Workspace {
         let show = x >= RESTORE_AFTER;
         let max = e.bounds.size.width
             - self.dock_width(DockPlacement::Right, cx)
-            - gpui_base::PANEL_MIN_SIZE;
+            - crate::ui::dock::PANEL_MIN_SIZE;
         self.dock.update(cx, |dock, cx| {
             if dock.is_dock_open(DockPlacement::Left) != show {
                 dock.toggle_dock(DockPlacement::Left, window, cx);
@@ -504,7 +501,7 @@ impl Workspace {
     }
 
     /// A drag of the sidebar's edge was released past `center_skin::HIDE_BELOW`: hide it the way the toggle does,
-    /// and keep the width it had before the drag (base clamped it to the minimum), so it comes back at that width.
+    /// and keep the width it had before the drag (the dock clamped it to the minimum), so it comes back at that width.
     pub(super) fn hide_sidebar_from_drag(
         &mut self,
         width: Pixels,

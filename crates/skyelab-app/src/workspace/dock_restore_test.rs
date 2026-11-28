@@ -59,11 +59,14 @@ fn a_layout_saved_by_main_restores_the_same_docks(cx: &mut TestAppContext) {
         );
         assert_eq!(ws.page.key(cx), "welcome");
         assert_eq!(ws.terminals.len(), 2, "both terminal tabs");
-        assert_eq!(
-            ws.terminals[0].read(cx).panes.len(),
-            2,
-            "the first one split"
-        );
+        // Each tab restores in its own task, so which comes back first varies (on main too).
+        let mut panes: Vec<_> = ws
+            .terminals
+            .iter()
+            .map(|t| t.read(cx).panes.len())
+            .collect();
+        panes.sort_unstable();
+        assert_eq!(panes, [1, 2], "one of them split");
     });
     // Where main drew the closed drawer's strip: right of the rail and sidebar, left of the right dock.
     let strip = cx

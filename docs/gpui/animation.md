@@ -68,8 +68,8 @@ things that switch, get selected or go away change at once.
   pixels or it chases sub-pixels), and adopts the target at once under `reduce_motion`. Its first call adopts the
   target, so keep calling it at rest (`with_travel(false)`) where a later change must animate from the current value.
 - The dock skin (`ui::dock::Skin`) has no motion of its own and a closed dock renders nothing. A `DockAreaRenderer` can still animate a
-  close: base asks `closed_dock_extent(placement)` how big to draw a closed dock and renders its content when that
-  is above 0, so the skin answers with the spring's last value (`center_skin.rs`). Base also reads that hook as the
+  close: the dock asks `closed_dock_extent(placement)` how big to draw a closed dock and renders its content when that
+  is above 0, so the skin answers with the spring's last value (`center_skin.rs`). The dock also reads that hook as the
   bottom dock's closed strip during a resize drag, so report more only while a close runs, started by the toggle
   (`CenterSkin::start_close`), never while the dock is open. That hook has no window, so the
   value is one frame old; a test reads a frame after the one that advanced the clock. Hold the closing content at its

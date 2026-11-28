@@ -68,7 +68,6 @@ pub(super) fn tab_at(
     let panels: Vec<(PanelId, bool)> = group
         .panels()
         .iter()
-        .filter(|p| p.visible(cx))
         .map(|p| (p.panel_id(cx), p.closable(cx)))
         .collect();
     let hits = cx.try_global::<TabHits>()?;

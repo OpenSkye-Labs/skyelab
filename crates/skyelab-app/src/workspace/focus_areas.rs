@@ -5,7 +5,7 @@
 use super::Workspace;
 use super::center::Page;
 use crate::ui::ActiveTheme as _;
-use crate::ui::dock::{DockPlacement, PaneRef};
+use crate::ui::dock::DockPlacement;
 use gpui::{
     App, Context, FocusHandle, Focusable as _, Global, IntoElement, Window, actions, div,
     prelude::*, px,
@@ -73,19 +73,16 @@ impl Workspace {
             return None;
         }
         let (mut active, mut inside) = (None, false);
-        dock.layout(at)?.root().walk(&mut |node| {
-            if let PaneRef::Tabs { panels, active_ix } = node.kind() {
-                for (i, id) in panels.iter().enumerate() {
-                    let Some(focus) = dock.panel(*id).map(|p| p.focus_handle(cx)) else {
-                        continue;
-                    };
-                    inside |= focus.contains_focused(window, cx);
-                    if i == active_ix && active.is_none() {
-                        active = Some(focus);
-                    }
-                }
+        let group = dock.tabs(at)?;
+        for (i, id) in group.panels.iter().enumerate() {
+            let Some(focus) = dock.panel(*id).map(|p| p.focus_handle(cx)) else {
+                continue;
+            };
+            inside |= focus.contains_focused(window, cx);
+            if i == group.active_ix {
+                active = Some(focus);
             }
-        });
+        }
         Some((active?, inside))
     }
 

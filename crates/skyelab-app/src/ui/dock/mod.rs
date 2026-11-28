@@ -1,29 +1,36 @@
-//! SkyeLab's dock: panels, tab groups, the docks around the center, zoom and resize. The engine is gpui-base's
-//! (`gpui_base::dock`) until stage 5b of the own UI kit; what the dock looks like, the panel trait and the "…" menu
-//! are ours ([`Skin`]). The app names every dock item through this module, so the engine can change behind it.
+//! SkyeLab's dock: a center and a left, right and bottom dock, one tab group each, nothing dragged between them.
+//! [`DockArea`] is the engine (`area.rs`, `resize.rs`), `group.rs` draws a group through the renderer traits, and
+//! [`Skin`] is the look.
 
+mod area;
+mod group;
 mod handle;
+mod resize;
 mod skin;
 mod tabs;
 
 #[cfg(test)]
-mod dock_parity_test;
+mod dock_engine_parity_test;
+#[cfg(test)]
+mod dock_engine_resize_test;
+#[cfg(test)]
+mod dock_engine_test;
+#[cfg(test)]
+mod dock_redraw_test;
 #[cfg(test)]
 mod dock_skin_test;
 
-pub use gpui_base::dock::{
-    CLOSED_BOTTOM_STRIP, DockArea, DockAreaRenderer, DockContext, DockEvent, DockLayout,
-    DockPlacement, DropIndicator, NodeId, PaneRef, Panel as BasePanel, PanelEvent, PanelId,
-    PanelState, PanelView as BasePanelView, TabGroupContext, TabGroupRenderer,
-};
+pub use area::{DockArea, DockEvent, DockLayout};
+pub use group::{DockAreaRenderer, TabGroupContext, TabGroupRenderer};
+pub use resize::{CLOSED_BOTTOM_STRIP, DockContext, PANEL_MIN_SIZE};
 pub use skin::Skin;
 
 use super::PopupMenu;
 use gpui::{
-    AnyElement, AnyView, App, Context, Entity, FocusHandle, IntoElement, SharedString, WeakEntity,
-    Window,
+    AnyElement, AnyView, App, Axis, Context, Entity, EntityId, FocusHandle, Focusable, IntoElement,
+    Render, SharedString, Window,
 };
-use std::{any::Any, sync::Arc};
+use std::sync::Arc;
 
 gpui::actions!(
     skyelab_dock,
@@ -36,6 +43,39 @@ gpui::actions!(
     ]
 );
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DockPlacement {
+    Center,
+    Left,
+    Bottom,
+    Right,
+}
+
+impl DockPlacement {
+    pub fn axis(self) -> Axis {
+        match self {
+            Self::Bottom => Axis::Vertical,
+            _ => Axis::Horizontal,
+        }
+    }
+}
+
+/// A panel's identity: its entity's id.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct PanelId(u64);
+
+impl PanelId {
+    pub fn as_u64(self) -> u64 {
+        self.0
+    }
+}
+
+impl From<EntityId> for PanelId {
+    fn from(id: EntityId) -> Self {
+        Self(id.as_u64())
+    }
+}
+
 /// Where a panel offers zoom: the "…" menu's item, or that and a toolbar button.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum PanelControl {
@@ -44,7 +84,31 @@ pub enum PanelControl {
     Menu,
 }
 
-/// What a dock panel shows in its tab bar, on top of gpui-base's behavior trait.
+/// How a dock panel behaves.
+pub trait BasePanel: Render + Focusable {
+    fn panel_name(&self) -> &'static str;
+
+    /// Whether its tab may be closed; the group can still refuse (locked, zoomed, its last tab).
+    fn closable(&self, _: &App) -> bool {
+        true
+    }
+
+    fn zoomable(&self, _: &App) -> bool {
+        true
+    }
+
+    /// It became, or stopped being, its group's shown tab on screen: once per change, on the next tick. A removed
+    /// panel hears [`Self::on_removed`] instead.
+    fn set_active(&mut self, _active: bool, _: &mut Window, _: &mut Context<Self>) {}
+
+    /// Its group zoomed in or out while it was the shown tab.
+    fn set_zoomed(&mut self, _zoomed: bool, _: &mut Window, _: &mut Context<Self>) {}
+
+    /// It left the dock. A focus move made here is kept.
+    fn on_removed(&mut self, _: &mut Window, _: &mut Context<Self>) {}
+}
+
+/// What a dock panel shows in its tab bar.
 pub trait Panel: BasePanel {
     /// The tab's accessible name (the title's text); the panel name when `None`.
     fn tab_name(&self, _: &App) -> Option<SharedString> {
@@ -81,8 +145,17 @@ pub trait Panel: BasePanel {
     }
 }
 
-/// The object-safe side of [`Panel`], for the tab bar.
-trait PanelView: BasePanelView {
+/// The object-safe side of [`BasePanel`] and [`Panel`].
+pub trait PanelView: 'static + Send + Sync {
+    fn panel_name(&self, cx: &App) -> &'static str;
+    fn panel_id(&self, cx: &App) -> PanelId;
+    fn closable(&self, cx: &App) -> bool;
+    fn zoomable(&self, cx: &App) -> bool;
+    fn set_active(&self, active: bool, window: &mut Window, cx: &mut App);
+    fn set_zoomed(&self, zoomed: bool, window: &mut Window, cx: &mut App);
+    fn on_removed(&self, window: &mut Window, cx: &mut App);
+    fn view(&self) -> AnyView;
+    fn focus_handle(&self, cx: &App) -> FocusHandle;
     fn tab_name(&self, cx: &App) -> Option<SharedString>;
     fn title(&self, window: &mut Window, cx: &mut App) -> AnyElement;
     fn title_suffix(&self, window: &mut Window, cx: &mut App) -> Option<AnyElement>;
@@ -92,6 +165,33 @@ trait PanelView: BasePanelView {
 }
 
 impl<T: Panel> PanelView for Entity<T> {
+    fn panel_name(&self, cx: &App) -> &'static str {
+        self.read(cx).panel_name()
+    }
+    fn panel_id(&self, _: &App) -> PanelId {
+        self.entity_id().into()
+    }
+    fn closable(&self, cx: &App) -> bool {
+        self.read(cx).closable(cx)
+    }
+    fn zoomable(&self, cx: &App) -> bool {
+        self.read(cx).zoomable(cx)
+    }
+    fn set_active(&self, active: bool, window: &mut Window, cx: &mut App) {
+        self.update(cx, |p, cx| p.set_active(active, window, cx))
+    }
+    fn set_zoomed(&self, zoomed: bool, window: &mut Window, cx: &mut App) {
+        self.update(cx, |p, cx| p.set_zoomed(zoomed, window, cx))
+    }
+    fn on_removed(&self, window: &mut Window, cx: &mut App) {
+        self.update(cx, |p, cx| p.on_removed(window, cx))
+    }
+    fn view(&self) -> AnyView {
+        self.clone().into()
+    }
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        self.read(cx).focus_handle(cx)
+    }
     fn tab_name(&self, cx: &App) -> Option<SharedString> {
         self.read(cx).tab_name(cx)
     }
@@ -115,83 +215,13 @@ impl<T: Panel> PanelView for Entity<T> {
     }
 }
 
-/// The handle gpui-base holds for one of our panels. Concrete, so the skin gets our trait back from base's
-/// `Arc<dyn PanelView>` with an `Any` downcast ([`PanelHandle::of`]).
-#[derive(Clone)]
-struct PanelHandle(Arc<dyn PanelView>);
-
-impl PanelHandle {
-    fn of(panel: &Arc<dyn BasePanelView>) -> Option<&Self> {
-        panel.as_any().downcast_ref::<Self>()
-    }
-}
-
 /// Wraps `panel` for [`DockLayout::panel_view`] and [`DockArea::add_panel_view`].
-pub fn panel_handle<P: Panel>(panel: Entity<P>) -> Arc<dyn BasePanelView> {
-    Arc::new(PanelHandle(Arc::new(panel)))
+pub fn panel_handle<P: Panel>(panel: Entity<P>) -> Arc<dyn PanelView> {
+    Arc::new(panel)
 }
 
-impl BasePanelView for PanelHandle {
-    fn panel_name(&self, cx: &App) -> &'static str {
-        self.0.panel_name(cx)
-    }
-    fn panel_id(&self, cx: &App) -> PanelId {
-        self.0.panel_id(cx)
-    }
-    fn closable(&self, cx: &App) -> bool {
-        self.0.closable(cx)
-    }
-    fn zoomable(&self, cx: &App) -> bool {
-        self.0.zoomable(cx)
-    }
-    fn visible(&self, cx: &App) -> bool {
-        self.0.visible(cx)
-    }
-    fn set_active(&self, active: bool, window: &mut Window, cx: &mut App) {
-        self.0.set_active(active, window, cx)
-    }
-    fn set_zoomed(&self, zoomed: bool, window: &mut Window, cx: &mut App) {
-        self.0.set_zoomed(zoomed, window, cx)
-    }
-    fn on_added_to(
-        &self,
-        group: WeakEntity<gpui_base::dock::TabGroup>,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        self.0.on_added_to(group, window, cx)
-    }
-    fn on_removed(&self, window: &mut Window, cx: &mut App) {
-        self.0.on_removed(window, cx)
-    }
-    fn view(&self) -> AnyView {
-        self.0.view()
-    }
-    fn focus_handle(&self, cx: &App) -> FocusHandle {
-        self.0.focus_handle(cx)
-    }
-    fn dump(&self, cx: &App) -> PanelState {
-        self.0.dump(cx)
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-/// A panel's title, or its name for a panel base holds without our handle.
-fn panel_title(panel: &Arc<dyn BasePanelView>, window: &mut Window, cx: &mut App) -> AnyElement {
-    match PanelHandle::of(panel) {
-        Some(h) => h.0.title(window, cx),
-        None => SharedString::from(panel.panel_name(cx)).into_any_element(),
-    }
-}
-
-/// Where zoom goes for the group's shown panel: the panel must allow zooming at all (base refuses otherwise) and
-/// say where the control appears.
+/// Where zoom goes for the group's shown panel: it must allow zooming at all and say where the control appears.
 fn zoom_control(group: &TabGroupContext, cx: &App) -> Option<PanelControl> {
     let panel = group.active_panel()?;
-    panel
-        .zoomable(cx)
-        .then(|| PanelHandle::of(panel).and_then(|h| h.0.zoom_control(cx)))
-        .flatten()
+    panel.zoomable(cx).then(|| panel.zoom_control(cx)).flatten()
 }

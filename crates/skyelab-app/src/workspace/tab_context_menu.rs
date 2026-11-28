@@ -291,7 +291,7 @@ impl Workspace {
     /// Whether a right-panel tab can be closed (either directly closable, or an unsaved Preview that asks first).
     fn right_panel_can_close(
         &self,
-        panel: &std::sync::Arc<dyn crate::ui::dock::BasePanelView>,
+        panel: &std::sync::Arc<dyn crate::ui::dock::PanelView>,
         cx: &App,
     ) -> bool {
         panel.closable(cx) || self.unsaved_preview(panel.panel_id(cx), cx).is_some()

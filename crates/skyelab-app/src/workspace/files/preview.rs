@@ -7,7 +7,7 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
-use crate::ui::dock::{BasePanel, Panel, PanelEvent};
+use crate::ui::dock::{BasePanel, Panel};
 use crate::ui::{h_flex, v_flex};
 use crate::workspace::thread_find::{
     CloseFind, Find, FindInThread, FindNext, FindPrevious, find_bar, open_bar,
@@ -306,8 +306,6 @@ pub(in crate::workspace) fn image(full: &Path) -> anyhow::Result<Arc<gpui::Image
     };
     Ok(Arc::new(gpui::Image::from_bytes(format, bytes)))
 }
-
-impl EventEmitter<PanelEvent> for PreviewPanel {}
 impl EventEmitter<OpenInEditor> for PreviewPanel {}
 
 impl BasePanel for PreviewPanel {

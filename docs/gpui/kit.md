@@ -70,17 +70,26 @@ patching around it.
 
 ## Dock (`ui/dock/`)
 
-- Two layers. gpui-base's dock is the engine (layout tree, tab groups, dock sizes, zoom, open/closed state); our
-  `ui::dock::Skin` draws it (tab bars, the toolbar with zoom and the "…" menu, resize handles, the closed bottom
-  strip) through `DockAreaRenderer` / `TabGroupRenderer`. Stage 5b replaces the engine behind the same names, so the
-  app imports every dock name from `ui::dock`, never from gpui-base or gpui-component (`kit_boundaries_test`).
-- A panel implements gpui-base's `BasePanel` plus our `ui::dock::Panel` (`title`, `title_suffix`, `dropdown_menu`
-  on `ui::PopupMenu`, `zoom_control`, `title_bar`) and is installed with `ui::dock::panel_handle(entity)`; a panel
-  added without it draws its panel name and no menu items.
+- One entity, `ui::dock::DockArea`, for the one shape SkyeLab has: a center plus a left, right and bottom dock, one
+  tab group each, nothing dragged between them. `area.rs` holds panels, shown tabs, open docks, zoom and the lock;
+  `resize.rs` the sizes; `group.rs` draws the structure and has the renderer traits; `Skin` is the look. The app imports
+  every dock name from `ui::dock`, never from gpui-base or gpui-component (`kit_boundaries_test`). The resize
+  handle element is still gpui-base's (stage 5c).
+- A panel implements `BasePanel` (behavior) and `Panel` (`title`, `title_suffix`, `dropdown_menu` on
+  `ui::PopupMenu`, `zoom_control`, `title_bar`) and is installed with `ui::dock::panel_handle(entity)`.
+- `set_active` arrives on the next tick, net of everything one update did, because a native webview shown and hidden
+  in one update flashes. A removed panel hears `on_removed` instead, and a focus move made there is kept; otherwise
+  the focus follows to the tab that shows next. Only a tab click moves the focus: adding, selecting and toggling
+  never do, so an agent opening a browser tab can't take the keys from the composer.
+- A group gets its `TabGroupRenderer` once and keeps it, because it holds the tab bar's scroll: one made per render
+  snaps a wheeled bar back, one shared by groups scrolls their bars together.
+- Groups are drawn inline by one entity, so anything keyed by element id carries the group's placement
+  (`("tab-panel", placement)`), or two groups share a menu's open state.
 - The "…" menu's Zoom and Close are sent as `ToggleZoom` / `ClosePanel` from the shown panel's focus handle, so a
   panel's own handler (an unsaved preview) runs before the group's. A locked dock (the workspace's) offers no Close.
 - Sizes follow gpui-component's, so the app looks the same: the toolbar buttons are 1.25 rem (the app's rem is under
-  16 px, so a pixel size moves them), tabs 32 px. `dock_parity_test` draws both skins at a 14 px rem.
+  16 px, so a pixel size moves them), tabs 32 px. `dock_engine_parity_test` draws gpui-base's
+  engine under gpui-component's skin beside ours at a 14 px rem; stage 8 retires it with those crates.
 
 ## Small pieces (`ui/spinner.rs`, `ui/copy_button.rs`, `ui/status_bar.rs`, `ui/toast.rs`)
 
