@@ -332,40 +332,72 @@ fn our_status_bar_takes_the_same_room(cx: &mut TestAppContext) {
     same_bounds(cx, status_bars);
 }
 
-/// Where each child lands, not only the bar's size: one marked block per region.
+/// Where each child lands, in each layout: a marked block per region, at a fixed bar width.
 #[gpui::test]
 fn our_status_bar_places_each_region_alike(cx: &mut TestAppContext) {
-    fn mark(side: &'static str, what: &'static str, w: f32) -> gpui::Div {
-        block(w).debug_selector(move || sel(format!("{side}-{what}")).into())
+    fn mark(side: &str, case: usize, what: &str, w: f32) -> gpui::Div {
+        let name = sel(format!("{side}-{case}-{what}"));
+        block(w).debug_selector(move || name.into())
+    }
+    /// Layout `case`: 0 left + center + right, 1 left + center, 2 center only.
+    fn theirs(case: usize) -> AnyElement {
+        let bar = gpui_component::status_bar::StatusBar::new().w(px(500.));
+        let bar = if case < 2 {
+            bar.left(mark("theirs", case, "left", 40.))
+        } else {
+            bar
+        };
+        let bar = if case == 0 {
+            bar.right(mark("theirs", case, "right", 30.))
+        } else {
+            bar
+        };
+        bar.child(mark("theirs", case, "center", 50.))
+            .into_any_element()
+    }
+    fn ours(case: usize) -> AnyElement {
+        let bar = StatusBar::new().w(px(500.));
+        let bar = if case < 2 {
+            bar.left(mark("ours", case, "left", 40.))
+        } else {
+            bar
+        };
+        let bar = if case == 0 {
+            bar.right(mark("ours", case, "right", 30.))
+        } else {
+            bar
+        };
+        bar.child(mark("ours", case, "center", 50.))
+            .into_any_element()
     }
     fn bars() -> Vec<(&'static str, AnyElement, AnyElement)> {
-        vec![(
-            "marked",
-            gpui_component::status_bar::StatusBar::new()
-                .w(px(500.))
-                .left(mark("theirs", "left", 40.))
-                .right(mark("theirs", "right", 30.))
-                .child(mark("theirs", "center", 50.))
-                .into_any_element(),
-            StatusBar::new()
-                .w(px(500.))
-                .left(mark("ours", "left", 40.))
-                .right(mark("ours", "right", 30.))
-                .child(mark("ours", "center", 50.))
-                .into_any_element(),
-        )]
+        (0..3).map(|c| ("marked", theirs(c), ours(c))).collect()
     }
     super::button_test::setup(cx);
     let (_, cx) = cx.add_window_view(|_, _| Pairs(bars));
     cx.run_until_parked();
-    let t0 = cx.debug_bounds("theirs-0").expect("drawn").origin;
-    let o0 = cx.debug_bounds("ours-0").expect("drawn").origin;
-    for what in ["left", "center", "right"] {
-        let t = cx
-            .debug_bounds(sel(format!("theirs-{what}")))
-            .expect("drawn");
-        let o = cx.debug_bounds(sel(format!("ours-{what}"))).expect("drawn");
-        assert_eq!(t.origin - t0, o.origin - o0, "{what}");
+    for (case, regions) in [
+        (0, &["left", "center", "right"][..]),
+        (1, &["left", "center"][..]),
+        (2, &["center"][..]),
+    ] {
+        let t0 = cx
+            .debug_bounds(sel(format!("theirs-{case}")))
+            .expect("drawn")
+            .origin;
+        let o0 = cx
+            .debug_bounds(sel(format!("ours-{case}")))
+            .expect("drawn")
+            .origin;
+        for what in regions {
+            let t = cx
+                .debug_bounds(sel(format!("theirs-{case}-{what}")))
+                .expect("drawn");
+            let o = cx
+                .debug_bounds(sel(format!("ours-{case}-{what}")))
+                .expect("drawn");
+            assert_eq!(t.origin - t0, o.origin - o0, "layout {case}, {what}");
+        }
     }
 }
 
