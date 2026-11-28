@@ -162,43 +162,12 @@ fn diff(
     })
 }
 
-/// The whole change as a unified patch for View all (gpui-component's diff viewer): a Write as a new file, each
-/// edit as its own section. `None` unless the card shows it as a diff, so the same checks cover every line.
-pub(super) fn patch(a: &ApprovalItem) -> Option<String> {
-    let Detail::Diff(p) = detail(a, usize::MAX) else {
-        return None;
-    };
-    let path = &a.summary;
-    let mut out = String::new();
-    let mut starts = std::iter::once(0)
-        .chain(p.breaks.iter().copied())
-        .peekable();
-    while let Some(start) = starts.next() {
-        let end = starts.peek().copied().unwrap_or(p.lines.len());
-        let part = &p.lines[start..end];
-        if part.is_empty() {
-            continue;
-        }
-        let old = part.iter().filter(|l| l.0.is_some()).count();
-        let new = part.iter().filter(|l| l.1.is_some()).count();
-        let from = if a.tool == "Write" { "/dev/null" } else { path };
-        out += &format!(
-            "--- {from}\n+++ {path}\n@@ -{},{old} +{},{new} @@\n",
-            usize::from(old > 0),
-            usize::from(new > 0)
-        );
-        for (_, _, kind, text) in part {
-            let sign = match kind {
-                LineKind::Context => ' ',
-                LineKind::Added => '+',
-                LineKind::Removed => '-',
-            };
-            out.push(sign);
-            out += text;
-            out.push('\n');
-        }
+/// The whole change for View all. `None` unless the card shows it as a diff, so the same checks cover every line.
+pub(super) fn whole(a: &ApprovalItem) -> Option<Preview> {
+    match detail(a, usize::MAX) {
+        Detail::Diff(p) => Some(p),
+        _ => None,
     }
-    Some(out)
 }
 
 #[cfg(test)]

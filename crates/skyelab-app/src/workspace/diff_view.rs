@@ -72,6 +72,31 @@ pub(super) fn rows(kinds: &[LineKind], open: impl Fn(usize) -> bool) -> Vec<Row>
     out
 }
 
+/// Syntax spans for a diff's lines. Each side is parsed in order (old: context and removed; new: context and added),
+/// so a docstring or block comment colors through, and each line takes its own side's spans.
+pub(super) fn spans<'a>(
+    lines: impl Iterator<Item = (LineKind, &'a str)> + Clone,
+    language: &str,
+) -> Vec<Spans> {
+    let side = |skip: LineKind| {
+        let text = lines.clone().filter(|l| l.0 != skip).map(|l| l.1);
+        syntax::highlight(language, text).into_iter()
+    };
+    let (mut old, mut new) = (side(LineKind::Added), side(LineKind::Removed));
+    lines
+        .map(|(kind, _)| {
+            let old = (kind != LineKind::Added).then(|| old.next()).flatten();
+            let new = (kind != LineKind::Removed).then(|| new.next()).flatten();
+            if kind == LineKind::Removed { old } else { new }.unwrap_or_default()
+        })
+        .collect()
+}
+
+/// The gutter's width when `widest` is its largest line number.
+pub(super) fn gutter_width(widest: u32) -> Pixels {
+    px(16. + 7.5 * widest.to_string().len() as f32)
+}
+
 /// A diff ready to draw: its lines, each line's syntax spans, its counts and its rows with every run folded.
 pub(super) struct Prepared {
     pub(super) lines: Vec<(Option<u32>, Option<u32>, LineKind, SharedString)>,
@@ -85,21 +110,7 @@ pub(super) struct Prepared {
 
 impl Prepared {
     fn new(lines: Vec<Line>, language: &str) -> Self {
-        // Each side parsed in order (old: context and removed; new: context and added), so a docstring or block
-        // comment colors through, and each line takes its own side's spans.
-        let side = |skip: LineKind| {
-            let text = lines.iter().filter(|l| l.2 != skip).map(|l| l.3.as_str());
-            syntax::highlight(language, text).into_iter()
-        };
-        let (mut old, mut new) = (side(LineKind::Added), side(LineKind::Removed));
-        let spans = lines
-            .iter()
-            .map(|l| {
-                let old = (l.2 != LineKind::Added).then(|| old.next()).flatten();
-                let new = (l.2 != LineKind::Removed).then(|| new.next()).flatten();
-                if l.2 == LineKind::Removed { old } else { new }.unwrap_or_default()
-            })
-            .collect();
+        let spans = spans(lines.iter().map(|l| (l.2, l.3.as_str())), language);
         let count = |k| lines.iter().filter(|l| l.2 == k).count();
         let widest = lines.iter().filter_map(|l| l.1.or(l.0)).max().unwrap_or(1);
         let kinds: Vec<LineKind> = lines.iter().map(|l| l.2).collect();
@@ -107,7 +118,7 @@ impl Prepared {
             added: count(LineKind::Added),
             removed: count(LineKind::Removed),
             folded: Rc::new(rows(&kinds, |_| false)),
-            gutter: px(16. + 7.5 * widest.to_string().len() as f32),
+            gutter: gutter_width(widest),
             spans,
             lines: lines
                 .into_iter()
@@ -175,11 +186,47 @@ pub(in crate::workspace) fn colors(kind: LineKind, theme: &Theme) -> Option<(Hsl
 /// Line `ix` of `p` as a row; `wrap` lets a long line wrap under itself instead of clipping.
 pub(super) fn line_row(p: &Prepared, ix: usize, wrap: bool, theme: &Theme) -> gpui::Div {
     let (old, new, kind, text) = &p.lines[ix];
-    let tint = colors(*kind, theme);
+    let runs = syntax_runs(&p.spans[ix], theme);
+    row_frame(new.or(*old), *kind, p.gutter, theme).child(
+        div()
+            .flex_1()
+            .min_w_0()
+            .text_color(theme.foreground)
+            .map(|d| {
+                if wrap {
+                    d.whitespace_normal()
+                } else {
+                    d.whitespace_nowrap().overflow_hidden()
+                }
+            })
+            .child(StyledText::new(text.clone()).with_highlights(runs)),
+    )
+}
+
+/// A line's spans as the theme colors them.
+pub(super) fn syntax_runs<'a>(
+    spans: &'a Spans,
+    theme: &'a Theme,
+) -> impl Iterator<Item = (std::ops::Range<usize>, gpui::HighlightStyle)> + 'a {
     let styles = &theme.highlight_theme;
-    let runs = p.spans[ix]
+    spans
         .iter()
-        .filter_map(|(r, name)| Some((r.clone(), styles.style(name)?)));
+        .filter_map(|(r, name)| Some((r.clone(), styles.style(name)?)))
+}
+
+/// The line between a MultiEdit's edits.
+pub(super) fn break_line(theme: &Theme) -> gpui::Div {
+    div().h(px(1.)).w_full().bg(theme.border)
+}
+
+/// A row without its code: the tint, the gutter with its bar and `number`, the sign. The code is the next child.
+pub(super) fn row_frame(
+    number: Option<u32>,
+    kind: LineKind,
+    gutter: Pixels,
+    theme: &Theme,
+) -> gpui::Div {
+    let tint = colors(kind, theme);
     let sign = match kind {
         LineKind::Context => " ",
         LineKind::Added => "+",
@@ -197,7 +244,7 @@ pub(super) fn line_row(p: &Prepared, ix: usize, wrap: bool, theme: &Theme) -> gp
         .when_some(tint, |d, t| d.bg(t.0))
         .child(
             div()
-                .w(p.gutter)
+                .w(gutter)
                 .flex_none()
                 .min_h(px(ROW_H))
                 .pr_2()
@@ -206,7 +253,7 @@ pub(super) fn line_row(p: &Prepared, ix: usize, wrap: bool, theme: &Theme) -> gp
                 .border_color(tint.map_or(gpui::transparent_black(), |t| t.2))
                 .when_some(tint, |d, t| d.bg(t.1))
                 .text_color(tint.map_or(theme.muted_foreground.opacity(0.7), |t| t.2))
-                .child(new.or(*old).map(|n| n.to_string()).unwrap_or_default()),
+                .child(number.map(|n| n.to_string()).unwrap_or_default()),
         )
         .child(
             div()
@@ -215,20 +262,6 @@ pub(super) fn line_row(p: &Prepared, ix: usize, wrap: bool, theme: &Theme) -> gp
                 .text_center()
                 .text_color(tint.map_or(theme.muted_foreground, |t| t.2))
                 .child(sign),
-        )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .text_color(theme.foreground)
-                .map(|d| {
-                    if wrap {
-                        d.whitespace_normal()
-                    } else {
-                        d.whitespace_nowrap().overflow_hidden()
-                    }
-                })
-                .child(StyledText::new(text.clone()).with_highlights(runs)),
         )
 }
 
@@ -245,6 +278,13 @@ pub(super) fn all_key(id: &str) -> String {
 #[cfg(test)]
 thread_local! {
     static ROWS_BUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    pub(super) static VIEWER_ROWS_BUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many rows `DiffViewer` has built on this thread.
+#[cfg(test)]
+pub(super) fn viewer_rows_built() -> usize {
+    VIEWER_ROWS_BUILT.with(|n| n.get())
 }
 
 /// How many diff rows have been built on this thread, so tests can check only visible ones are.
