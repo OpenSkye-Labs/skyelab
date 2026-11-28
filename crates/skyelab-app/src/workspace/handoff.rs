@@ -299,7 +299,7 @@ fn ask_bind(
             .w(gpui::px(440.))
             .title(format!("Bind this folder to a {to} account"))
             .child(
-                gpui_component::v_flex()
+                crate::ui::v_flex()
                     .gap_2()
                     .child(body.clone())
                     .children(picks),

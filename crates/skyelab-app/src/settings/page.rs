@@ -4,7 +4,8 @@
 use super::*;
 use crate::ui::A11yScrollArea as _;
 use crate::ui::SkyeIcon;
-use gpui_component::{FocusTrapElement as _, Icon, h_flex, v_flex};
+use crate::ui::{Icon, h_flex, v_flex};
+use gpui_component::FocusTrapElement as _;
 
 /// A Settings section, picked in the nav (T3's settings routes).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

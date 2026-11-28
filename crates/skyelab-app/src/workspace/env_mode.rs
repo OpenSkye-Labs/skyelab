@@ -12,11 +12,11 @@ use super::remote_thread::{RemoteThreadEvent, RemoteThreadView};
 use crate::environment::{EnvEvent, RemoteEnv};
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::h_flex;
 use gpui::{
     Action, AnimationExt as _, App, AppContext as _, Context, Entity, InteractiveElement as _,
     IntoElement, SharedString, Stateful, Subscription, Task, Window, actions, div, prelude::*, px,
 };
-use gpui_component::h_flex;
 use skyelab_client::{Options, is_magicdns_name};
 use skyelab_core::AppSettings;
 use skyelab_daemon::SharedTailnet;

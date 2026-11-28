@@ -8,12 +8,13 @@ use super::{SharedStore, Workspace};
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, Checkbox, TextField};
+use crate::ui::{h_flex, v_flex};
 use anyhow::{Context as _, Result, bail};
 use gpui::{
     Action, AppContext as _, Context, Entity, FontWeight, SharedString, Task, WeakEntity, Window,
     div, prelude::*, px,
 };
-use gpui_component::{h_flex, input::InputState, v_flex};
+use gpui_component::input::InputState;
 use skyelab_core::{Account, AccountsConfig};
 use skyelab_store::ProjectScript;
 use skyelab_terminal::SpawnOptions;
@@ -333,7 +334,7 @@ impl Render for ScriptMenu {
                     Button::new(("run-script", s.id as u64))
                         .ghost()
                         .xsmall()
-                        .icon(gpui_component::Icon::new(crate::ui::SkyeIcon::Play))
+                        .icon(crate::ui::Icon::new(crate::ui::SkyeIcon::Play))
                         .label(s.name.clone())
                         .on_click(cx.listener(move |this, _, _, cx| this.run(run.clone(), cx))),
                 )
@@ -359,7 +360,7 @@ impl Render for ScriptMenu {
                     Button::new(("remove-script", s.id as u64))
                         .ghost()
                         .xsmall()
-                        .icon(gpui_component::Icon::new(crate::ui::SkyeIcon::Trash))
+                        .icon(crate::ui::Icon::new(crate::ui::SkyeIcon::Trash))
                         .tooltip("Remove script")
                         .on_click(cx.listener(move |this, _, _, cx| this.remove(id, cx))),
                 )

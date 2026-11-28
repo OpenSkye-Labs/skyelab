@@ -5,8 +5,8 @@ use super::super::thread_items::ItemsView;
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::h_flex;
 use gpui::{AnyElement, App, Context, SharedString, Window, prelude::*, px};
-use gpui_component::h_flex;
 
 /// Under a card whose page was refused hosts: which ones, each with Allow. The page named them, so they are only
 /// offered: Allow asks first ([`confirm_allow`]), and nothing is added without the user's click there.

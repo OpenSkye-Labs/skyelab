@@ -5,8 +5,8 @@ use super::{Settings, SettingsEvent, widgets};
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, Kbd, TextField};
+use crate::ui::{h_flex, v_flex};
 use gpui::{AnyElement, App, AsKeystroke as _, Context, Keystroke, SharedString, div, prelude::*};
-use gpui_component::{h_flex, v_flex};
 
 /// One action's row.
 pub(super) struct KeyRow {

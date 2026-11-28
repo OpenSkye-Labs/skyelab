@@ -8,6 +8,7 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex, v_flex};
 use crate::updates::{Step, UpdateStatus, Updates};
 use gpui::Anchor;
 use gpui::prelude::FluentBuilder as _;
@@ -15,8 +16,8 @@ use gpui::{
     AnyElement, App, EntityId, InteractiveElement as _, IntoElement, ParentElement as _, Pixels,
     RenderOnce, StatefulInteractiveElement as _, Styled as _, Window, div, px, relative,
 };
+use gpui_component::Selectable;
 use gpui_component::popover::Popover;
-use gpui_component::{Icon, Selectable, h_flex, v_flex};
 use std::cell::Cell;
 use std::rc::Rc;
 

@@ -9,15 +9,12 @@ use super::thread_model::{Record, apply, stamp_done};
 use crate::environment::{ConnState, EnvEvent, RemoteEnv};
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::{h_flex, v_flex};
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
     IntoElement, ListState, SharedString, Subscription, Window, actions, div, list, prelude::*, px,
 };
-use gpui_component::{
-    h_flex,
-    input::{InputEvent, Textarea, TextareaState},
-    v_flex,
-};
+use gpui_component::input::{InputEvent, Textarea, TextareaState};
 use skyelab_client::{Client, Pending, Thread, ThreadEvent, WatchId};
 use std::collections::HashSet;
 use std::rc::Rc;

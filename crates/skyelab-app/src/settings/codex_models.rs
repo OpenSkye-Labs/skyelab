@@ -5,8 +5,8 @@
 use super::Settings;
 use super::project_scope::Pick;
 use crate::ui::TextField;
+use crate::ui::h_flex;
 use gpui::{AnyElement, App, Context, Global, div, prelude::*};
-use gpui_component::h_flex;
 use skyelab_agent::ModelInfo;
 use skyelab_core::Provider;
 use skyelab_core::thread_defaults::ThreadField;

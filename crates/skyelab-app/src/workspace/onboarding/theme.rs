@@ -6,8 +6,8 @@ use super::pages::caption;
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Divider;
+use crate::ui::{h_flex, v_flex};
 use gpui::{AnyElement, Context, Div, FontWeight, Hsla, ParentElement as _, div, prelude::*, px};
-use gpui_component::{h_flex, v_flex};
 use skyelab_core::ColorMode;
 
 /// A picker tile's preview.

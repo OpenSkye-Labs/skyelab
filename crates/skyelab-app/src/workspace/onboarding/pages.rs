@@ -8,11 +8,11 @@ use crate::ui;
 use crate::ui::A11yScrollArea as _;
 use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, Card, Divider, Kbd, SkyeIcon};
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     AnyElement, Context, Div, FontWeight, Hsla, ParentElement as _, Pixels, SharedString, Window,
     div, linear_color_stop, linear_gradient, prelude::*, px,
 };
-use gpui_component::{Icon, h_flex, v_flex};
 
 /// Width of a dot, and of the current step's.
 const DOT: f32 = 6.;

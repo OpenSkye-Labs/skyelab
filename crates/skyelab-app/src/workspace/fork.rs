@@ -3,11 +3,11 @@
 //! built from that history (stored on the row until the session reports its id).
 
 use crate::ui::Button;
+use crate::ui::Icon;
 use crate::workspace::thread_model::{Item, Record, apply};
 use crate::workspace::{OpenThread, Workspace, lock};
 use anyhow::{Context as _, bail};
 use gpui::{Action, AnyElement, AppContext as _, Context, SharedString, Window, div, prelude::*};
-use gpui_component::Icon;
 use skyelab_agent::Event;
 use skyelab_agent::handoff::{self, quoted};
 use skyelab_store::NewThread;

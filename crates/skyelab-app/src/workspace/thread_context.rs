@@ -4,9 +4,9 @@
 use super::ThreadView;
 use crate::ui;
 use crate::ui::{ActiveTheme as _, Theme};
+use crate::ui::{h_flex, v_flex};
 use crate::workspace::thread_model::Record;
 use gpui::{AnyElement, App, FontWeight, prelude::*, px};
-use gpui_component::{h_flex, v_flex};
 use skyelab_agent::Event;
 use skyelab_core::context;
 

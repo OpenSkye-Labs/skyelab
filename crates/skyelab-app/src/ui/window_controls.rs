@@ -4,12 +4,13 @@
 //! T3's Electron build does the same with `titleBarOverlay`.
 
 use super::HEADER_H;
+use super::SkyeIcon;
 use crate::ui::ActiveTheme as _;
+use crate::ui::{Icon, h_flex};
 use gpui::{
     App, InteractiveElement, IntoElement, ParentElement as _, Pixels, RenderOnce, Styled as _,
     Window, WindowControlArea, div, prelude::*, px,
 };
-use gpui_component::{Icon, IconName, Sizable as _, h_flex};
 use std::sync::LazyLock;
 
 /// One caption button: Windows 11's 46 px wide, 32 px tall.
@@ -62,7 +63,7 @@ impl RenderOnce for WindowControls {
         let (fg, hover) = (theme.foreground, theme.accent);
         // Windows' own close hover: red with white.
         let close_bg = gpui::rgb(0xc42b1c);
-        let button = |id: &'static str, icon: IconName, area: WindowControlArea| {
+        let button = |id: &'static str, icon: SkyeIcon, area: WindowControlArea| {
             let close = matches!(area, WindowControlArea::Close);
             div()
                 .id(id)
@@ -77,7 +78,7 @@ impl RenderOnce for WindowControls {
                 })
                 .when(!close, |b| b.hover(move |s| s.bg(hover)))
                 .window_control_area(area)
-                .child(Icon::new(icon).small())
+                .child(Icon::new(icon).size_3p5())
         };
         h_flex()
             .id("window-controls")
@@ -89,21 +90,21 @@ impl RenderOnce for WindowControls {
             .occlude()
             .child(button(
                 "window-min",
-                IconName::WindowMinimize,
+                SkyeIcon::WindowMinimize,
                 WindowControlArea::Min,
             ))
             .child(button(
                 "window-max",
                 if window.is_maximized() {
-                    IconName::WindowRestore
+                    SkyeIcon::WindowRestore
                 } else {
-                    IconName::WindowMaximize
+                    SkyeIcon::WindowMaximize
                 },
                 WindowControlArea::Max,
             ))
             .child(button(
                 "window-close",
-                IconName::WindowClose,
+                SkyeIcon::WindowClose,
                 WindowControlArea::Close,
             ))
             .into_any_element()

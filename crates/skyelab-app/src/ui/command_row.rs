@@ -4,11 +4,11 @@
 
 use super::{BODY, Kbd, META, SkyeIcon};
 use crate::ui::ActiveTheme as _;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     App, FontWeight, HighlightStyle, IntoElement, ParentElement as _, RenderOnce, SharedString,
     Styled as _, StyledText, Window, div, prelude::*, px,
 };
-use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 use std::ops::Range;
 
 #[derive(IntoElement)]
@@ -88,7 +88,7 @@ impl RenderOnce for CommandRow {
                 .when(on, |b| {
                     b.bg(theme.primary).child(
                         Icon::new(SkyeIcon::Check)
-                            .xsmall()
+                            .size_3()
                             .text_color(theme.primary_foreground),
                     )
                 })

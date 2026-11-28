@@ -11,11 +11,11 @@ use crate::ui::A11yScrollArea as _;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
 };
 use gpui_component::diff::{Diff, DiffFile, DiffState};
-use gpui_component::{Icon, h_flex, v_flex};
 use skyelab_agent::Decision;
 
 /// How tall an approval's diff or JSON gets before it scrolls (T3's `max-h-40`), so the answers stay in view.

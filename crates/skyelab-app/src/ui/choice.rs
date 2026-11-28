@@ -4,11 +4,11 @@
 
 use super::{META, Size, SkyeIcon};
 use crate::ui::ActiveTheme as _;
+use crate::ui::{Icon, h_flex};
 use gpui::{
     App, ElementId, FontWeight, IntoElement, ParentElement as _, RenderOnce, SharedString,
     Styled as _, Window, accesskit, div, prelude::*, px,
 };
-use gpui_component::{Icon, h_flex};
 use std::rc::Rc;
 
 type OnPick = Rc<dyn Fn(&usize, &mut Window, &mut App)>;

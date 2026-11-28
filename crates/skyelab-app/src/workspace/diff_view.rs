@@ -8,11 +8,11 @@ use crate::ui;
 use crate::ui::SkyeIcon;
 use crate::ui::syntax::{self, Spans};
 use crate::ui::{ActiveTheme as _, Theme};
+use crate::ui::{Icon, h_flex};
 use gpui::{
     AnyElement, App, Context, Hsla, Pixels, SharedString, StyledText, div, prelude::*, px,
     uniform_list,
 };
-use gpui_component::{Icon, h_flex};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;

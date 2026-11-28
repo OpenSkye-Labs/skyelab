@@ -4,10 +4,10 @@
 use super::ChangesView;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex};
 use crate::workspace::changes_model::Row;
 use crate::workspace::thread_find::{CloseFind, Find, FindNext, FindPrevious, find_bar, open_bar};
 use gpui::{AnyElement, App, Context, KeyBinding, Window, actions, prelude::*};
-use gpui_component::{Icon, h_flex};
 use skyelab_core::DiffSettings;
 
 actions!(skyelab, [FindInChanges]);

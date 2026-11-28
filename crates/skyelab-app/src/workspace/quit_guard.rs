@@ -9,9 +9,9 @@
 use super::panels::Ask;
 use super::windows::{Windows, window_handles};
 use crate::ui::ActiveTheme as _;
+use crate::ui::v_flex;
 use crate::ui::{Button, Checkbox};
 use gpui::{AnyWindowHandle, App, Global, SharedString, Window, prelude::*};
-use gpui_component::v_flex;
 use skyelab_core::AppSettings;
 use std::cell::Cell;
 use std::path::PathBuf;

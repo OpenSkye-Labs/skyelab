@@ -8,13 +8,13 @@ use crate::ui;
 use crate::ui::A11yScrollArea as _;
 use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, Checkbox};
+use crate::ui::{h_flex, v_flex};
 use anyhow::{Context as _, Result, bail};
 use gpui::{
     App, AppContext as _, Context, InteractiveElement as _, IntoElement, ParentElement as _,
     Render, SharedString, StatefulInteractiveElement as _, Styled as _, WeakEntity, Window,
     actions, div, prelude::FluentBuilder as _,
 };
-use gpui_component::{h_flex, v_flex};
 use skyelab_agent::import::{self, Entry, MAX_TRANSCRIPT_BYTES, Transcript};
 use skyelab_core::{Account, AccountsConfig};
 use skyelab_store::{NewThread, Project, Thread};

@@ -6,8 +6,8 @@ use super::Remote;
 use crate::ui;
 use crate::ui::Button;
 use crate::ui::Theme;
+use crate::ui::v_flex;
 use gpui::{Action, AnyElement, SharedString, div, prelude::*};
-use gpui_component::v_flex;
 use skyelab_daemon::DelegationRequest;
 
 /// A refused caller: (origin node, device key hash, its account there).

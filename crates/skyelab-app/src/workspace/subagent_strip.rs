@@ -10,8 +10,8 @@ use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::{self, Status};
+use crate::ui::{Icon, h_flex};
 use gpui::{Action, AnyElement, Context, SharedString, Window, div, prelude::*};
-use gpui_component::{Icon, h_flex};
 
 /// Stops thread `id`'s running children: each delegated thread open in any window, and its turn when in-turn
 /// subagents run.

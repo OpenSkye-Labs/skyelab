@@ -8,13 +8,13 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex};
 use futures::StreamExt as _;
 use futures::channel::mpsc::UnboundedSender;
 use gpui::{
     AnyElement, App, Context, Global, InteractiveElement as _, KeyBinding, Task, Window, actions,
     div, prelude::*, px,
 };
-use gpui_component::{Icon, h_flex};
 use skyelab_core::dictation::{Edit, Phase};
 use skyelab_speech_sys::{Capability, Event, Refusal};
 use std::rc::Rc;

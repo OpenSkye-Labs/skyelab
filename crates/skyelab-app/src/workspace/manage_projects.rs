@@ -6,11 +6,9 @@ use super::thread::ThreadView;
 use crate::ui;
 use crate::ui::Button;
 use crate::ui::TextField;
+use crate::ui::v_flex;
 use gpui::{AppContext as _, Context, Entity, ParentElement as _, Window};
-use gpui_component::{
-    input::{InputEvent, InputState},
-    v_flex,
-};
+use gpui_component::input::{InputEvent, InputState};
 
 impl Workspace {
     pub(super) fn manage_project(

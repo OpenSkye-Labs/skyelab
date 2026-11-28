@@ -6,8 +6,8 @@ use super::*;
 use crate::ui;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{AnyElement, px};
-use gpui_component::{Icon, h_flex, v_flex};
 
 /// An id made from a name: lowercase letters, digits and dashes ("Acme Team" → `acme-team`).
 pub(super) fn slug(name: &str) -> String {

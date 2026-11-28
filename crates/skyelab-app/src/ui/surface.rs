@@ -3,11 +3,11 @@
 
 use super::RADIUS_LG;
 use crate::ui::ActiveTheme as _;
+use crate::ui::v_flex;
 use gpui::{
     AnyElement, App, IntoElement, ParentElement, RenderOnce, StyleRefinement, Styled, Window, div,
     prelude::*, px,
 };
-use gpui_component::v_flex;
 
 #[derive(IntoElement, Default)]
 pub struct Card {

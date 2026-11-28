@@ -10,8 +10,8 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::v_flex;
 use gpui::{AnyElement, App, AppContext as _, Context, SharedString, div, prelude::*};
-use gpui_component::v_flex;
 use skyelab_git::Checks;
 
 impl ThreadView {

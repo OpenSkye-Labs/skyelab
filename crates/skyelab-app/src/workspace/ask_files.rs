@@ -4,8 +4,8 @@ use super::thread_items::ItemsView;
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::{Icon, h_flex};
 use gpui::{Context, IntoElement, SharedString, div, prelude::*, px};
-use gpui_component::{Icon, Sizable as _, h_flex};
 
 /// Question `qi`'s attached files as chips, and Attach files.
 pub(super) fn answer_files<V: ItemsView>(
@@ -33,7 +33,7 @@ pub(super) fn answer_files<V: ItemsView>(
             .text_size(ui::META)
             .child(
                 Icon::new(crate::ui::SkyeIcon::File)
-                    .xsmall()
+                    .size_3()
                     .text_color(theme.muted_foreground),
             )
             .child(div().min_w_0().truncate().child(name))

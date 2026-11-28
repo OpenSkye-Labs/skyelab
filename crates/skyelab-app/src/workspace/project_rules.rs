@@ -4,13 +4,14 @@
 
 use super::{ThreadView, lock};
 use crate::ui::ActiveTheme as _;
+use crate::ui::v_flex;
 use crate::ui::{self, Button, SegmentedControl, TextField};
 use anyhow::Context as _;
 use gpui::{
     AppContext as _, Context, Entity, IntoElement, Render, SharedString, WeakEntity, Window, div,
     prelude::*, px,
 };
-use gpui_component::{input::InputState, v_flex};
+use gpui_component::input::InputState;
 use serde_json::Value;
 use skyelab_agent::Mode;
 use skyelab_core::project_rules::{self as rules, Kind, Rule};
@@ -306,7 +307,7 @@ impl Render for RuleDialog {
                 };
                 v_flex()
                     .gap_2()
-                    .child(gpui_component::h_flex().child(pick))
+                    .child(crate::ui::h_flex().child(pick))
                     .child(shown)
                     .child(div().text_size(ui::META).text_color(muted).child(note))
             }

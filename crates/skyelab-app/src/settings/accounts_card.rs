@@ -4,7 +4,7 @@ use super::widgets::path_line;
 use super::*;
 use crate::ui;
 use crate::ui::SkyeIcon;
-use gpui_component::{Icon, h_flex, v_flex};
+use crate::ui::{Icon, h_flex, v_flex};
 
 impl Settings {
     pub(super) fn render_card(&self, a: &Account, cx: &mut Context<Self>) -> gpui::AnyElement {

@@ -6,11 +6,11 @@ use super::timeline_text::count;
 use super::usage_page::{Metric, UsagePage, UsageView};
 use crate::ui;
 use crate::ui::{ActiveTheme as _, Theme};
+use crate::ui::{h_flex, v_flex};
 use gpui::{
     AnyElement, Context, FontWeight, Hsla, IntoElement, Render, SharedString, Window, div,
     prelude::*, px,
 };
-use gpui_component::{h_flex, v_flex};
 use skyelab_store::usage::{Range, Spend};
 
 const CHART_H: f32 = 140.;

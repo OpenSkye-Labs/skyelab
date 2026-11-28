@@ -92,7 +92,7 @@ impl Render for Workspace {
             .bg(theme.background)
             .text_color(theme.foreground)
             .child(
-                gpui_component::h_flex()
+                crate::ui::h_flex()
                     .flex_1()
                     .min_h_0()
                     .w_full()

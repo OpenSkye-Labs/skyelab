@@ -6,13 +6,13 @@
 
 use super::{Button, HEADER_H, META, RADIUS_LG, SkyeIcon, icon_button, motion};
 use crate::ui::ActiveTheme as _;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     Animation, AnimationExt as _, App, AppContext as _, Context, Entity, FontWeight, Global, Hsla,
     InteractiveElement as _, IntoElement, ParentElement as _, Pixels, Render, SharedString,
     StatefulInteractiveElement as _, Styled as _, Task, Window, WindowId, deferred, div,
     prelude::FluentBuilder as _, px,
 };
-use gpui_component::{Icon, h_flex, v_flex};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;

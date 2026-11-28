@@ -6,14 +6,12 @@
 
 use super::Size;
 use crate::ui::ActiveTheme as _;
+use crate::ui::h_flex;
 use gpui::{
     AnyElement, App, Entity, Focusable as _, IntoElement, ParentElement as _, RenderOnce,
     SharedString, Styled as _, Window, prelude::*,
 };
-use gpui_component::{
-    h_flex,
-    input::{Input, InputState},
-};
+use gpui_component::input::{Input, InputState};
 
 #[derive(IntoElement)]
 pub struct TextField {

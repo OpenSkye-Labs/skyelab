@@ -5,11 +5,9 @@
 
 use crate::ui::ActiveTheme as _;
 use crate::ui::{self, SkyeIcon};
+use crate::ui::{Icon, h_flex};
 use gpui::{AnyElement, App, Entity, FontWeight, IntoElement, Styled as _, div, prelude::*, px};
-use gpui_component::{
-    Icon, h_flex,
-    input::{InlineToken, InlineTokenContext, InputContent, TextareaState},
-};
+use gpui_component::input::{InlineToken, InlineTokenContext, InputContent, TextareaState};
 use skyelab_core::Provider;
 use std::ops::Range;
 

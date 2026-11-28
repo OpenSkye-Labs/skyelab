@@ -9,12 +9,12 @@ use super::thread_model::ApprovalItem;
 use crate::ui::A11yScrollArea as _;
 use crate::ui::ActiveTheme as _;
 use crate::ui::{self, Kbd, SkyeIcon, icon_button};
+use crate::ui::{h_flex, v_flex};
 use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement as _, ParentElement as _,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
     prelude::FluentBuilder as _, px,
 };
-use gpui_component::{h_flex, v_flex};
 use skyelab_agent::Decision;
 
 const ANSWER_HINT: &str = "Type your own answer, or leave this blank to use the selected option";
@@ -271,7 +271,7 @@ impl ThreadView {
                 )
             })
             .child(
-                gpui_component::Icon::new(if collapsed {
+                crate::ui::Icon::new(if collapsed {
                     SkyeIcon::ChevronUp
                 } else {
                     SkyeIcon::ChevronDown
@@ -449,7 +449,7 @@ pub(super) fn option_mark(on: bool, multi: bool, theme: &crate::ui::Theme) -> gp
     if multi {
         base.rounded(ui::RADIUS_SM).when(on, |d| {
             d.bg(theme.primary).border_color(theme.primary).child(
-                gpui_component::Icon::new(SkyeIcon::Check)
+                crate::ui::Icon::new(SkyeIcon::Check)
                     .size_3()
                     .text_color(theme.primary_foreground),
             )

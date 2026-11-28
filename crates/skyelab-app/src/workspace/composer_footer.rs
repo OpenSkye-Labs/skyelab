@@ -6,8 +6,8 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
-use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 
 /// The machine the thread runs on, as a chip that opens the machine menu (T3's environment selector).
 pub(in crate::workspace) fn machine_chip(
@@ -37,9 +37,9 @@ pub(in crate::workspace) fn machine_chip(
                 cx,
             )
         })
-        .child(Icon::new(icon).xsmall())
+        .child(Icon::new(icon).size_3())
         .child(name)
-        .child(Icon::new(SkyeIcon::ChevronsUpDown).xsmall())
+        .child(Icon::new(SkyeIcon::ChevronsUpDown).size_3())
 }
 
 impl ThreadView {
@@ -82,7 +82,7 @@ impl ThreadView {
                                 .gap_1()
                                 .text_size(ui::META)
                                 .text_color(theme.muted_foreground)
-                                .child(Icon::new(SkyeIcon::Clock).xsmall())
+                                .child(Icon::new(SkyeIcon::Clock).size_3())
                                 .child("Sends when the agent finishes")
                                 .when(can_steer, |el| {
                                     el.child(
@@ -129,7 +129,7 @@ impl ThreadView {
             h_flex()
                 .min_w_0()
                 .gap_1p5()
-                .child(Icon::new(icon).xsmall())
+                .child(Icon::new(icon).size_3())
                 .child(div().min_w_0().truncate().child(label))
         };
         let worktree = self.thread.as_ref().and_then(|t| t.worktree_branch.clone());

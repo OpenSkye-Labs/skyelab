@@ -12,11 +12,12 @@ use super::{
     Tabs, TextField, dialog_cancel, dialog_footer,
 };
 use crate::ui::ActiveTheme as _;
+use crate::ui::{h_flex, v_flex};
 use gpui::{
     App, AppContext as _, Context, Entity, FontWeight, IntoElement, ParentElement as _, Render,
     Styled as _, Window, actions, div, prelude::*, px,
 };
-use gpui_component::{h_flex, input::InputState, v_flex};
+use gpui_component::input::InputState;
 
 actions!(skyelab, [OpenUiGallery]);
 
@@ -226,7 +227,7 @@ impl Render for UiGallery {
                     .small()
                     .cleanable(true)
                     .prefix(
-                        gpui_component::Icon::new(SkyeIcon::Search)
+                        crate::ui::Icon::new(SkyeIcon::Search)
                             .size_3p5()
                             .text_color(theme.muted_foreground),
                     ),

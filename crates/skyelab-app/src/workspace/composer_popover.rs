@@ -6,8 +6,8 @@ use super::composer_state::Menu;
 use crate::ui;
 use crate::ui::A11yScrollArea as _;
 use crate::ui::ActiveTheme as _;
+use crate::ui::{h_flex, v_flex};
 use gpui::{AnyElement, Context, FontWeight, SharedString, div, prelude::*, px};
-use gpui_component::{h_flex, v_flex};
 
 /// A floating panel above the composer card, T3's popup surface.
 pub(in crate::workspace) fn popover(cx: &gpui::App) -> gpui::Div {

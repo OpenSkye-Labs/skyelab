@@ -508,7 +508,7 @@ impl Render for Palette {
         command = command.header({
             let this = this.clone();
             move |_, _, cx| {
-                gpui_component::v_flex()
+                crate::ui::v_flex()
                     .children(paged.clone().map(|t| back_row(t, this.clone(), cx)))
                     .child(search_field(&field, cx))
                     .into_any_element()

@@ -10,7 +10,6 @@ use crate::palette::Kind as PaletteKind;
 use crate::settings::Section;
 use crate::ui::{AppAssets, SkyeIcon};
 use gpui::{AssetSource as _, Modifiers, TestAppContext, px, size};
-use gpui_component::IconNamed as _;
 use gpui_component::dock::DockPlacement;
 use skyelab_core::Provider;
 

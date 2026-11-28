@@ -6,10 +6,10 @@ use super::pr_actions::{PrActions, Stage, Target, account_gh_dir};
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, SkyeIcon};
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     App, AppContext as _, Context, Global, IntoElement, SharedString, Task, Window, div, prelude::*,
 };
-use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 use skyelab_git::{Checks, GitHub, PrRow, PrStack};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -293,7 +293,7 @@ impl PrActions {
                                 .gap_1()
                                 .text_size(ui::META)
                                 .text_color(ui::ink(theme, theme.danger))
-                                .child(Icon::new(SkyeIcon::CircleX).xsmall())
+                                .child(Icon::new(SkyeIcon::CircleX).size_3())
                                 .child(w)
                         }))
                         .child(div().ml_auto().child(button)),

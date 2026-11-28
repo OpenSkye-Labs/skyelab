@@ -9,14 +9,14 @@ use super::usage_page_render::segments;
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, SkyeIcon};
+use crate::ui::{h_flex, v_flex};
 use gpui::{
     App, AppContext as _, Context, Entity, IntoElement, Render, SharedString, Window, div,
     prelude::*, px,
 };
 use gpui_component::{
-    Sizable as _, h_flex,
+    Sizable as _,
     input::{InputEvent, Textarea, TextareaState},
-    v_flex,
 };
 use skyelab_core::AccountsConfig;
 use skyelab_git::{CloseReason, GitHub};

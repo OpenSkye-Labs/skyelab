@@ -5,14 +5,12 @@ use super::{CONTEXT, ToggleBottomPanel, ToggleSidebar, Workspace};
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::h_flex;
 use gpui::{
     App, AppContext as _, Context, Div, Entity, Global, IntoElement, KeyBinding, NoAction, Pixels,
     Task, Window, actions, prelude::*, px,
 };
-use gpui_component::{
-    dock::{DockEvent, DockPlacement, Panel, panel_handle},
-    h_flex,
-};
+use gpui_component::dock::{DockEvent, DockPlacement, Panel, panel_handle};
 use skyelab_core::{AppSettings, WindowLayout};
 use std::path::PathBuf;
 use std::time::Duration;

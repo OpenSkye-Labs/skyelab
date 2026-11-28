@@ -4,13 +4,14 @@
 //! `.dropdown_menu(..)` opens the shared popup menu.
 
 use super::{DISABLED_OPACITY, Kbd, Size, SkyeIcon, Tooltip};
+use crate::ui::Icon;
 use crate::ui::{ActiveTheme as _, Theme};
 use gpui::{
     Action, AnyElement, App, ClickEvent, ElementId, FontWeight, Hsla, Interactivity, IntoElement,
     ParentElement, Pixels, RenderOnce, SharedString, StyleRefinement, Styled, Window, div,
     prelude::*, px,
 };
-use gpui_component::{Icon, Selectable, Sizable as _, menu::DropdownMenu, spinner::Spinner};
+use gpui_component::{Selectable, Sizable as _, menu::DropdownMenu, spinner::Spinner};
 use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

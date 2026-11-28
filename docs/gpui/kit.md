@@ -40,6 +40,15 @@ patching around it.
   still in use match ours (`theme_match_test` checks every family, mode and accent). It never reads that theme back.
 - Before `install_theme` (a test that doesn't need one), `Theme::global` is the default family's light theme.
 
+## Layout and icons (`ui/layout.rs`, `ui/icon.rs`, `ui/icons.rs`)
+
+- Rows and columns are `crate::ui::h_flex()` (centers children on the cross axis) and `ui::v_flex()` (stretches
+  them). Never import gpui-component's or gpui-base's: `layout_icon_boundary_test` fails on it.
+- Icons are `ui::Icon::new(SkyeIcon::…)`: the text size and text color around it unless `.size_*()` / `.text_color()`
+  say otherwise, and it never shrinks in a crowded row. Size steps: `size_3` (12 px, was `xsmall()`), `size_3p5`
+  (14 px, was `small()`), `size_4`. A new glyph is an SVG in `icons/ui/` plus a line in `icons.rs`.
+- gpui-component's menus still take a `SkyeIcon` (its `IconNamed` impl in `icons.rs`) until the menus are ours.
+
 ## Windows
 
 Every window, test windows included, is built with `ui::window_root(content, window, cx)`: gpui-component's `Root`

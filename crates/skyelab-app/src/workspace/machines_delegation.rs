@@ -6,8 +6,8 @@ use super::Workspace;
 use crate::ui;
 use crate::ui::Switch;
 use crate::ui::Theme;
+use crate::ui::v_flex;
 use gpui::{Action, AnyElement, Context, SharedString, Window, div, prelude::*};
-use gpui_component::v_flex;
 use skyelab_core::AppSettings;
 
 /// Turns delegation to `host` on or off: `on` is what the click asks for, from the switch as drawn.

@@ -12,11 +12,11 @@ use crate::ui;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::{ActiveTheme as _, Theme};
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     AnyElement, AnyWindowHandle, App, AppContext as _, Context, FontWeight, Global, Hsla, Image,
     ImageFormat, IntoElement, Render, SharedString, Window, div, img, prelude::*, px,
 };
-use gpui_component::{Icon, h_flex, v_flex};
 use serde_json::{Value, json};
 use skyelab_agent::mcp::HTML_MAX_CHARS;
 use skyelab_browser::page::{self, MAX_SHOT_HEIGHT, Page, PageTheme};

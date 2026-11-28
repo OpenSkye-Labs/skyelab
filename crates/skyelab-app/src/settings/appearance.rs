@@ -5,8 +5,8 @@ use super::widgets::{heading, section, setting};
 use super::*;
 use crate::ui::SkyeIcon;
 use crate::ui::{self, SegmentedControl, Size, themes};
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{Hsla, accesskit};
-use gpui_component::{Icon, h_flex, v_flex};
 use skyelab_core::{AppearanceSettings, ColorMode, MotionMode};
 
 /// One theme card in the wrapping grid.

@@ -164,7 +164,7 @@ pub(super) fn streaming_row<V: ItemsView>(
     let after = part(this.items().get(ix + 1));
     let before = ix > 0 && part(this.items().get(ix - 1));
     let key = this.items().key(ix);
-    gpui_component::h_flex()
+    crate::ui::h_flex()
         .w_full()
         .justify_center()
         .px_6()

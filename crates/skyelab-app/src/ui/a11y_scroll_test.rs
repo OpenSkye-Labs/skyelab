@@ -1,12 +1,12 @@
 use super::{A11yScrollArea as _, Area, Seen, area_for, area_recorder, scroll_for, wheel};
 use crate::ui::Button;
+use crate::ui::v_flex;
 use gpui::{
     Bounds, Context, InteractiveElement as _, IntoElement, ParentElement as _, Pixels, Render,
     StatefulInteractiveElement as _, Styled as _, TestAppContext, VisualTestContext, Window, div,
     point, px, size,
 };
 use gpui_base::test_support::snapshots;
-use gpui_component::v_flex;
 
 /// A 200 px box at the window's origin: `Near` at its top, `Far` 600 px further down.
 struct Long(Area);

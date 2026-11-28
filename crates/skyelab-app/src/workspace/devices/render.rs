@@ -7,8 +7,9 @@ use crate::ui::A11yScrollArea as _;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::TextField;
+use crate::ui::{h_flex, v_flex};
 use gpui::{Context, ObjectFit, SharedString, Window, div, img, prelude::*, px};
-use gpui_component::{Sizable as _, h_flex, spinner::Spinner, v_flex};
+use gpui_component::{Sizable as _, spinner::Spinner};
 use skyelab_devices::{Device, DeviceKind, DeviceState, Holder, Platform};
 
 impl DevicesPanel {

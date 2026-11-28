@@ -12,10 +12,10 @@ use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     AnyElement, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
 };
-use gpui_component::{Icon, h_flex, v_flex};
 use skyelab_agent::Decision;
 pub(super) use skyelab_agent::timeline::cards::questions;
 use std::collections::BTreeSet;

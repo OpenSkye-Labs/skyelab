@@ -10,15 +10,12 @@ use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::{self, Status, TextField};
+use crate::ui::{h_flex, v_flex};
 use gpui::Focusable as _;
 use gpui::{
     AnyElement, App, AppContext as _, Context, FontWeight, SharedString, Window, div, prelude::*,
 };
-use gpui_component::{
-    h_flex,
-    input::{InputEvent, InputState},
-    v_flex,
-};
+use gpui_component::input::{InputEvent, InputState};
 
 impl ThreadView {
     pub(super) fn render_git_rows(&self, on: &On, cx: &App) -> Option<AnyElement> {
