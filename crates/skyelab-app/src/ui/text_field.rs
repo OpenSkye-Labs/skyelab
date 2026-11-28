@@ -2,6 +2,7 @@
 //! hairline turning `ring` while focused, canvas fill (input at 32% in dark themes). The editing is [`TextInput`].
 //! A field that sits inside a chrome of its own (the palette, a search strip) is [`TextField::bare`].
 
+use super::text_input::DISABLED_TEXT;
 use super::{DISABLED_OPACITY, Icon, Size, SkyeIcon, TextInput};
 use crate::ui::ActiveTheme as _;
 use crate::ui::h_flex;
@@ -122,10 +123,11 @@ impl RenderOnce for TextField {
             state.frame.disabled = disabled;
         });
         let theme = cx.theme();
-        let dim = |el: Div| el.when(disabled, |d| d.opacity(0.5));
+        let dim = |el: Div| el.when(disabled, |d| d.opacity(DISABLED_TEXT));
         let has_suffix = clear || self.suffix.is_some();
         let state = self.state.clone();
         let line = h_flex()
+            .id(("text-field", state.entity_id()))
             .size_full()
             .line_height(rems(1.25))
             .text_color(theme.foreground)
@@ -134,7 +136,6 @@ impl RenderOnce for TextField {
                 Chrome::Bare => line.gap_1().h_6().px(px(8.)).py(px(2.)).text_sm(),
                 Chrome::BareLarge => line.gap_2().h_11().text_base(),
             })
-            // A press on a disabled field does nothing, for the rows around it too.
             .when(disabled, |line| {
                 line.capture_any_mouse_down(|_, _, cx| cx.stop_propagation())
             })
@@ -194,6 +195,10 @@ fn clear_button(state: Entity<TextInput>, cx: &App) -> impl IntoElement {
         .hover(move |s| s.text_color(ink))
         .active(move |s| s.text_color(ink.opacity(0.7)))
         .child(Icon::new(SkyeIcon::Clear).size_3())
+        // GPUI would give the focus to whatever focusable holds the field.
+        .on_mouse_down(gpui::MouseButton::Left, |_, window, _| {
+            window.prevent_default()
+        })
         .on_click(move |_, window, cx| {
             state.update(cx, |state, cx| {
                 state.accessibility_set_value("", window, cx);

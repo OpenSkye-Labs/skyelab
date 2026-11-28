@@ -243,7 +243,10 @@ impl RenderOnce for Popover {
                         .menu
                         .as_ref()
                         .is_some_and(|m| m.read(cx).chain_contains(e.position, cx));
-                    if !in_menu && !outside.read(cx).bounds.contains(&e.position) {
+                    if !in_menu
+                        && !super::on_field_menu(e.position, cx)
+                        && !outside.read(cx).bounds.contains(&e.position)
+                    {
                         outside.update(cx, |s, cx| s.set_open(false, window, cx));
                     }
                 })

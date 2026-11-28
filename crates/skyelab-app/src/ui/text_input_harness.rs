@@ -29,7 +29,7 @@ pub(super) struct Field {
     pub other: FocusHandle,
     /// A cached view beside the field; it renders again only if something redraws more than the field.
     pub sibling: Entity<Sibling>,
-    width: Pixels,
+    pub width: Pixels,
     _sub: Subscription,
 }
 

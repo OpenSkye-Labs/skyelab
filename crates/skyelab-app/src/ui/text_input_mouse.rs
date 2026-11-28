@@ -5,9 +5,20 @@ use super::text_input::{Menu, TextInput, TextInputEvent};
 use super::text_input_keys::{Copy, Cut, Paste, SelectAll};
 use super::{PopupMenu, PopupMenuItem};
 use gpui::{
-    Context, DismissEvent, Focusable as _, IntoElement, MouseButton, MouseDownEvent, Pixels, Point,
-    ScrollEvent, Window, anchored, deferred, div, prelude::*, px,
+    App, Context, DismissEvent, Focusable as _, Global, IntoElement, MouseButton, MouseDownEvent,
+    Pixels, Point, ScrollEvent, WeakEntity, Window, anchored, deferred, div, prelude::*, px,
 };
+
+/// The field menu opened last. It hangs outside the card or picker its field sits in.
+struct OpenMenu(WeakEntity<PopupMenu>);
+impl Global for OpenMenu {}
+
+/// Whether `at` is on a field's open right-click menu: not a press outside the surface that holds the field.
+pub fn on_field_menu(at: Point<Pixels>, cx: &App) -> bool {
+    cx.try_global::<OpenMenu>()
+        .and_then(|open| open.0.upgrade())
+        .is_some_and(|menu| menu.read(cx).chain_contains(at, cx))
+}
 
 impl TextInput {
     fn offset_at(&self, at: Point<Pixels>) -> usize {
@@ -27,7 +38,6 @@ impl TextInput {
         cx: &mut Context<Self>,
     ) {
         self.focus.focus(window, cx);
-        self.start_blink(cx);
         // The window's own text selection (the timeline's) must not start a drag from here.
         gpui_base::GlobalState::suppress_text_selection(cx);
         let at = self.offset_at(event.position);
@@ -40,6 +50,7 @@ impl TextInput {
             window.prevent_default();
             return self.open_menu(event.position, window, cx);
         }
+        self.start_blink(cx);
         self.selecting = true;
         self.word = None;
         match event.click_count {
@@ -115,6 +126,7 @@ impl TextInput {
                 .item(item("Select All", Box::new(SelectAll), true))
         });
         menu.focus_handle(cx).focus(window, cx);
+        cx.set_global(OpenMenu(menu.downgrade()));
         let _dismiss = cx.subscribe_in(&menu, window, |this, _, _: &DismissEvent, window, cx| {
             this.menu = None;
             cx.notify();

@@ -100,6 +100,17 @@ fn a_field_is_a_named_text_input_with_its_value(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn a_huge_set_value_is_capped_like_a_paste(cx: &mut TestAppContext) {
+    let (view, vcx) = window(cx);
+    let input = view.read_with(vcx, |h, _| h.field.clone());
+    let huge = "€".repeat(30_000);
+    input.update_in(vcx, |i, window, cx| {
+        i.accessibility_set_value(&huge, window, cx)
+    });
+    assert_eq!(input.read_with(vcx, |i, _| i.value().len()), 65_535);
+}
+
 #[test]
 fn text_runs_count_graphemes_and_keep_the_selection_direction() {
     // a, 👍🏽 (8 bytes), e + combining accent (3 bytes): three characters.
@@ -113,4 +124,16 @@ fn text_runs_count_graphemes_and_keep_the_selection_direction() {
     );
     let runs = text_input_a11y::runs(text, 1, 9);
     assert_eq!(runs.selection(), (1, 2));
+}
+
+#[gpui::test]
+fn each_character_s_place_is_where_it_was_drawn(cx: &mut TestAppContext) {
+    let (view, vcx) = window(cx);
+    let input = view.read_with(vcx, |h, _| h.field.clone());
+    input.read_with(vcx, |i, _| {
+        let places = text_input_a11y::runs_of(i, 1.).places();
+        let drawn = (0..3).map(|n| i.range_bounds(n..n + 1)).collect::<Vec<_>>();
+        assert!(drawn.iter().all(Option::is_some), "`dev` was drawn");
+        assert_eq!(places, drawn);
+    });
 }

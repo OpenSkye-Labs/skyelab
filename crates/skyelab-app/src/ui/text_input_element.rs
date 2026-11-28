@@ -2,7 +2,7 @@
 //! caret shows. It never notifies from layout or paint.
 
 use super::ActiveTheme as _;
-use super::text_input::TextInput;
+use super::text_input::{DISABLED_TEXT, TextInput};
 use gpui::{
     App, Bounds, DispatchPhase, Element, ElementId, ElementInputHandler, Entity, GlobalElementId,
     InspectorElementId, LayoutId, MouseButton, MouseMoveEvent, MouseUpEvent, PathBuilder, Pixels,
@@ -41,6 +41,24 @@ impl Layout {
         )
     }
 
+    /// The bounds of the touching ranges that end at `ends` (ascending): one walk over the line's glyphs.
+    pub(super) fn bounds_of_each(&self, ends: impl Iterator<Item = usize>) -> Vec<Bounds<Pixels>> {
+        let mut glyphs = self.line.runs.iter().flat_map(|r| &r.glyphs).peekable();
+        let left = self.bounds.left() + self.scroll_x;
+        let mut x_of = |offset: usize| {
+            while glyphs.next_if(|g| g.index < offset).is_some() {}
+            left + glyphs.peek().map_or(self.line.width(), |g| g.position.x)
+        };
+        let mut from = x_of(0);
+        let top = self.bounds.top();
+        ends.map(|end| {
+            let to = x_of(end);
+            let start = std::mem::replace(&mut from, to);
+            Bounds::from_corners(point(start, top), point(to, top + self.line_height))
+        })
+        .collect()
+    }
+
     pub(super) fn offset_at(&self, x: Pixels) -> usize {
         if self.text.is_empty() {
             return 0;
@@ -58,7 +76,6 @@ impl Layout {
         x.clamp((self.bounds.size.width - width).min(px(0.)), px(0.))
     }
 
-    /// The scroll that brings `offset` into view, from `x`.
     fn reveal(&self, offset: usize, x: Pixels) -> Pixels {
         let at = self.line.x_for_index(offset);
         let room = self.bounds.size.width - END_MARGIN;
@@ -123,7 +140,7 @@ impl Element for TextElement {
             let text = input.buffer.text().to_owned();
             let color = if text.is_empty() { muted } else { style.color };
             let color = if input.is_disabled() {
-                color.opacity(0.5)
+                color.opacity(DISABLED_TEXT)
             } else {
                 color
             };
@@ -166,8 +183,9 @@ impl Element for TextElement {
                 caret: None,
             };
             let selection = (input.buffer.anchor(), input.buffer.head());
-            let all = input.buffer.range() == (0..layout.text.len());
-            if input.revealed.replace(selection) != Some(selection) && !all {
+            let resized =
+                (input.layout.as_ref()).is_some_and(|l| l.bounds.size.width != bounds.size.width);
+            if input.revealed.replace(selection) != Some(selection) || resized {
                 input.scroll_x = layout.reveal(selection.1, input.scroll_x);
             }
             input.scroll_x = layout.clamp_scroll(input.scroll_x);
@@ -200,6 +218,13 @@ impl Element for TextElement {
             cx,
         );
         self.on_drag(window);
+        // The input method's window opens at the caret, and moves only when the platform is told to ask again.
+        self.input.update(cx, |input, _| {
+            let caret = input.layout.as_ref().and_then(|l| l.caret);
+            if std::mem::replace(&mut input.ime_anchor, caret) != caret && caret.is_some() {
+                window.invalidate_character_coordinates();
+            }
+        });
         let input = self.input.read(cx);
         let Some(layout) = input.layout.as_ref() else {
             return;

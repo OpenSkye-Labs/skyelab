@@ -31,12 +31,13 @@ fn capture(
     text: &str,
     (anchor, focus): (usize, usize),
     scale: f32,
-    bounds_of: impl Fn(std::ops::Range<usize>) -> Option<Bounds<Pixels>>,
+    bounds: Option<Vec<Bounds<Pixels>>>,
 ) -> Runs {
     let mut after_space = true;
     let characters = text
         .grapheme_indices(true)
-        .map(|(at, g)| {
+        .enumerate()
+        .map(|(n, (at, g))| {
             let space = g.trim().is_empty();
             let word_start = std::mem::replace(&mut after_space, space) && !space && at != 0;
             Character {
@@ -46,7 +47,7 @@ fn capture(
                     false => g.to_owned(),
                 },
                 word_start,
-                bounds: bounds_of(at..at + g.len()),
+                bounds: bounds.as_ref().and_then(|b| b.get(n).copied()),
             }
         })
         .collect();
@@ -59,9 +60,12 @@ fn capture(
 
 pub(super) fn runs_of(input: &TextInput, scale: f32) -> Runs {
     let selection = (input.buffer.anchor(), input.buffer.head());
-    capture(input.buffer.text(), selection, scale, |r| {
-        input.range_bounds(r)
-    })
+    let text = input.buffer.text();
+    // The last frame's places, while it drew this text.
+    let layout = input.layout.as_ref().filter(|l| l.text == text);
+    let ends = text.grapheme_indices(true).map(|(at, g)| at + g.len());
+    let bounds = layout.map(|l| l.bounds_of_each(ends));
+    capture(text, selection, scale, bounds)
 }
 
 impl Runs {
@@ -131,13 +135,17 @@ impl Runs {
 
 #[cfg(test)]
 pub(super) fn runs(text: &str, anchor: usize, focus: usize) -> Runs {
-    capture(text, (anchor, focus), 1., |_| None)
+    capture(text, (anchor, focus), 1., None)
 }
 
 #[cfg(test)]
 impl Runs {
     pub(super) fn characters(&self) -> usize {
         self.characters.len()
+    }
+
+    pub(super) fn places(&self) -> Vec<Option<Bounds<Pixels>>> {
+        self.characters.iter().map(|c| c.bounds).collect()
     }
 
     pub(super) fn selection(&self) -> (usize, usize) {

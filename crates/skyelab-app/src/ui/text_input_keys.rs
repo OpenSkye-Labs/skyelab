@@ -15,6 +15,7 @@ actions!(
         Delete,
         DeleteWordLeft,
         DeleteWordRight,
+        DeleteSpacesOrWordRight,
         DeleteToStart,
         DeleteToEnd,
         Left,
@@ -109,7 +110,7 @@ pub(crate) fn bindings(mac: bool) -> Vec<KeyBinding> {
     } else {
         keys![
             "ctrl-backspace" => DeleteWordLeft,
-            "ctrl-delete" => DeleteWordRight,
+            "ctrl-delete" => DeleteSpacesOrWordRight,
             "ctrl-enter" => SecondaryEnter,
             "ctrl-left" => WordLeft,
             "ctrl-right" => WordRight,
@@ -132,7 +133,6 @@ pub(crate) fn bindings(mac: bool) -> Vec<KeyBinding> {
 }
 
 impl TextInput {
-    /// Deletes the selection, or what `reach` gives from the caret.
     fn delete(
         &mut self,
         intent: Intent,
@@ -182,7 +182,6 @@ pub(super) fn on_actions(
     el.when(editable, |el| {
         el.on_action(cx.listener(|this, _: &Backspace, window, cx| {
             if this.buffer.range() == (0..0) {
-                // Nothing to delete: the palette steps back a page.
                 return cx.propagate();
             }
             let reach = |t: &TextInput, at| t.buffer.prev_grapheme(at)..at;
@@ -197,17 +196,18 @@ pub(super) fn on_actions(
             this.delete(Intent::Atomic, reach, window, cx);
         }))
         .on_action(cx.listener(|this, _: &DeleteWordRight, window, cx| {
-            let reach = |t: &TextInput, at| {
-                let spaces = t.buffer.spaces_end(at);
-                // Off macOS a forward word delete stops after the spaces at the caret.
-                if spaces > at && !cfg!(target_os = "macos") {
-                    at..spaces
-                } else {
-                    at..t.buffer.next_word(at)
-                }
-            };
+            let reach = |t: &TextInput, at| at..t.buffer.next_word(at);
             this.delete(Intent::Atomic, reach, window, cx);
         }))
+        .on_action(
+            cx.listener(|this, _: &DeleteSpacesOrWordRight, window, cx| {
+                let reach = |t: &TextInput, at| match t.buffer.spaces_end(at) {
+                    spaces if spaces > at => at..spaces,
+                    _ => at..t.buffer.next_word(at),
+                };
+                this.delete(Intent::Atomic, reach, window, cx);
+            }),
+        )
         .on_action(cx.listener(|this, _: &DeleteToStart, window, cx| {
             this.delete(Intent::Atomic, |_, at| 0..at, window, cx);
         }))
@@ -251,7 +251,6 @@ pub(super) fn on_actions(
     .on_action(cx.listener(|this, _: &Left, window, cx| {
         let range = this.buffer.range();
         match range {
-            // Nowhere to go: a paged palette may take the key.
             Range { start: 0, end: 0 } => cx.propagate(),
             r if r.is_empty() => this.go(this.buffer.prev_grapheme(r.start), false, window, cx),
             r => this.go(r.start, false, window, cx),

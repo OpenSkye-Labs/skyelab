@@ -22,3 +22,27 @@ fn the_caret_stays_in_view(cx: &mut TestAppContext) {
     let text = field.read_with(vcx, |i, _| i.text_bounds()).expect("drawn");
     assert_eq!(first.left(), text.left(), "Home scrolls back to the start");
 }
+
+#[gpui::test]
+fn select_all_leaves_the_view_where_it_is(cx: &mut TestAppContext) {
+    let (view, vcx) = focused(cx, 200., &"abcdefghij".repeat(30));
+    vcx.simulate_keystrokes("home");
+    vcx.simulate_keystrokes(&super::text_input_harness::cmd("a"));
+    let text = input(&view, vcx).read_with(vcx, |i, _| i.text_bounds());
+    let first = range_bounds(&view, vcx, 0..1);
+    assert_eq!(first.left(), text.expect("drawn").left());
+}
+
+#[gpui::test]
+fn a_field_that_narrows_keeps_its_caret_in_view(cx: &mut TestAppContext) {
+    let (view, vcx) = focused(cx, 400., &"abcdefghij".repeat(30));
+    vcx.simulate_keystrokes("end");
+    view.update(vcx, |v, cx| {
+        v.width = px(150.);
+        cx.notify();
+    });
+    vcx.run_until_parked();
+    let field = input(&view, vcx);
+    let (text, caret) = field.read_with(vcx, |i, _| (i.text_bounds(), i.caret_bounds()));
+    assert!(caret.expect("a caret").right() <= text.expect("drawn").right());
+}

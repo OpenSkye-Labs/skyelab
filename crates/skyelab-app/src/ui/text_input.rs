@@ -2,7 +2,7 @@
 //! takes keys (`text_input_keys`), the mouse (`text_input_mouse`) and the platform's input method
 //! (`text_input_handler`), and draws itself (`text_input_element`). [`super::TextField`] puts the chrome around it.
 
-use super::text_edit::{Buffer, Intent, clip, one_line};
+use super::text_edit::{Buffer, Intent, fit};
 use super::text_input_blink::Blink;
 use super::text_input_element::{Layout, TextElement};
 use super::{PopupMenu, text_input_a11y, text_input_keys};
@@ -42,6 +42,9 @@ pub(super) struct Menu {
     pub _dismiss: Subscription,
 }
 
+/// How far a disabled field's text and its prefix and suffix fade.
+pub(super) const DISABLED_TEXT: f32 = 0.5;
+
 pub struct TextInput {
     pub(super) buffer: Buffer,
     pub(super) focus: FocusHandle,
@@ -52,6 +55,8 @@ pub struct TextInput {
     pub(super) scroll_x: Pixels,
     /// The (anchor, head) the view last followed, so a wheel scroll isn't pulled back; `None` to follow again.
     pub(super) revealed: Option<(usize, usize)>,
+    /// The caret place the platform last heard, for the input method's window.
+    pub(super) ime_anchor: Option<Bounds<Pixels>>,
     pub(super) selecting: bool,
     /// The word a double click took: dragging on selects by words from it.
     pub(super) word: Option<Range<usize>>,
@@ -98,6 +103,7 @@ impl TextInput {
             layout: None,
             scroll_x: px(0.),
             revealed: None,
+            ime_anchor: None,
             selecting: false,
             word: None,
             menu: None,
@@ -123,7 +129,7 @@ impl TextInput {
     }
 
     /// Replaces the text: no [`TextInputEvent::Change`], the undo history starts over, the caret goes to the end and
-    /// the view to the start, as an HTML `<input>`.
+    /// the view to the start.
     pub fn set_value(
         &mut self,
         value: impl AsRef<str>,
@@ -158,6 +164,8 @@ impl TextInput {
     pub fn select_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.buffer.select(0, self.buffer.text().len());
         self.moved(window, cx);
+        // The view stays where it is, as in every text field.
+        self.revealed = Some((self.buffer.anchor(), self.buffer.head()));
     }
 
     /// In bytes.
@@ -179,12 +187,13 @@ impl TextInput {
     }
 
     /// Where `range` was drawn in the last frame.
+    #[cfg(test)]
     pub fn range_bounds(&self, range: Range<usize>) -> Option<Bounds<Pixels>> {
         let layout = self.layout.as_ref()?;
         (layout.text == self.buffer.text()).then(|| layout.range_bounds(&range))
     }
 
-    /// The caret's place in the last frame; `None` while the field has no focus.
+    /// The caret's place in the last frame, if it had one.
     #[cfg(test)]
     pub fn caret_bounds(&self) -> Option<Bounds<Pixels>> {
         self.layout.as_ref()?.caret
@@ -230,7 +239,6 @@ impl TextInput {
         self.moved(window, cx);
     }
 
-    /// Every user edit: `new` made to fit a line and the insert cap.
     pub(super) fn edit(
         &mut self,
         range: Range<usize>,
@@ -239,8 +247,7 @@ impl TextInput {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let new = one_line(new);
-        let changed = self.buffer.replace(range, clip(&new), intent);
+        let changed = self.buffer.replace(range, &fit(new), intent);
         self.edited(changed, window, cx);
     }
 

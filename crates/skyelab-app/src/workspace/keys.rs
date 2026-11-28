@@ -11,8 +11,8 @@ pub(crate) const NEW_TERMINAL_KEY: &str = if MAC { "cmd-alt-t" } else { "ctrl-al
 pub(crate) const OPEN_SETTINGS_KEY: &str = if MAC { "cmd-," } else { "ctrl-," };
 pub(crate) const OPEN_BROWSER_KEY: &str = if MAC { "cmd-alt-b" } else { "ctrl-alt-b" };
 pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-alt-d" };
-pub(crate) const GO_BACK_KEY: &str = if MAC { "cmd-[" } else { "alt-left" };
-pub(crate) const GO_FORWARD_KEY: &str = if MAC { "cmd-]" } else { "alt-right" };
+pub(crate) const GO_BACK_KEY: &str = go_back_key(MAC);
+pub(crate) const GO_FORWARD_KEY: &str = go_forward_key(MAC);
 pub(crate) const FILE_PICKER_KEY: &str = if MAC { "cmd-p" } else { "ctrl-p" };
 pub(crate) const REOPEN_CLOSED_KEY: &str = if MAC { "cmd-shift-t" } else { "ctrl-shift-t" };
 pub(crate) const SEARCH_FILES_KEY: &str = if MAC { "cmd-shift-f" } else { "ctrl-shift-f" };
@@ -101,6 +101,14 @@ pub fn init(cx: &mut App) {
     crate::palette::init(cx);
 }
 
+const fn go_back_key(mac: bool) -> &'static str {
+    if mac { "cmd-[" } else { "alt-left" }
+}
+
+const fn go_forward_key(mac: bool) -> &'static str {
+    if mac { "cmd-]" } else { "alt-right" }
+}
+
 /// The workspace's keys inside a text field, on macOS (`mac`) or elsewhere: `Input` is gpui-component's text areas.
 pub(crate) fn field_bindings(mac: bool) -> Vec<KeyBinding> {
     let fields = ["Input", crate::ui::text_input_keys::KEY_CONTEXT].map(Some);
@@ -111,15 +119,14 @@ pub(crate) fn field_bindings(mac: bool) -> Vec<KeyBinding> {
                 // A text area binds cmd-[ to Outdent and cmd-shift-f to Replace; the prompt is focused on most pages
                 // and has nothing to replace, so history and the file search win.
                 vec![
-                    KeyBinding::new("cmd-[", GoBack, field),
-                    KeyBinding::new("cmd-]", GoForward, field),
+                    KeyBinding::new(go_back_key(mac), GoBack, field),
+                    KeyBinding::new(go_forward_key(mac), GoForward, field),
                     KeyBinding::new("cmd-shift-f", files::SearchFiles, field),
                 ]
             } else {
-                // In a text field, leaving the page on alt-left/right would surprise more than help.
                 vec![
-                    KeyBinding::new("alt-left", NoAction, field),
-                    KeyBinding::new("alt-right", NoAction, field),
+                    KeyBinding::new(go_back_key(mac), NoAction, field),
+                    KeyBinding::new(go_forward_key(mac), NoAction, field),
                 ]
             }
         })

@@ -3,7 +3,7 @@
 Part of [docs/gpui.md](../gpui.md); the same rules apply.
 
 - One entity can be drawn in two windows (a shared thread view), and a notify redraws both. But subscriptions made
-  with `subscribe_in`/`on_focus`/`on_blur` (gpui-component's `InputState` makes them in `new`) run in the window that
+  with `subscribe_in`/`on_focus`/`on_blur` (`ui::TextInput` makes them in `new`) run in the window that
   made them and die with it. A shared view re-creates its window-bound parts when another window takes it over
   (`ThreadView::attach`), and only one window (its owner) acts on its events, or two windows open two tabs.
 - A shared view's `ListState` (scroll and row heights) would make both windows scroll together, so it keeps one per

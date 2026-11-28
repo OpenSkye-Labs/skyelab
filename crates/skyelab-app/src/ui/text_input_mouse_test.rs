@@ -169,3 +169,23 @@ fn a_drag_after_a_double_click_takes_whole_words(cx: &mut TestAppContext) {
     );
     assert_eq!(selection(&view, vcx), 6..16);
 }
+
+#[gpui::test]
+fn shift_click_before_the_caret_selects_back_to_it(cx: &mut TestAppContext) {
+    let (view, vcx) = focused(cx, 200., TEXT);
+    let beta = at(&view, vcx, 6, 0.25);
+    press(vcx, beta, MouseButton::Left, Modifiers::none(), 1);
+    let start = at(&view, vcx, 0, 0.25);
+    press(vcx, start, MouseButton::Left, Modifiers::shift(), 1);
+    assert_eq!(selection(&view, vcx), 0..6);
+}
+
+#[gpui::test]
+fn keys_in_the_open_menu_leave_the_text_alone(cx: &mut TestAppContext) {
+    let (view, vcx) = focused(cx, 200., TEXT);
+    let inside = at(&view, vcx, 6, 0.25);
+    press(vcx, inside, MouseButton::Right, Modifiers::none(), 1);
+    vcx.run_until_parked();
+    vcx.simulate_keystrokes("backspace");
+    assert_eq!(value(&view, vcx), TEXT);
+}

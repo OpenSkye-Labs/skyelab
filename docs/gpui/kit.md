@@ -106,12 +106,18 @@ patching around it.
   or `Input`: `kit_boundaries_test` fails on it. Text areas, the composer and the code editor are still theirs
   (stages 6b to 6d).
 - `text_edit::Buffer` holds the text, selection, composition and undo with no GPUI types; test editing rules there.
-  Every user edit goes through `TextInput::edit` (line breaks and tabs dropped, 64 KiB per insert).
+  Every insert, typed, pasted or from the input method, goes through `text_edit::fit` (line breaks and tabs dropped,
+  64 KiB at most). `bounds_for_range` answers from the last frame even right after an edit: the input method asks
+  before the next frame, and `None` puts its window at the screen's corner.
 - Keys are actions in the `SkyeTextInput` context (`text_input_keys::bindings(mac)`; the platform is a parameter so
   both sets are tested on any host). A binding that should reach a field names that context; `Input` is
   gpui-component's text areas. A test that presses editing keys calls `ui::bind_keys`.
 - Enter emits `PressEnter` and propagates; Escape only ends a composition and propagates; Backspace and Left at the
-  start, Right at the end and Copy with nothing selected propagate (the palette's back, the timeline's copy).
+  start, Right at the end and Copy with nothing selected propagate (the window's text selection copies then).
+- A surface that closes on `on_mouse_down_out` and can hold a field skips presses for which `ui::on_field_menu`
+  is true: the field's right-click menu hangs outside it (`popover.rs`, `details_panel.rs`, `composer_picker.rs`).
+- A press on a control inside the field (the ×) calls `window.prevent_default()` on mouse-down, or GPUI focuses
+  whatever focusable holds the field.
 - `set_value` emits no `Change` and clears undo. `Blur` is what Settings and the tab rename save on, so the field's own
   right-click menu taking the focus is not a blur (`blur_held`).
 - A mouse-down handler that moves the focus (opening a menu) calls `window.prevent_default()`: GPUI focuses the

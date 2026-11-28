@@ -35,8 +35,15 @@ pub(super) struct Buffer {
     marked: Option<Range<usize>>,
     undo: Vec<Step>,
     redo: Vec<Step>,
-    /// Whether the next edit may join the last step.
     joinable: bool,
+}
+
+/// What an insert of `text` adds: one line, at most [`MAX_INSERT`].
+pub(super) fn fit(text: &str) -> Cow<'_, str> {
+    match one_line(text) {
+        Cow::Borrowed(text) => Cow::Borrowed(clip(text)),
+        Cow::Owned(text) => Cow::Owned(clip(&text).to_owned()),
+    }
 }
 
 /// `text` without what a single line can't hold.
@@ -63,10 +70,33 @@ pub(super) fn clip(text: &str) -> &str {
     &text[..if cut == 0 { at } else { cut }]
 }
 
-/// Letters of scripts that put spaces between words (not Chinese or Japanese).
+/// What a double click joins into one word; an ideograph or a kana stands alone.
 fn is_word(c: char) -> bool {
     let spaced = c < '\u{2E80}' || ('\u{AC00}'..='\u{D7A3}').contains(&c);
     c == '_' || (c.is_alphanumeric() && spaced) || ('\u{0300}'..='\u{036F}').contains(&c)
+}
+
+/// The bytes of a UTF-16 range of `text`, widened to whole characters and clamped to it.
+pub(super) fn bytes_of_utf16(text: &str, range: &Range<usize>) -> Range<usize> {
+    let (from, to) = (range.start.min(range.end), range.start.max(range.end));
+    let (mut start, mut end) = (None, None);
+    let mut units = 0;
+    for (i, c) in text.char_indices() {
+        let next = units + c.len_utf16();
+        if start.is_none() && from < next {
+            start = Some(i);
+        }
+        if end.is_none() && to <= units {
+            end = Some(i);
+        }
+        units = next;
+    }
+    let len = text.len();
+    let start = start.unwrap_or(len);
+    if from == to {
+        return start..start;
+    }
+    start..end.unwrap_or(len).max(start)
 }
 
 impl Buffer {
@@ -169,33 +199,14 @@ impl Buffer {
         self.text[..offset].encode_utf16().count()
     }
 
-    /// The bytes of a UTF-16 range, widened to whole characters and clamped to the text.
     pub(super) fn bytes_of_utf16(&self, range: &Range<usize>) -> Range<usize> {
-        let (from, to) = (range.start.min(range.end), range.start.max(range.end));
-        let (mut start, mut end) = (None, None);
-        let mut units = 0;
-        for (i, c) in self.text.char_indices() {
-            let next = units + c.len_utf16();
-            if start.is_none() && from < next {
-                start = Some(i);
-            }
-            if end.is_none() && to <= units {
-                end = Some(i);
-            }
-            units = next;
-        }
-        let len = self.text.len();
-        let start = start.unwrap_or(len);
-        if from == to {
-            return start..start;
-        }
-        start..end.unwrap_or(len).max(start)
+        bytes_of_utf16(&self.text, range)
     }
 
     /// A caret move ends the undo step being typed.
     pub(super) fn select(&mut self, anchor: usize, head: usize) {
         (self.anchor, self.head) = (self.snap(anchor), self.snap(head));
-        self.joinable = false;
+        self.end_step();
     }
 
     pub(super) fn move_to(&mut self, offset: usize) {
@@ -234,6 +245,16 @@ impl Buffer {
                 let inserted = last.start..last.start + last.inserted.len();
                 match intent {
                     Intent::Typing if removed.is_empty() && range.start == inserted.end => {
+                        last.inserted.push_str(new);
+                    }
+                    // The macOS Korean input method rewrites the syllable it just typed instead of marking it.
+                    Intent::Typing
+                        if removed.chars().count() == 1
+                            && range.end == inserted.end
+                            && range.start >= inserted.start
+                            && before == (range.end, range.end) =>
+                    {
+                        last.inserted.truncate(range.start - last.start);
                         last.inserted.push_str(new);
                     }
                     Intent::Backspace if new.is_empty() && range.end == last.start => {
@@ -293,7 +314,7 @@ impl Buffer {
         changed
     }
 
-    /// Text the input method commits over the composition: the same undo step.
+    /// Text the input method commits.
     pub(super) fn commit(&mut self, range: Range<usize>, new: &str) -> bool {
         let changed = self.compose(range, new, None);
         self.unmark();

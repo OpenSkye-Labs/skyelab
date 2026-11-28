@@ -82,7 +82,7 @@ impl Render for Pairs {
     }
 }
 
-/// `b` relative to `origin`, so the two columns (one under the other) compare.
+/// `b` relative to `origin`.
 fn rel(b: Bounds<Pixels>, origin: gpui::Point<Pixels>) -> Bounds<Pixels> {
     Bounds::new(b.origin - origin, b.size)
 }

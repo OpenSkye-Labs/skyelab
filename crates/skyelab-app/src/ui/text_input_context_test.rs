@@ -85,3 +85,11 @@ fn on_macos_cmd_bracket_in_a_field_goes_back(cx: &mut TestAppContext) {
     vcx.simulate_keystrokes("alt-left");
     assert_eq!(cursor(&view, vcx), 3, "alt-left moves a word on macOS");
 }
+
+#[gpui::test]
+fn off_macos_a_forward_word_delete_stops_after_the_spaces(cx: &mut TestAppContext) {
+    let (view, vcx) = page(cx, false);
+    let input = view.read_with(vcx, |p, _| p.input.clone());
+    vcx.simulate_keystrokes("home right right ctrl-delete");
+    assert_eq!(input.read_with(vcx, |i, _| i.value().to_string()), "abcd");
+}

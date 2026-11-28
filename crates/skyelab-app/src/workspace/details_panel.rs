@@ -280,7 +280,9 @@ impl Render for DetailsPanel {
                 .border_color(border)
                 .bg(theme.popover)
                 .on_mouse_down_out(cx.listener(|_, e: &gpui::MouseDownEvent, _, cx| {
-                    cx.emit(OutsidePress(e.position))
+                    if !ui::on_field_menu(e.position, cx) {
+                        cx.emit(OutsidePress(e.position))
+                    }
                 }))
                 .child(content)
                 .with_animation(

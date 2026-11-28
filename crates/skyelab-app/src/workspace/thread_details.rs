@@ -26,6 +26,9 @@ impl On {
 
 #[path = "thread_details_card.rs"]
 mod card;
+#[cfg(test)]
+#[path = "thread_details_field_menu_test.rs"]
+mod field_menu_test;
 #[path = "thread_details_git.rs"]
 mod git;
 #[path = "thread_details_pr.rs"]

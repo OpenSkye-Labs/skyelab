@@ -93,3 +93,29 @@ fn bounds_for_range_is_the_caret(cx: &mut TestAppContext) {
     );
     assert!(rect.size.height > gpui::px(0.));
 }
+
+#[gpui::test]
+fn the_input_method_places_its_caret_and_range_in_utf16(cx: &mut TestAppContext) {
+    let (view, vcx) = focused(cx, 300., "😀ab");
+    let field = input(&view, vcx);
+    let state = |vcx: &mut gpui::VisualTestContext| {
+        field.update_in(vcx, |i, window, cx| {
+            let caret = i.selected_text_range(false, window, cx).map(|s| s.range);
+            (caret, i.marked_text_range(window, cx))
+        })
+    };
+    // Replaces `a` (UTF-16 2..3) and puts the caret after the emoji inside the composition.
+    field.update_in(vcx, |i, window, cx| {
+        i.replace_and_mark_text_in_range(Some(2..3), "😀你", Some(2..2), window, cx)
+    });
+    assert_eq!(value(&view, vcx), "😀😀你b");
+    assert_eq!(state(vcx), (Some(4..4), Some(2..5)));
+
+    field.update_in(vcx, |i, window, cx| i.unmark_text(window, cx));
+    field.update_in(vcx, |i, window, cx| {
+        i.set_selected_text_range(2..4, window, cx)
+    });
+    assert_eq!(state(vcx), (Some(2..4), None));
+    vcx.simulate_input("x");
+    assert_eq!(value(&view, vcx), "😀x你b");
+}
