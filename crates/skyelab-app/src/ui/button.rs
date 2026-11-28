@@ -14,6 +14,10 @@ use gpui::{
 use gpui_component::Selectable;
 use std::rc::Rc;
 
+// GPUI's test window never turns accessibility on, so tests reach the a11y Click listener's closure through this.
+#[cfg(test)]
+gpui::actions!(skye_button_test, [A11yPress]);
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Variant {
     /// The one main action of a surface: Send, Save, Create.
@@ -428,7 +432,7 @@ impl RenderOnce for Button {
             "ui::Button({:?}) must have a non-empty label, tooltip, or accessibility_label (docs/gpui/accessibility.md)",
             self.id
         );
-        let dropdown_click = (self.menu_open.is_some() && interactive && self.on_click.is_none())
+        let dropdown_focus = (self.menu_open.is_some() && interactive && self.on_click.is_none())
             .then(|| {
                 window
                     .use_keyed_state(self.id.clone(), cx, |_, cx| cx.focus_handle())
@@ -478,14 +482,19 @@ impl RenderOnce for Button {
                 b.aria_expanded(e)
             })
             .when_some(self.toggled, |b, on| b.aria_toggled(on.into()))
-            .when_some(dropdown_click, |b, trigger_focus| {
-                let dispatch_focus = trigger_focus.clone();
-                b.track_focus(&trigger_focus).on_a11y_action(
-                    gpui::accesskit::Action::Click,
-                    move |_, window, cx| {
-                        dispatch_focus.dispatch_action(&super::popover::Toggle, window, cx);
-                    },
-                )
+            // `track_button` tracks this same handle, so the Toggle sent to it starts inside the popover.
+            .when_some(dropdown_focus.clone(), |b, trigger_focus| {
+                let press = move |window: &mut Window, cx: &mut App| {
+                    trigger_focus.dispatch_action(&super::popover::Toggle, window, cx);
+                };
+                #[cfg(test)]
+                let b = b.on_action({
+                    let press = press.clone();
+                    move |_: &A11yPress, window, cx| press(window, cx)
+                });
+                b.on_a11y_action(gpui::accesskit::Action::Click, move |_, window, cx| {
+                    press(window, cx)
+                })
             });
         base.style().refine(&caller);
 
@@ -562,7 +571,7 @@ impl RenderOnce for Button {
                     })
                 },
             );
-        crate::settings::scroll::track_button(self.id, button)
+        crate::settings::scroll::track_button(self.id, button).focus(dropdown_focus)
     }
 }
 

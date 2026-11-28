@@ -71,3 +71,27 @@ fn a_focused_trigger_opens_its_menu_from_the_keyboard(cx: &mut TestAppContext) {
     vcx.run_until_parked();
     assert_eq!(*picks.borrow(), ["alpha"], "Enter picks the selected row");
 }
+
+/// An accessibility press (VoiceOver, agent-desktop's AXPress) runs the trigger's a11y Click listener, which GPUI's
+/// test window never registers; `A11yPress` runs the same closure on the trigger's node.
+#[gpui::test]
+fn an_accessibility_press_opens_and_closes_the_menu(cx: &mut TestAppContext) {
+    ui::button_test::setup(cx);
+    let content = cx.update(|cx| cx.new(|_| Harness(Rc::default())));
+    let (_, vcx) =
+        cx.add_window_view(move |window, cx| ui::window_root(content.clone().into(), window, cx));
+    vcx.run_until_parked();
+    vcx.simulate_keystrokes("tab");
+    vcx.run_until_parked();
+    let trigger = vcx
+        .update(|window, cx| window.focused(cx))
+        .expect("Tab focuses the trigger");
+    let press = |vcx: &mut VisualTestContext| {
+        vcx.update(|window, cx| trigger.dispatch_action(&ui::button::A11yPress, window, cx));
+        vcx.run_until_parked();
+    };
+    press(vcx);
+    assert_eq!(menus(vcx), 1, "an accessibility press opens the menu");
+    press(vcx);
+    assert_eq!(menus(vcx), 0, "a second press closes it");
+}

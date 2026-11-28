@@ -18,7 +18,8 @@ These primitives automatically attach `.id(...)`, semantic AccessKit `.role(...)
 ## 3. Click handlers vs `on_mouse_down` & dropdown triggers
 
 - **Never fake clicks with `.on_mouse_down(...)`.** AccessKit registers `Action::Click` (`AXPress` in macOS Accessibility) only from `.on_click(...)` or `.on_a11y_action(Action::Click, ...)`. Elements driven only by mouse-down cannot be triggered by `agent-desktop click` or assistive technology.
-- **Dropdown and popover triggers:** `ui::Button` triggers that track open state through `Selectable::open` (used by `.dropdown_menu(...)` and `Popover` triggers without an `.on_click(...)` handler) automatically bind a keyed `FocusHandle`, expose `aria_expanded(open)`, and register `Action::Click` to dispatch `gpui_base::actions::Confirm`. Custom dropdown triggers (such as composer or git pickers) must likewise expose `.aria_expanded(open)` and handle click actions cleanly.
+- **Dropdown and popover triggers:** a `ui::Button` with `.dropdown_menu(...)` (no `.on_click`) exposes `aria_expanded(open)` and registers `Action::Click` to dispatch `popover::Toggle` to its keyed `FocusHandle`, which bubbles to the `Popover` root. Custom dropdown triggers (composer or git pickers) must likewise expose `.aria_expanded(open)` and handle click actions cleanly.
+- **Dispatch only to the handle the element actually tracks.** `FocusHandle::dispatch_action` silently does nothing for a handle that isn't in the last frame's dispatch tree, and a wrapper's later `track_focus` replaces an earlier one: `settings::scroll::track_button` tracks its own handle on every `ui::Button` unless given one with `.focus(..)`, which once left the dropdown's AXPress sending `Toggle` nowhere while mouse and keyboard still worked. Pass the handle down instead of making a second one, and test the press through the same closure (`dropdown_keys_test`'s `A11yPress`).
 
 ## 4. `Checkbox::decorative()` inside clickable rows
 
