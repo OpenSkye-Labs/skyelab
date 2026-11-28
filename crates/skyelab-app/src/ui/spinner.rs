@@ -1,5 +1,4 @@
-//! The loading spinner: our loader glyph turning once every 0.8 s, eased in and out. Under reduce motion GPUI holds it
-//! still and asks for no frames.
+//! The loading spinner. Under reduce motion GPUI holds it still and asks for no frames.
 
 use super::{Icon, SkyeIcon};
 use gpui::{
@@ -9,7 +8,6 @@ use gpui::{
 };
 use std::time::Duration;
 
-/// The glyph the spinner turns.
 pub(super) const GLYPH: SkyeIcon = SkyeIcon::Loader;
 
 #[derive(IntoElement)]
@@ -32,7 +30,6 @@ impl Spinner {
         }
     }
 
-    /// In px, or in rems to follow the text size (gpui-component's `xsmall()` was `rems(0.75)`).
     pub fn size(mut self, size: impl Into<AbsoluteLength>) -> Self {
         self.size = size.into();
         self

@@ -143,9 +143,7 @@ use gpui::{Hsla, Pixels, Rems, px, rems};
 use std::path::Path;
 pub use theme::{ActiveTheme, Theme};
 
-/// Start-up for the UI: gpui-component's init (until stage 8), the app identity OS notifications need (Windows'
-/// AppUserModelID; the bundle's id), then our notification click handler, after gpui-component's so ours is the one
-/// GPUI keeps.
+/// Start-up for the UI. Our notification click handler goes after gpui-component's init: GPUI keeps only the last.
 pub fn init(cx: &mut gpui::App) {
     gpui_component::init(cx);
     cx.set_app_identity("dev.openskye.skyelab", "SkyeLab");

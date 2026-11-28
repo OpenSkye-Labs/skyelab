@@ -52,7 +52,6 @@ impl RenderOnce for CopyButton {
         let name = self.accessibility_label.unwrap_or_else(|| "Copy".into());
         let value = self.value;
         let theme = cx.theme();
-        // gpui-component's copy button, kept pixel for pixel: a 1.25 rem square, the theme's radius, a 0.75 rem icon.
         let icon = Icon::new(if is_copied {
             SkyeIcon::CopyButtonDone
         } else {

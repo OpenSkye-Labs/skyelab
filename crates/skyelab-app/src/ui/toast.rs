@@ -395,16 +395,21 @@ pub fn shown(window: &Window, cx: &App) -> Vec<SharedString> {
         .unwrap_or_default()
 }
 
-/// Tags of our OS notifications start with this; a click reported for any other tag isn't ours.
 const SYSTEM_TAG: &str = "skyelab/notification/";
-/// How many posted notifications a click can still reach; older ones only bring the app forward.
-const SYSTEM_KEPT: usize = 100;
+/// Older ones only bring the app forward when clicked.
+const CLICKABLE_NOTIFICATIONS: usize = 100;
 
-/// The OS notifications still clickable: tag, the window that posted it, its click handler. Oldest first.
+struct Posted {
+    tag: SharedString,
+    window: AnyWindowHandle,
+    on_click: Option<Handler>,
+}
+
+/// Oldest first.
 #[derive(Default)]
 struct SystemNotes {
     next: u64,
-    posted: Vec<(SharedString, AnyWindowHandle, Option<Handler>)>,
+    posted: Vec<Posted>,
 }
 
 impl Global for SystemNotes {}
@@ -421,15 +426,18 @@ pub fn push_system(window: &mut Window, toast: Toast, cx: &mut App) {
         Some(key) => format!("{SYSTEM_TAG}key/{key}"),
         None => {
             notes.next += 1;
-            format!("{SYSTEM_TAG}n/{}", notes.next)
+            // With the process id: a notification left over from an earlier run never matches a new one.
+            format!("{SYSTEM_TAG}n/{}-{}", std::process::id(), notes.next)
         }
     }
     .into();
-    notes.posted.retain(|(t, ..)| *t != tag);
-    notes
-        .posted
-        .push((tag.clone(), window.window_handle(), toast.on_click));
-    let extra = notes.posted.len().saturating_sub(SYSTEM_KEPT);
+    notes.posted.retain(|p| p.tag != tag);
+    notes.posted.push(Posted {
+        tag: tag.clone(),
+        window: window.window_handle(),
+        on_click: toast.on_click,
+    });
+    let extra = notes.posted.len().saturating_sub(CLICKABLE_NOTIFICATIONS);
     notes.posted.drain(..extra);
     cx.show_system_notification(SystemNotification {
         tag,
@@ -452,10 +460,12 @@ fn on_system_click(response: SystemNotificationResponse, cx: &mut App) {
     cx.dismiss_system_notification(&response.tag).detach();
     cx.activate(true);
     let notes = cx.default_global::<SystemNotes>();
-    let Some(ix) = notes.posted.iter().position(|(t, ..)| *t == response.tag) else {
+    let Some(ix) = notes.posted.iter().position(|p| p.tag == response.tag) else {
         return;
     };
-    let (_, window, on_click) = notes.posted.remove(ix);
+    let Posted {
+        window, on_click, ..
+    } = notes.posted.remove(ix);
     // Err: the window closed since; the app still came forward.
     let _ = window.update(cx, |_, window, cx| {
         window.activate_window();

@@ -1,5 +1,3 @@
-//! SkyeLab's artwork and icons, plus the assets gpui-component controls still draw.
-
 use super::{SkyeIcon, icons, provider_logo};
 use gpui::{Hsla, Pixels};
 

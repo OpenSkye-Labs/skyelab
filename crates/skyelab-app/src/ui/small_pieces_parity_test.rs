@@ -20,9 +20,9 @@ fn sel(name: String) -> &'static str {
 struct Pairs(fn() -> Vec<(&'static str, AnyElement, AnyElement)>);
 
 impl Render for Pairs {
-    fn render(&mut self, window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        // The app's rem: gpui-component's Root sets it to the theme's 14 px, and rem sizes must still match.
-        window.set_rem_size(px(14.));
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The app's rem, as gpui-component's Root sets it.
+        window.set_rem_size(super::theme::Theme::global(cx).font_size);
         let mut col = div().flex().flex_col().items_start().w(px(600.));
         for (n, (_, theirs, ours)) in (self.0)().into_iter().enumerate() {
             col = col
