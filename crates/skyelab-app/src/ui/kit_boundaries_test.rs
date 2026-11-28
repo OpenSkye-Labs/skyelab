@@ -79,7 +79,10 @@ const ROWS: &[Row] = &[
         stage: "6a single-line text",
         crates: &["gpui_component", "gpui_base"],
         names: &["InputState", "Input"],
-        allowed: &["text_input_parity_test.rs"],
+        allowed: &[
+            "text_input_parity_test.rs",
+            "text_input_passed_keys_test.rs",
+        ],
     },
 ];
 

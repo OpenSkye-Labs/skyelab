@@ -111,8 +111,10 @@ impl TextInput {
         self
     }
 
+    /// The text it starts with, the caret before it.
     pub fn default_value(mut self, value: impl AsRef<str>) -> Self {
         self.buffer.set_text(value.as_ref());
+        self.buffer.move_to(0);
         self
     }
 

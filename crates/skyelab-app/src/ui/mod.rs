@@ -123,6 +123,8 @@ mod text_input_mouse_test;
 #[cfg(test)]
 mod text_input_parity_test;
 #[cfg(test)]
+mod text_input_passed_keys_test;
+#[cfg(test)]
 mod text_input_scroll_test;
 #[cfg(test)]
 mod text_input_undo_test;
