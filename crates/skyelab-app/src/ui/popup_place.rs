@@ -1,10 +1,10 @@
-//! Places a popup's `anchor` corner at `corner` (relative to where this element is laid out), flipped to the other
+//! Places a popup's `anchor` corner at `corner` (relative to where this element is laid out: right below the trigger), flipped to the other
 //! side when it would leave the window and kept `margin` inside it. The final offset is rounded to whole points, as
 //! gpui-base's positioner did, so popups land on the same pixels they always have.
 
 use gpui::{
     Anchor, AnyElement, App, Axis, Bounds, Element, ElementId, GlobalElementId, InspectorElementId,
-    IntoElement, LayoutId, Pixels, Point, Position, Style, Window, point, px,
+    IntoElement, LayoutId, Pixels, Point, Position, Style, Window, point,
 };
 
 pub(super) struct PopupPlace {
@@ -75,12 +75,11 @@ impl Element for PopupPlace {
         cx: &mut App,
     ) -> (LayoutId, LayoutId) {
         let child = self.child.request_layout(window, cx);
-        let mut style = Style {
+        // No insets: like gpui-base's positioner, it sits where it would flow, just below the trigger.
+        let style = Style {
             position: Position::Absolute,
             ..Style::default()
         };
-        style.inset.top = px(0.).into();
-        style.inset.left = px(0.).into();
         (window.request_layout(style, [child], cx), child)
     }
 
@@ -119,7 +118,7 @@ impl Element for PopupPlace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::size;
+    use gpui::{px, size};
 
     #[test]
     fn a_popup_that_fits_sits_at_its_corner_and_one_that_overflows_flips_or_stays_inside() {
