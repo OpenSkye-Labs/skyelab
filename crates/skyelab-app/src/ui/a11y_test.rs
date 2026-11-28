@@ -9,6 +9,7 @@ use super::{
 };
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
+use crate::ui::v_flex;
 use gpui::{
     AppContext as _, Context, Element as _, Entity, IntoElement, ParentElement as _, Render,
     RenderOnce as _, StatefulInteractiveElement as _, Styled as _, TestAppContext, Window,
@@ -18,7 +19,6 @@ use gpui_base::test_support::snapshots;
 use gpui_component::{
     input::InputState,
     menu::{DropdownMenu as _, PopupMenuItem},
-    v_flex,
 };
 use std::{
     cell::RefCell,

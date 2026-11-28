@@ -10,15 +10,12 @@ use crate::ui::A11yScrollArea as _;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::Tooltip;
+use crate::ui::{Icon, v_flex};
 use gpui::{
     Action, AppContext as _, Context, Entity, FocusHandle, FontWeight, Hsla, IntoElement, Pixels,
     Point, SharedString, Task, Window, actions, div, prelude::*, px,
 };
-use gpui_component::{
-    Icon,
-    input::{InputEvent, InputState},
-    v_flex,
-};
+use gpui_component::input::{InputEvent, InputState};
 use skyelab_daemon::SharedTailnet;
 use skyelab_tailnet::own_online_peers;
 

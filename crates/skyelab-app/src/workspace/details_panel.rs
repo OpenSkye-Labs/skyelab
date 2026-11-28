@@ -7,11 +7,11 @@ use super::thread_model::Record;
 use crate::ui;
 use crate::ui::A11yScrollArea as _;
 use crate::ui::{ActiveTheme as _, Theme};
+use crate::ui::{h_flex, v_flex};
 use gpui::{
     AnimationExt as _, AnyElement, App, Context, EventEmitter, FocusHandle, Focusable, FontWeight,
     IntoElement, Render, Subscription, WeakEntity, Window, div, prelude::*,
 };
-use gpui_component::{h_flex, v_flex};
 use skyelab_agent::Event;
 use skyelab_core::{Account, Provider};
 use skyelab_store::{Store, UsageReading};

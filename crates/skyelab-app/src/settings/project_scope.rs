@@ -5,13 +5,11 @@
 use super::Settings;
 use super::widgets::DESC;
 use crate::ui::ActiveTheme as _;
+use crate::ui::h_flex;
 use crate::ui::{Button, Switch};
 use crate::workspace::thread_extras::prefs;
 use gpui::{AnyElement, Context, SharedString, Window, prelude::*};
-use gpui_component::{
-    h_flex,
-    menu::{DropdownMenu as _, PopupMenuItem},
-};
+use gpui_component::menu::{DropdownMenu as _, PopupMenuItem};
 use skyelab_core::thread_defaults::ThreadField;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -233,7 +231,7 @@ impl Settings {
             });
         let muted = cx.theme().muted_foreground;
         Some(
-            gpui_component::v_flex()
+            crate::ui::v_flex()
                 .gap_1()
                 .px_1()
                 .child(

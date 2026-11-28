@@ -5,8 +5,8 @@ use super::thread::{ThreadView, ThreadViewEvent};
 use super::worktree::{self, Discard};
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::{h_flex, v_flex};
 use gpui::{AnyElement, Context, FontWeight, Window, actions, div, prelude::*};
-use gpui_component::{h_flex, v_flex};
 
 actions!(
     skyelab,

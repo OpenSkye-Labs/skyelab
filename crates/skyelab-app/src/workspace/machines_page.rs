@@ -9,8 +9,8 @@ use crate::ui;
 use crate::ui::A11yScrollArea as _;
 use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, TextField};
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{Context, Entity, IntoElement, SharedString, Subscription, Window, div, prelude::*};
-use gpui_component::{Icon, h_flex, v_flex};
 
 pub struct MachinesPage {
     picker: Entity<EnvPicker>,

@@ -3,15 +3,12 @@
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, SharedString,
     Window, div, prelude::*,
 };
-use gpui_component::{
-    Icon,
-    dock::{BasePanel, Panel, PanelEvent},
-    h_flex, v_flex,
-};
+use gpui_component::dock::{BasePanel, Panel, PanelEvent};
 use skyelab_browser::BrowserView;
 
 /// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar.
@@ -118,7 +115,7 @@ impl Render for Welcome {
         }
         // Each row is a button: an icon in front says so (plain label rows read as text).
         let shortcut = |icon: ui::SkyeIcon, label: &'static str, action: Box<dyn Action>| {
-            gpui_component::h_flex()
+            crate::ui::h_flex()
                 .id(label)
                 .role(gpui::accesskit::Role::Button)
                 .aria_label(label)
@@ -136,7 +133,7 @@ impl Render for Welcome {
                     }
                 })
                 .child(
-                    gpui_component::Icon::new(icon)
+                    crate::ui::Icon::new(icon)
                         .size_4()
                         .text_color(theme.muted_foreground),
                 )

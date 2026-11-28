@@ -9,11 +9,17 @@ macro_rules! icons {
             $($name,)*
         }
 
-        impl IconNamed for SkyeIcon {
-            fn path(self) -> SharedString {
+        impl SkyeIcon {
+            pub(crate) fn path(self) -> SharedString {
                 match self {
                     $(Self::$name => concat!("icons/skyelab/", $file, ".svg"),)*
                 }.into()
+            }
+        }
+
+        impl IconNamed for SkyeIcon {
+            fn path(self) -> SharedString {
+                SkyeIcon::path(self)
             }
         }
 
@@ -135,6 +141,10 @@ icons! {
     User => "user",
     UserCheck => "user-check",
     UserRoundX => "user-round-x",
+    WindowClose => "window-close",
+    WindowMaximize => "window-maximize",
+    WindowMinimize => "window-minimize",
+    WindowRestore => "window-restore",
     Workflow => "workflow",
     X => "x",
 }

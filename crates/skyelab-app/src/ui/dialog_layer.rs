@@ -6,6 +6,7 @@ use super::dialog::{Dialog, DialogClosed, DialogEntrance, OnClose};
 use super::window_root::WindowRoot;
 use super::{A11yScrollArea as _, SkyeIcon, icon_button};
 use crate::ui::ActiveTheme as _;
+use crate::ui::v_flex;
 use gpui::{
     Animation, AnimationExt as _, AnyElement, App, BoxShadow, Context, Entity, FocusHandle,
     FontWeight, IntoElement, KeyBinding, MouseButton, ParentElement as _, Pixels, Render,
@@ -13,7 +14,6 @@ use gpui::{
     relative,
 };
 use gpui_base::TestSupportExt as _;
-use gpui_component::v_flex;
 use std::rc::Rc;
 
 actions!(

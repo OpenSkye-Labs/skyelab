@@ -6,11 +6,8 @@ use super::*;
 use crate::ui;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
-use gpui_component::{
-    Icon, h_flex,
-    menu::{DropdownMenu as _, PopupMenuItem},
-    v_flex,
-};
+use crate::ui::{Icon, h_flex, v_flex};
+use gpui_component::menu::{DropdownMenu as _, PopupMenuItem};
 
 /// Why a stale binding stops agents, in one sentence.
 fn stale_reason(confirmed: bool, resolves: bool) -> &'static str {

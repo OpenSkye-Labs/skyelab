@@ -23,15 +23,12 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{h_flex, v_flex};
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, FontWeight, ListAlignment, ListOffset, ListState,
     MouseButton, SharedString, Task, Window, actions, div, list, prelude::*, px, uniform_list,
 };
-use gpui_component::{
-    h_flex,
-    input::{InputState, TextareaState},
-    v_flex,
-};
+use gpui_component::input::{InputState, TextareaState};
 use std::collections::HashSet;
 use std::path::PathBuf;
 

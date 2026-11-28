@@ -5,16 +5,13 @@ use crate::palette::score;
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex};
 use gpui::{
     App, AppContext as _, Context, Entity, FocusHandle, IntoElement, KeyBinding,
     ParentElement as _, Render, SharedString, Styled as _, Task, Window, actions, div, prelude::*,
     px,
 };
-use gpui_component::{
-    Icon,
-    command::{Command, CommandItem, CommandState},
-    h_flex,
-};
+use gpui_component::command::{Command, CommandItem, CommandState};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;

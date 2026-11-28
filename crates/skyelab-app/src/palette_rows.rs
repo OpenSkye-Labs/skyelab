@@ -5,11 +5,11 @@ use super::super::match_ranges;
 use super::{Entry, Kind, Palette, back};
 use crate::ui::ActiveTheme as _;
 use crate::ui::{CommandRow, Kbd, SkyeIcon};
+use crate::ui::{Icon, h_flex};
 use gpui::{
     App, InteractiveElement as _, Keystroke, ParentElement as _, SharedString,
     StatefulInteractiveElement as _, Styled as _, WeakEntity, div, prelude::*,
 };
-use gpui_component::{Icon, h_flex};
 
 /// The icon a row shows when its entry names none: by kind, and for actions by a word in their name.
 fn icon_for(entry: &Entry) -> SkyeIcon {

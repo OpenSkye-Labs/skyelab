@@ -5,16 +5,14 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, SharedString,
     Subscription, Task, Window, div, prelude::*, px, uniform_list,
 };
 use gpui_component::{
-    Icon,
     dock::{BasePanel, Panel, PanelEvent},
-    h_flex,
     input::{InputEvent, InputState},
-    v_flex,
 };
 use skyelab_core::files::{Found, search};
 use std::path::PathBuf;

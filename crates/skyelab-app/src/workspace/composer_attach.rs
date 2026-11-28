@@ -7,11 +7,11 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex};
 use gpui::{
     AnyElement, AppContext as _, ClipboardEntry, ClipboardItem, Context, SharedString, Window, div,
     prelude::*, px,
 };
-use gpui_component::{Icon, Sizable as _, h_flex};
 use skyelab_agent::AttachmentKind;
 use skyelab_agent::{Attachment, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS};
 use std::path::PathBuf;
@@ -225,7 +225,7 @@ impl ThreadView {
                         .border_color(theme.border)
                         .bg(theme.muted)
                         .text_size(ui::META)
-                        .child(Icon::new(icon).xsmall().text_color(theme.muted_foreground))
+                        .child(Icon::new(icon).size_3().text_color(theme.muted_foreground))
                         .child(div().min_w_0().truncate().child(a.name.clone()))
                         .child(
                             Button::new(SharedString::from(format!("remove-attachment-{ix}")))

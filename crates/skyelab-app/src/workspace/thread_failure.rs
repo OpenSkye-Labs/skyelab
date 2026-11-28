@@ -9,8 +9,8 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{AnyElement, Context, FontWeight, Window, div, prelude::*};
-use gpui_component::{Icon, h_flex, v_flex};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Failure {

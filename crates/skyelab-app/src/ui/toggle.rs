@@ -8,11 +8,11 @@
 
 use super::{DISABLED_OPACITY, META, RADIUS_SM, SkyeIcon};
 use crate::ui::ActiveTheme as _;
+use crate::ui::Icon;
 use gpui::{
     App, ClickEvent, ElementId, FontWeight, IntoElement, ParentElement as _, RenderOnce,
     SharedString, Styled as _, Window, accesskit, div, prelude::*, px,
 };
-use gpui_component::Icon;
 use std::rc::Rc;
 
 type OnToggle = Rc<dyn Fn(&bool, &mut Window, &mut App)>;
@@ -57,7 +57,7 @@ impl Toggle {
         let theme = cx.theme();
         let ring = theme.ring;
         if self.decorative {
-            return gpui_component::h_flex()
+            return crate::ui::h_flex()
                 .flex_shrink_0()
                 .justify_start()
                 .gap_2()

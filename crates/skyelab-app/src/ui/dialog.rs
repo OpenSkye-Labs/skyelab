@@ -4,11 +4,11 @@
 
 use super::dialog_layer::DialogLayer;
 use super::{BODY, Button};
+use crate::ui::h_flex;
 use gpui::{
     AnyElement, App, Div, FontWeight, IntoElement, ParentElement, Pixels, SharedString,
     StyleRefinement, Styled, Window, div, prelude::*, px,
 };
-use gpui_component::h_flex;
 use std::rc::Rc;
 
 /// How a dialog appears.

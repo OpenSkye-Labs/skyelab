@@ -4,7 +4,7 @@
 use super::widgets::{path_line, section};
 use super::*;
 use crate::ui;
-use gpui_component::{h_flex, v_flex};
+use crate::ui::{h_flex, v_flex};
 
 impl Settings {
     /// Asks `gh` off the UI thread who is logged in to each account's GitHub config dir.

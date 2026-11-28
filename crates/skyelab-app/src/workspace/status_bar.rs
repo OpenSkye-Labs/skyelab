@@ -4,8 +4,9 @@ use super::{OpenDevices, OpenSettings, Workspace};
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::h_flex;
 use gpui::{Context, IntoElement, div, prelude::*};
-use gpui_component::{h_flex, status_bar::StatusBar};
+use gpui_component::status_bar::StatusBar;
 
 impl Workspace {
     pub(super) fn render_status(&self, cx: &mut Context<Self>) -> impl IntoElement {

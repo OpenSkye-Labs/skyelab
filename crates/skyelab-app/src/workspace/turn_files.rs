@@ -14,8 +14,8 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{AnyElement, Context, FontWeight, SharedString, Task, div, prelude::*, px};
-use gpui_component::{Icon, h_flex, v_flex};
 use std::collections::HashMap;
 use std::path::PathBuf;
 

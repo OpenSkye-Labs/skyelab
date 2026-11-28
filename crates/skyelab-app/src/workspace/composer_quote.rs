@@ -9,12 +9,13 @@ use super::thread::ThreadView;
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex};
 use gpui::{
     AnyElement, Context, InteractiveElement as _, MouseButton, Pixels, Point, Window, anchored,
     deferred, div, point, prelude::*, px,
 };
 use gpui_base::TextSelection;
-use gpui_component::{ElementExt as _, Icon, Sizable as _, h_flex};
+use gpui_component::ElementExt as _;
 
 /// The chip's label: the quote's first words.
 fn label(text: &str) -> String {
@@ -114,7 +115,7 @@ impl ThreadView {
             .hover(|this| this.bg(cx.theme().accent))
             .child(
                 Icon::new(SkyeIcon::Quote)
-                    .xsmall()
+                    .size_3()
                     .text_color(theme.muted_foreground),
             )
             .child("Quote")

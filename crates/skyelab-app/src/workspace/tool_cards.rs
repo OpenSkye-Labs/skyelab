@@ -8,8 +8,9 @@ use super::thread_model::ToolItem;
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, SkyeIcon};
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{AnyElement, Context, FontWeight, IntoElement, SharedString, div, prelude::*, px};
-use gpui_component::{Icon, clipboard::Clipboard, h_flex, v_flex};
+use gpui_component::clipboard::Clipboard;
 use skyelab_agent::{Todo, TodoStatus};
 
 use skyelab_agent::timeline::cards::DIFF_LINES;

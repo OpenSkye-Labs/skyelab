@@ -7,16 +7,15 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Checkbox, Switch, TextField};
+use crate::ui::{Icon, h_flex, v_flex};
 use crate::workspace::OpenThread;
 use gpui::{
     AnyElement, Context, IntoElement, ParentElement as _, Render, SharedString, Styled as _,
     Window, div, prelude::*,
 };
 use gpui_component::{
-    Icon, h_flex,
     input::Textarea,
     menu::{DropdownMenu as _, PopupMenuItem},
-    v_flex,
 };
 use skyelab_agent::Mode;
 use skyelab_core::schedule::Schedule;

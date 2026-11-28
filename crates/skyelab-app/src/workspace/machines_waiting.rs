@@ -5,8 +5,8 @@ use super::Workspace;
 use crate::environment::ConnState;
 use crate::ui;
 use crate::ui::Theme;
+use crate::ui::v_flex;
 use gpui::{AnyElement, App, Context, SharedString, div, prelude::*};
-use gpui_component::v_flex;
 
 impl Workspace {
     /// (machine, this device's code) for every linked machine waiting to approve this device.

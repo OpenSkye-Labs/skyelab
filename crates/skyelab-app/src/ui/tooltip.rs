@@ -4,11 +4,11 @@
 
 use super::{Kbd, META, RADIUS_MD};
 use crate::ui::ActiveTheme as _;
+use crate::ui::h_flex;
 use gpui::{
     Action, AnyView, App, AppContext as _, Context, IntoElement, ParentElement as _, Render,
     SharedString, Styled as _, Window, div, prelude::FluentBuilder as _,
 };
-use gpui_component::h_flex;
 
 pub struct Tooltip {
     text: SharedString,

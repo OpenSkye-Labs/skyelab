@@ -56,9 +56,13 @@ mod dialog_title_strip_test;
 pub mod gallery;
 #[cfg(test)]
 mod gallery_test;
+#[cfg(test)]
+mod icon_layout_test;
 mod kbd;
 #[cfg(test)]
 mod kit_boundary_test;
+#[cfg(test)]
+mod layout_icon_boundary_test;
 pub mod motion;
 #[cfg(test)]
 mod motion_test;
@@ -481,8 +485,12 @@ pub fn short_path(path: &Path, home: Option<&Path>) -> String {
     }
 }
 
+mod icon;
 mod icons;
+mod layout;
+pub use icon::Icon;
 pub(crate) use icons::SkyeIcon;
+pub use layout::{h_flex, v_flex};
 mod provider_logo;
 pub use provider_logo::provider_logo;
 

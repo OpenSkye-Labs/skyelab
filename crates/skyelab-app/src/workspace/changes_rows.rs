@@ -6,10 +6,10 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Checkbox;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex};
 use crate::workspace::changes_model::{LineKind, Row};
 use crate::workspace::changes_tree::{SplitRow, TreeRow};
 use gpui::{AnyElement, App, Context, FontWeight, Hsla, SharedString, Window, div, prelude::*, px};
-use gpui_component::{Icon, Sizable as _, h_flex};
 use skyelab_git::ChangeKind;
 use std::ops::Range;
 
@@ -280,7 +280,7 @@ impl ChangesView {
                                 } else {
                                     SkyeIcon::ChevronRight
                                 })
-                                .xsmall(),
+                                .size_3(),
                             )
                             .child(div().truncate().child(label.clone()))
                             .on_click(

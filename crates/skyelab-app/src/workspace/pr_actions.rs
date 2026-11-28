@@ -9,15 +9,12 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Checkbox, TextField};
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     App, AppContext as _, Context, Entity, IntoElement, Render, SharedString, Task, Window, div,
     prelude::*, px,
 };
-use gpui_component::{
-    Icon, Sizable as _, h_flex,
-    input::{InputEvent, InputState},
-    v_flex,
-};
+use gpui_component::input::{InputEvent, InputState};
 use skyelab_core::AccountsConfig;
 use skyelab_git::{Checks, GitHub, MergeMethod, ReviewComment, Verdict};
 use std::path::PathBuf;
@@ -386,7 +383,7 @@ impl PrActions {
                             .gap_1()
                             .text_size(ui::META)
                             .text_color(ui::ink(theme, theme.danger))
-                            .child(Icon::new(SkyeIcon::CircleX).xsmall())
+                            .child(Icon::new(SkyeIcon::CircleX).size_3())
                             .child(w)
                     }))
                     .child(div().ml_auto().child(button)),

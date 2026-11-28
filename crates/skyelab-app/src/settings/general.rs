@@ -7,8 +7,8 @@ use crate::ui;
 use crate::ui::SkyeIcon;
 use crate::ui::Switch;
 use crate::ui::TextField;
+use crate::ui::{h_flex, v_flex};
 use crate::workspace::thread_extras::prefs;
-use gpui_component::{h_flex, v_flex};
 use skyelab_core::update::Channel;
 use skyelab_core::{AppSettings, DiffSettings, ThreadSettings};
 
@@ -348,7 +348,7 @@ impl Settings {
                     h_flex()
                         .gap_3()
                         .child(
-                            gpui_component::Icon::new(SkyeIcon::CircleAlert)
+                            crate::ui::Icon::new(SkyeIcon::CircleAlert)
                                 .size_4()
                                 .text_color(ink),
                         )

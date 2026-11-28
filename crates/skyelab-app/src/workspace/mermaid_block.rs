@@ -7,9 +7,9 @@ use super::tool_cards;
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{AnyElement, App, ObjectFit, SharedString, Window, div, img, prelude::*, px, relative};
 use gpui_component::text::MarkdownNode;
-use gpui_component::{Icon, h_flex, v_flex};
 
 /// The markdown block renderer for [`super::mermaid::NODE`] nodes.
 pub(super) fn render(node: &MarkdownNode, window: &mut Window, cx: &mut App) -> AnyElement {

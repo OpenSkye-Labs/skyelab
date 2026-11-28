@@ -6,7 +6,7 @@ use super::*;
 use crate::ui::A11yScrollArea as _;
 use crate::ui::Kbd;
 use crate::ui::SkyeIcon;
-use gpui_component::{Icon, h_flex, v_flex};
+use crate::ui::{Icon, h_flex, v_flex};
 
 /// Every setting the search finds: its section, its row title, and other words it answers to.
 const INDEX: &[(Section, &str, &str)] = &[

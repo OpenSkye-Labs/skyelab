@@ -449,7 +449,7 @@ impl TabGroupRenderer for CenterTabs {
 fn collapsed_drawer(window: &Window, cx: &App) -> AnyElement {
     use crate::ui::ActiveTheme as _;
     use crate::ui::{self, SkyeIcon};
-    use gpui_component::{Icon, h_flex};
+    use crate::ui::{Icon, h_flex};
     let theme = cx.theme();
     h_flex()
         .id("drawer-collapsed")

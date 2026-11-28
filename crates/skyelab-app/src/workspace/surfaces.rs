@@ -7,15 +7,12 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Kbd;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, KeyBinding,
     Render, Subscription, Window, actions, div, prelude::*,
 };
-use gpui_component::{
-    Icon,
-    dock::{BasePanel, Panel, PanelControl, PanelEvent},
-    h_flex, v_flex,
-};
+use gpui_component::dock::{BasePanel, Panel, PanelControl, PanelEvent};
 
 actions!(
     skyelab,

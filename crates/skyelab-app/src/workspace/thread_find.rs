@@ -12,12 +12,13 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::h_flex;
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, KeyBinding, ListState, Subscription, Window,
     actions, div, prelude::*, px,
 };
 use gpui_component::{
-    Sizable as _, h_flex,
+    Sizable as _,
     input::{Input, InputEvent, InputState},
 };
 use skyelab_agent::DeltaKind;

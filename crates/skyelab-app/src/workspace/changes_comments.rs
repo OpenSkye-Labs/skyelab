@@ -7,6 +7,7 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex, v_flex};
 use crate::workspace::diff_comments::{DiffComment, DiffComments};
 use crate::workspace::thread::composer::composer_context::ChipKind;
 use gpui::{
@@ -14,9 +15,8 @@ use gpui::{
     Window, div, prelude::*, px,
 };
 use gpui_component::{
-    Icon, Sizable as _, h_flex,
+    Sizable as _,
     input::{InputEvent, Textarea, TextareaState},
-    v_flex,
 };
 
 /// The editor under the lines being commented on. `anchor` holds them as an unsaved comment, so a reload moves
@@ -466,7 +466,7 @@ impl ChangesView {
                 .text_size(ui::META)
                 .child(
                     Icon::new(SkyeIcon::MessageCircle)
-                        .xsmall()
+                        .size_3()
                         .text_color(ui::ink(theme, theme.primary)),
                 )
                 .when(n > 0, |d| {

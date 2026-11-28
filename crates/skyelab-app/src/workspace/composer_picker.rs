@@ -6,8 +6,8 @@ use super::{hint, popover};
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::{Checkbox, Kbd, SkyeIcon, TextField};
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{AnyElement, Context, FontWeight, SharedString, Window, div, prelude::*, px};
-use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 use skyelab_agent::CLAUDE_EFFORTS;
 use skyelab_core::Provider;
 
@@ -123,7 +123,7 @@ impl ThreadView {
                 .hover(|this| this.bg(theme.accent))
                 .child(ui::provider_logo(provider, px(16.), cx))
                 .child(div().min_w_0().truncate().child(label.clone()))
-                .when(on, |this| this.child(Icon::new(SkyeIcon::Check).xsmall()))
+                .when(on, |this| this.child(Icon::new(SkyeIcon::Check).size_3()))
                 .child(div().flex_1())
                 .children(
                     (i < 9)
@@ -178,7 +178,7 @@ impl ThreadView {
                         .text_size(ui::BODY)
                         .hover(|this| this.bg(theme.accent))
                         .child(div().flex_1().child(label))
-                        .when(on, |this| this.child(Icon::new(SkyeIcon::Check).xsmall()))
+                        .when(on, |this| this.child(Icon::new(SkyeIcon::Check).size_3()))
                         .on_click(
                             cx.listener(move |this, _, _, cx| this.pick_effort(e.clone(), cx)),
                         )
@@ -222,7 +222,7 @@ impl ThreadView {
                 .hover(|this| this.bg(theme.accent))
                 .child(
                     Icon::new(SkyeIcon::Columns2)
-                        .xsmall()
+                        .size_3()
                         .text_color(theme.muted_foreground),
                 )
                 .child("Send to several models…")
@@ -365,7 +365,7 @@ impl ThreadView {
                             .aria_label("One model")
                             .child(
                                 Icon::new(SkyeIcon::Close)
-                                    .xsmall()
+                                    .size_3()
                                     .text_color(theme.muted_foreground),
                             )
                             .child("One model")

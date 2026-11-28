@@ -4,12 +4,13 @@
 //! T3's Electron build does the same with `titleBarOverlay`.
 
 use super::HEADER_H;
+use super::SkyeIcon;
 use crate::ui::ActiveTheme as _;
+use crate::ui::{Icon, h_flex};
 use gpui::{
     App, InteractiveElement, IntoElement, ParentElement as _, Pixels, RenderOnce, Styled as _,
     Window, WindowControlArea, div, prelude::*, px,
 };
-use gpui_component::{Icon, IconName, Sizable as _, h_flex};
 use std::sync::LazyLock;
 
 /// One caption button: Windows 11's 46 px wide, 32 px tall.
@@ -62,7 +63,8 @@ impl RenderOnce for WindowControls {
         let (fg, hover) = (theme.foreground, theme.accent);
         // Windows' own close hover: red with white.
         let close_bg = gpui::rgb(0xc42b1c);
-        let button = |id: &'static str, icon: IconName, area: WindowControlArea| {
+        let maximized = window.is_maximized();
+        let button = |id: &'static str, area: WindowControlArea| {
             let close = matches!(area, WindowControlArea::Close);
             div()
                 .id(id)
@@ -77,7 +79,7 @@ impl RenderOnce for WindowControls {
                 })
                 .when(!close, |b| b.hover(move |s| s.bg(hover)))
                 .window_control_area(area)
-                .child(Icon::new(icon).small())
+                .child(Icon::new(caption_icon(area, maximized)).size_3p5())
         };
         h_flex()
             .id("window-controls")
@@ -87,25 +89,19 @@ impl RenderOnce for WindowControls {
             .h(BUTTON_H)
             .max_h(HEADER_H)
             .occlude()
-            .child(button(
-                "window-min",
-                IconName::WindowMinimize,
-                WindowControlArea::Min,
-            ))
-            .child(button(
-                "window-max",
-                if window.is_maximized() {
-                    IconName::WindowRestore
-                } else {
-                    IconName::WindowMaximize
-                },
-                WindowControlArea::Max,
-            ))
-            .child(button(
-                "window-close",
-                IconName::WindowClose,
-                WindowControlArea::Close,
-            ))
+            .child(button("window-min", WindowControlArea::Min))
+            .child(button("window-max", WindowControlArea::Max))
+            .child(button("window-close", WindowControlArea::Close))
             .into_any_element()
+    }
+}
+
+/// The glyph a caption button draws.
+pub(crate) fn caption_icon(area: WindowControlArea, maximized: bool) -> SkyeIcon {
+    match area {
+        WindowControlArea::Min => SkyeIcon::WindowMinimize,
+        WindowControlArea::Max if maximized => SkyeIcon::WindowRestore,
+        WindowControlArea::Max => SkyeIcon::WindowMaximize,
+        WindowControlArea::Close | WindowControlArea::Drag => SkyeIcon::WindowClose,
     }
 }

@@ -10,8 +10,8 @@ use crate::ui::A11yScrollArea as _;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
-use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 use skyelab_core::terminal_context;
 
 /// The most excerpts one message carries; a new one past it replaces the oldest.
@@ -236,25 +236,25 @@ impl ThreadView {
                 }))
                 .child(match c.kind {
                     ChipKind::Terminal => Icon::new(SkyeIcon::Terminal)
-                        .xsmall()
+                        .size_3()
                         .text_color(ui::ink(theme, theme.success)),
                     ChipKind::Thread => Icon::new(crate::ui::SkyeIcon::Bot)
-                        .xsmall()
+                        .size_3()
                         .text_color(ui::ink(theme, theme.info)),
                     ChipKind::PullRequest => Icon::new(SkyeIcon::GitPullRequest)
-                        .xsmall()
+                        .size_3()
                         .text_color(ui::ink(theme, theme.primary)),
                     ChipKind::Review => Icon::new(SkyeIcon::MessageCircle)
-                        .xsmall()
+                        .size_3()
                         .text_color(ui::ink(theme, theme.primary)),
                     ChipKind::SideChat => Icon::new(SkyeIcon::MessagesSquare)
-                        .xsmall()
+                        .size_3()
                         .text_color(ui::ink(theme, theme.info)),
                     ChipKind::Issue => Icon::new(SkyeIcon::CircleDot)
-                        .xsmall()
+                        .size_3()
                         .text_color(ui::ink(theme, theme.success)),
                     ChipKind::Quote => Icon::new(SkyeIcon::Quote)
-                        .xsmall()
+                        .size_3()
                         .text_color(theme.muted_foreground),
                 })
                 .child(div().min_w_0().truncate().child(c.chip_label()))

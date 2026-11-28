@@ -12,11 +12,11 @@ use crate::ui::A11yScrollArea as _;
 use crate::ui::SkyeIcon;
 use crate::ui::{ActiveTheme as _, Theme};
 use crate::ui::{Button, Tooltip};
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     AnyElement, Context, Focusable as _, FontWeight, Hsla, IntoElement, Render, SharedString,
     Window, div, prelude::*, px,
 };
-use gpui_component::{Icon, Sizable as _, h_flex, v_flex};
 use skyelab_git::{IssueFilter, IssueRow, PrFilter, PrRow, PrState};
 
 const PR_FILTERS: [(Filter, &str); 3] = [
@@ -35,7 +35,7 @@ fn glyph(icon: SkyeIcon, color: Hsla, tip: &'static str) -> AnyElement {
     div()
         .id(tip)
         .flex_shrink_0()
-        .child(Icon::new(icon).small().text_color(color))
+        .child(Icon::new(icon).size_3p5().text_color(color))
         .when(!tip.is_empty(), |d| {
             d.tooltip(move |window, cx| Tooltip::new(tip).build(window, cx))
         })

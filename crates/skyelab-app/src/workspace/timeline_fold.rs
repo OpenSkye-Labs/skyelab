@@ -7,8 +7,8 @@ use super::timeline_text::divider_text;
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{AnyElement, Context, SharedString, div, prelude::*};
-use gpui_component::{Icon, h_flex, v_flex};
 pub(super) use skyelab_agent::timeline::fold::{
     files_key, fold_head, fold_key, folded_by, reply_of, rows_of, turn_start,
 };

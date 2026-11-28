@@ -3,11 +3,11 @@
 
 use super::{BODY, HEADER_H, META, PAGE, RADIUS_MD, RADIUS_SM, ROW_H, SECTION};
 use crate::ui::{ActiveTheme as _, Theme};
+use crate::ui::{h_flex, v_flex};
 use gpui::{
     AnyElement, App, Div, ElementId, FontWeight, Hsla, IntoElement, SharedString, Stateful, Window,
     div, prelude::*, px,
 };
-use gpui_component::{h_flex, v_flex};
 use skyelab_core::Provider;
 
 /// The account identity, SkyeLab's one addition to T3's language: a dot in the account's own color, its label, and its
@@ -137,7 +137,7 @@ impl RenderOnce for Pill {
             .text_color(fg)
             .map(|d| match (self.icon, self.color) {
                 (Some(i), c) => d.child(
-                    gpui_component::Icon::new(i)
+                    crate::ui::Icon::new(i)
                         .size(px(12.))
                         .text_color(c.unwrap_or(theme.muted_foreground)),
                 ),

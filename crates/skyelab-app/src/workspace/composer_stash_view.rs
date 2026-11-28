@@ -8,8 +8,8 @@ use crate::ui::A11yScrollArea as _;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::{Icon, h_flex};
 use gpui::{AnyElement, Context, FontWeight, div, prelude::*, px};
-use gpui_component::{Icon, Sizable as _, h_flex};
 
 impl ThreadView {
     /// The tab on the composer's top-right shoulder: "Stash" and the count. Hidden while empty or open, and while a
@@ -44,7 +44,7 @@ impl ThreadView {
             .text_color(theme.muted_foreground)
             .cursor_pointer()
             .hover(|this| this.text_color(cx.theme().foreground))
-            .child(Icon::new(SkyeIcon::Bookmark).xsmall())
+            .child(Icon::new(SkyeIcon::Bookmark).size_3())
             .child("Stash")
             .child(
                 div()
@@ -90,7 +90,7 @@ impl ThreadView {
             .hover(|this| this.bg(cx.theme().accent))
             .child(
                 Icon::new(SkyeIcon::Bookmark)
-                    .xsmall()
+                    .size_3()
                     .text_color(theme.muted_foreground),
             )
             .child(
@@ -106,7 +106,7 @@ impl ThreadView {
             )
             .child(
                 Icon::new(SkyeIcon::ChevronDown)
-                    .xsmall()
+                    .size_3()
                     .text_color(theme.muted_foreground),
             )
             .on_click(cx.listener(|this, _, _, cx| {
@@ -144,7 +144,7 @@ impl ThreadView {
                         .hover(|this| this.bg(cx.theme().accent))
                         .child(
                             Icon::new(SkyeIcon::FileText)
-                                .xsmall()
+                                .size_3()
                                 .text_color(theme.muted_foreground),
                         )
                         .child(
@@ -161,7 +161,7 @@ impl ThreadView {
                                     .gap_1()
                                     .text_size(ui::META)
                                     .text_color(theme.muted_foreground)
-                                    .child(Icon::new(SkyeIcon::File).xsmall())
+                                    .child(Icon::new(SkyeIcon::File).size_3())
                                     .child(row.files.to_string()),
                             )
                         })
