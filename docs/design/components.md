@@ -52,10 +52,10 @@ reaches for these.
   which is forwarded as its button's accessible name. Use a segmented control to pick one setting from a few (merge method,
   appearance) and tabs to switch between sections of a page. Wrap a segmented control in an `h_flex` inside a
   `v_flex`, or it stretches.
-- **`TextField`** (`ui/text_field.rs`): a single-line field with our chrome around gpui-component's `Input`
+- **`TextField`** (`ui/text_field.rs`): a single-line field with our chrome around our `TextInput`
   (`small`, `xsmall`, `prefix`, `suffix`, `cleanable`, `disabled`, `invalid`, `accessibility_label`, `accessibility_id`).
-  An input that sits inside a chrome of its own (the composer, the settings search, find-in-thread) keeps the bare
-  `Input` with `appearance(false)` and `.accessibility_label(...)`.
+  Inside a chrome of its own (the settings search, find-in-thread) it is `.bare()`, in the palette `.bare_large()`.
+  The composer is still gpui-component's `Textarea` with `appearance(false)`.
 - **`Pill`**: T3's badge and SkyeLab's chip, neutral or tinted with `color`, with an optional `icon`.
   **`AccountBadge`**, **`StatusDot`**, **`SectionHeader`**, **`EmptyState`**, **`KeyHint`** are in `ui/components.rs`.
 - **`provider_logo(provider, size, cx)`** (`ui/provider_logo.rs`): a provider's own logo file drawn as an image in

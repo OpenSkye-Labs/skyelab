@@ -13,5 +13,5 @@ Rules for popups and hover-only controls, each with the bug that taught it.
 - **A popover's search field holds the focus after the popover is gone** unless closing hands it back: record where
   the focus goes (the composer's prompt, not whatever had it, since a click on the trigger button may own it) and
   restore it in a `cx.defer` only while the hidden field is still focused (`composer_picker_keys::close_picker`).
-- **Reset a list highlight on the field's `InputEvent::Change`, not on `cx.observe`**: an `InputState` notifies on focus
-  and on every cursor blink, so an observer resets the highlight all the time.
+- **Reset a list highlight on the field's `TextInputEvent::Change`, not on `cx.observe`**: a `TextInput` notifies on
+  focus and on every caret blink, so an observer resets the highlight all the time.

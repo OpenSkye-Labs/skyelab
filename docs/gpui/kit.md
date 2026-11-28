@@ -121,6 +121,34 @@ patching around it.
 - Never import gpui-component's or gpui-base's spinner, clipboard, status bar or notification: `kit_boundaries_test`
   fails on it. The command list (the palette, the file picker) is still theirs until stage 4b.
 
+## Text input (`ui/text_input*.rs`, `ui/text_edit.rs`, `ui/text_field.rs`)
+
+- A one-line field is a `ui::TextInput` entity (`TextInput::new(window, cx).placeholder(..)`) drawn by
+  `ui::TextField` (`.bare()` / `.bare_large()` inside a chrome of its own). Never import gpui-component's `InputState`
+  or `Input`: `kit_boundaries_test` fails on it. Text areas, the composer and the code editor are still theirs
+  (stages 6b to 6d).
+- `text_edit::Buffer` holds the text, selection, composition and undo with no GPUI types; test editing rules there.
+  Every insert, typed, pasted or from the input method, goes through `text_edit::fit` (line breaks and tabs dropped,
+  64 KiB at most). `bounds_for_range` answers from the last frame even right after an edit: the input method asks
+  before the next frame, and `None` puts its window at the screen's corner.
+- Keys are actions in the `SkyeTextInput` context (`text_input_keys::bindings(mac)`; the platform is a parameter so
+  both sets are tested on any host). A binding that should reach a field names that context; `Input` is
+  gpui-component's text areas. A test that presses editing keys calls `ui::bind_keys`.
+- Enter emits `PressEnter` and propagates; Escape only ends a composition and propagates; Backspace and Left at the
+  start, Right at the end and Copy with nothing selected propagate (the window's text selection copies then).
+- A surface that closes on `on_mouse_down_out` and can hold a field skips presses for which `ui::on_field_menu`
+  is true: the field's right-click menu hangs outside it (`popover.rs`, `details_panel.rs`, `composer_picker.rs`).
+- A press on a control inside the field (the ×) calls `window.prevent_default()` on mouse-down, or GPUI focuses
+  whatever focusable holds the field.
+- A composition's marked steps emit no `Change`; its commit, unmark or Escape emits one when the text differs from
+  before it began, so lists never filter on half-typed Pinyin. `set_value` emits no `Change` and clears undo. `Blur` is what Settings and the tab rename save on, so the field's own
+  right-click menu taking the focus is not a blur (`blur_held`).
+- A mouse-down handler that moves the focus (opening a menu) calls `window.prevent_default()`: GPUI focuses the
+  pressed `track_focus` element after the handler and would take it back.
+- The input is a view of its own and never notifies from layout or paint; a blink notifies only it.
+- A drag listens on the window (`window.on_mouse_event` in paint), so it goes on outside the field.
+- A selection is filled as a path: a quad antialiases fractional edges differently from gpui-component's text areas.
+
 ## Windows
 
 Every window, test windows included, is built with `ui::window_root(content, window, cx)`: gpui-component's `Root`

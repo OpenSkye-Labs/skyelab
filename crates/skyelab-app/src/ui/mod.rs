@@ -91,7 +91,57 @@ pub mod syntax;
 mod terminal_colors_test;
 #[cfg(test)]
 mod tests;
+mod text_edit;
+#[cfg(test)]
+mod text_edit_tests;
 mod text_field;
+#[cfg(test)]
+mod text_field_clear_focus_test;
+mod text_input;
+mod text_input_a11y;
+#[cfg(test)]
+mod text_input_a11y_cost_test;
+#[cfg(test)]
+mod text_input_a11y_test;
+mod text_input_blink;
+#[cfg(test)]
+mod text_input_blink_test;
+#[cfg(test)]
+mod text_input_clipboard_test;
+#[cfg(test)]
+mod text_input_context_test;
+mod text_input_element;
+#[cfg(test)]
+mod text_input_enter_test;
+mod text_input_handler;
+#[cfg(test)]
+mod text_input_harness;
+#[cfg(test)]
+mod text_input_ime_events_test;
+#[cfg(test)]
+mod text_input_ime_rect_test;
+#[cfg(test)]
+mod text_input_ime_test;
+pub(crate) mod text_input_keys;
+#[cfg(test)]
+mod text_input_keys_test;
+#[cfg(test)]
+mod text_input_korean_undo_test;
+#[cfg(test)]
+mod text_input_menu_in_list_test;
+mod text_input_mouse;
+#[cfg(test)]
+mod text_input_mouse_test;
+#[cfg(test)]
+mod text_input_parity_test;
+#[cfg(test)]
+mod text_input_passed_keys_test;
+#[cfg(test)]
+mod text_input_scroll_test;
+#[cfg(test)]
+mod text_input_select_end_scroll_test;
+#[cfg(test)]
+mod text_input_undo_test;
 pub mod theme;
 mod theme_bridge;
 #[cfg(test)]
@@ -130,12 +180,15 @@ pub fn bind_keys(cx: &mut gpui::App) {
     dialog_layer::bind_keys(cx);
     menu::bind_keys(cx);
     popover::bind_keys(cx);
+    text_input_keys::bind_keys(cx);
 }
 pub use kbd::{Kbd, keys};
 pub use menu::{PopupMenu, PopupMenuItem};
 pub use popover::{HoverCard, Popover};
 pub use surface::{Card, Divider};
 pub use text_field::TextField;
+pub use text_input::{TextInput, TextInputEvent};
+pub use text_input_mouse::on_field_menu;
 pub use toggle::{Checkbox, Switch};
 pub use tooltip::Tooltip;
 pub use window_controls::{WindowControls, drag_area, no_drag};

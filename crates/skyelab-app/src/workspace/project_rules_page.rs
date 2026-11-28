@@ -4,12 +4,12 @@
 
 use super::{SharedStore, lock};
 use crate::ui::ActiveTheme as _;
+use crate::ui::TextInput;
 use crate::ui::{self, Button, TextField};
 use crate::ui::{h_flex, v_flex};
 use gpui::{
     AppContext as _, Context, Entity, IntoElement, Render, SharedString, Window, div, prelude::*,
 };
-use gpui_component::input::InputState;
 use skyelab_core::project_rules::{self as rules, Kind};
 use skyelab_store::project_rules::ProjectRule;
 use std::path::{Path, PathBuf};
@@ -21,7 +21,7 @@ pub struct ProjectRulesPage {
     pub(super) account: Option<String>,
     pub(super) rules: Vec<ProjectRule>,
     /// The rule being edited and its field.
-    pub(super) editing: Option<(i64, Entity<InputState>)>,
+    pub(super) editing: Option<(i64, Entity<TextInput>)>,
     pub(super) error: Option<SharedString>,
 }
 
@@ -70,7 +70,7 @@ impl ProjectRulesPage {
         let Some(r) = self.rules.iter().find(|r| r.id == id) else {
             return;
         };
-        let field = cx.new(|cx| InputState::new(window, cx));
+        let field = cx.new(|cx| TextInput::new(window, cx));
         let pattern = r.rule.pattern.clone();
         field.update(cx, |f, cx| f.set_value(pattern, window, cx));
         self.editing = Some((id, field));

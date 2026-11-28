@@ -2,11 +2,11 @@
 //! its own shell. Drawing the tree and its dividers is in `terminal_split`, the tab's title and rename in
 //! `terminal_tab`.
 
+use crate::ui::TextInput;
 use gpui::{
     App, AppContext as _, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
     KeyBinding, SharedString, Subscription, Task, Window, actions,
 };
-use gpui_component::input::InputState;
 use skyelab_core::terminal_layout::{Axis, PaneTree, SavedTerminalTab};
 use skyelab_terminal::{Foreground, TerminalView};
 use std::path::PathBuf;
@@ -112,7 +112,7 @@ pub struct TerminalPanel {
     /// In the dock now (another thread's tabs are taken out while it shows).
     pub docked: bool,
     /// The inline rename field while the title is being renamed.
-    pub(super) renaming: Option<(Entity<InputState>, Subscription)>,
+    pub(super) renaming: Option<(Entity<TextInput>, Subscription)>,
     /// Tells this tab from the window's other unnamed tabs in its folder: 1 for the first, then the lowest free number.
     pub number: usize,
     /// Runs one command (a Log in): not saved, so a restart doesn't reopen it as a plain shell.

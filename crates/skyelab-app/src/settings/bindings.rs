@@ -25,6 +25,46 @@ fn stale_reason(confirmed: bool, resolves: bool) -> &'static str {
 }
 
 impl Settings {
+    pub(super) fn bind_folder(
+        &mut self,
+        _: &BindFolder,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(account) = self.binding_account.clone() else {
+            self.error = Some("add an account first, then pick it to bind a folder".into());
+            cx.notify();
+            return;
+        };
+        let picked = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some("Bind".into()),
+        });
+        self._pick = Some(cx.spawn_in(window, async move |this, cx| {
+            let path = match picked.await {
+                Ok(Ok(Some(mut paths))) if !paths.is_empty() => Ok(paths.swap_remove(0)),
+                Ok(Ok(_)) | Err(_) => return, // cancelled, or the dialog went away
+                Ok(Err(e)) => Err(e),
+            };
+            // The view may be gone by now; nothing to do then.
+            let _ = this.update_in(cx, |this, window, cx| match path {
+                Ok(path) => {
+                    this.apply(
+                        |c| c.add_binding(Binding::new(path, account.to_string())),
+                        window,
+                        cx,
+                    );
+                }
+                Err(e) => {
+                    this.error = Some(format!("folder picker failed: {e:#}"));
+                    cx.notify();
+                }
+            });
+        }));
+    }
+
     pub(super) fn remove_binding(
         &mut self,
         a: &RemoveBinding,

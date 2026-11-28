@@ -38,7 +38,7 @@ pub(super) fn thread_and_changes<'a>(
 }
 
 pub(super) fn set_input(
-    input: &Entity<gpui_component::input::InputState>,
+    input: &Entity<crate::ui::TextInput>,
     text: &str,
     cx: &mut VisualTestContext,
 ) {

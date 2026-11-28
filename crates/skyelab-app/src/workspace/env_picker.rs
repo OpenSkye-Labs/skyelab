@@ -11,11 +11,11 @@ use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::Tooltip;
 use crate::ui::{Icon, v_flex};
+use crate::ui::{TextInput, TextInputEvent};
 use gpui::{
     Action, AppContext as _, Context, Entity, FocusHandle, FontWeight, Hsla, IntoElement, Pixels,
     Point, SharedString, Task, Window, actions, div, prelude::*, px,
 };
-use gpui_component::input::{InputEvent, InputState};
 use skyelab_daemon::SharedTailnet;
 use skyelab_tailnet::own_online_peers;
 
@@ -85,7 +85,7 @@ pub struct EnvPicker {
     pub peers_error: Option<SharedString>,
     /// Why the last pick, connection start or recents save failed.
     pub error: Option<SharedString>,
-    typed: Entity<InputState>,
+    typed: Entity<TextInput>,
     tailnet: SharedTailnet,
     pub(super) focus: FocusHandle,
     /// Where the focus was before the menu opened; it goes back there on close.
@@ -96,9 +96,9 @@ pub struct EnvPicker {
 
 impl EnvPicker {
     pub fn new(tailnet: SharedTailnet, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let typed = cx.new(|cx| InputState::new(window, cx).placeholder("machine.tailnet.ts.net"));
-        let _typed = cx.subscribe_in(&typed, window, |_, _, e: &InputEvent, window, cx| {
-            if let InputEvent::PressEnter { .. } = e {
+        let typed = cx.new(|cx| TextInput::new(window, cx).placeholder("machine.tailnet.ts.net"));
+        let _typed = cx.subscribe_in(&typed, window, |_, _, e: &TextInputEvent, window, cx| {
+            if let TextInputEvent::PressEnter { .. } = e {
                 crate::workspace::dispatch(Box::new(ConnectTyped), window, cx);
             }
         });
@@ -241,7 +241,7 @@ impl EnvPicker {
         }));
     }
 
-    pub(super) fn typed_input(&self) -> &Entity<InputState> {
+    pub(super) fn typed_input(&self) -> &Entity<TextInput> {
         &self.typed
     }
 
@@ -250,8 +250,7 @@ impl EnvPicker {
     }
 
     pub fn set_typed(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
-        self.typed
-            .update(cx, |t, cx| t.set_value(text.to_owned(), window, cx));
+        self.typed.update(cx, |t, cx| t.set_value(text, window, cx));
     }
 
     pub fn clear_typed(&mut self, window: &mut Window, cx: &mut Context<Self>) {

@@ -4,11 +4,12 @@
 use super::super::{SharedStore, lock};
 use super::Scheduler;
 use super::form::{Draft, Kind};
+use crate::ui::{TextInput, TextInputEvent};
 use gpui::{
     App, AppContext as _, Context, Entity, FocusHandle, Focusable, SharedString, Subscription,
     Window,
 };
-use gpui_component::input::{InputEvent, InputState, TextareaState};
+use gpui_component::input::{InputEvent, TextareaState};
 use skyelab_agent::Mode;
 use skyelab_core::AccountsConfig;
 use skyelab_store::Project;
@@ -34,10 +35,10 @@ pub(crate) struct Row {
 /// The open editor: its text fields, and the rest of the draft.
 pub(crate) struct Editor {
     pub draft: Draft,
-    pub title: Entity<InputState>,
+    pub title: Entity<TextInput>,
     pub prompt: Entity<TextareaState>,
-    pub value: Entity<InputState>,
-    pub model: Entity<InputState>,
+    pub value: Entity<TextInput>,
+    pub model: Entity<TextInput>,
     pub error: Option<SharedString>,
     /// Typing in any field clears `error`: it was about what was there before.
     _edits: Vec<Subscription>,
@@ -132,7 +133,7 @@ impl ScheduledPage {
             |value: &str, placeholder: &str, window: &mut Window, cx: &mut Context<Self>| {
                 let (value, placeholder) = (value.to_owned(), placeholder.to_owned());
                 cx.new(|cx| {
-                    let mut state = InputState::new(window, cx).placeholder(placeholder);
+                    let mut state = TextInput::new(window, cx).placeholder(placeholder);
                     state.set_value(value, window, cx);
                     state
                 })
@@ -148,8 +149,8 @@ impl ScheduledPage {
         let title = input(&draft.title, "e.g. Morning triage", window, cx);
         let value = input(&draft.value, draft.kind.hint(), window, cx);
         let model = input(&draft.model, "Agent default", window, cx);
-        let clear = |this: &mut Self, e: &InputEvent, cx: &mut Context<Self>| {
-            if matches!(e, InputEvent::Change)
+        let clear = |this: &mut Self, changed: bool, cx: &mut Context<Self>| {
+            if changed
                 && let Some(editor) = this.editor.as_mut()
                 && editor.error.take().is_some()
             {
@@ -157,10 +158,18 @@ impl ScheduledPage {
             }
         };
         let _edits = vec![
-            cx.subscribe(&title, move |this, _, e, cx| clear(this, e, cx)),
-            cx.subscribe(&prompt, move |this, _, e, cx| clear(this, e, cx)),
-            cx.subscribe(&value, move |this, _, e, cx| clear(this, e, cx)),
-            cx.subscribe(&model, move |this, _, e, cx| clear(this, e, cx)),
+            cx.subscribe(&title, move |this, _, e, cx| {
+                clear(this, *e == TextInputEvent::Change, cx)
+            }),
+            cx.subscribe(&prompt, move |this, _, e, cx| {
+                clear(this, matches!(e, InputEvent::Change), cx)
+            }),
+            cx.subscribe(&value, move |this, _, e, cx| {
+                clear(this, *e == TextInputEvent::Change, cx)
+            }),
+            cx.subscribe(&model, move |this, _, e, cx| {
+                clear(this, *e == TextInputEvent::Change, cx)
+            }),
         ];
         self.editor = Some(Editor {
             title,

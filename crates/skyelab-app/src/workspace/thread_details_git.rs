@@ -10,12 +10,12 @@ use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::{self, Status, TextField};
+use crate::ui::{TextInput, TextInputEvent};
 use crate::ui::{h_flex, v_flex};
 use gpui::Focusable as _;
 use gpui::{
     AnyElement, App, AppContext as _, Context, FontWeight, SharedString, Window, div, prelude::*,
 };
-use gpui_component::input::{InputEvent, InputState};
 
 impl ThreadView {
     pub(super) fn render_git_rows(&self, on: &On, cx: &App) -> Option<AnyElement> {
@@ -307,11 +307,10 @@ impl ThreadView {
             Some(input) => input.clone(),
             None => {
                 let input = cx.new(|cx| {
-                    InputState::new(window, cx)
-                        .placeholder("https://github.com/owner/repo/pull/123")
+                    TextInput::new(window, cx).placeholder("https://github.com/owner/repo/pull/123")
                 });
-                cx.subscribe_in(&input, window, |this, _, e: &InputEvent, window, cx| {
-                    if let InputEvent::PressEnter { .. } = e {
+                cx.subscribe_in(&input, window, |this, _, e: &TextInputEvent, window, cx| {
+                    if let TextInputEvent::PressEnter { .. } = e {
                         this.link_pr(window, cx);
                     }
                 })

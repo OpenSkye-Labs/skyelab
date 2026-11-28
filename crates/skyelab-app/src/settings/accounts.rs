@@ -58,7 +58,7 @@ impl Settings {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let value = |input: &Entity<InputState>| input.read(cx).value().trim().to_string();
+        let value = |input: &Entity<TextInput>| input.read(cx).value().trim().to_string();
         let label = value(&self.label_input);
         let typed_id = value(&self.id_input);
         let id = self.editing.clone().unwrap_or_else(|| {

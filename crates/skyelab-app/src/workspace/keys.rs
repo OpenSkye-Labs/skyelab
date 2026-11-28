@@ -11,8 +11,8 @@ pub(crate) const NEW_TERMINAL_KEY: &str = if MAC { "cmd-alt-t" } else { "ctrl-al
 pub(crate) const OPEN_SETTINGS_KEY: &str = if MAC { "cmd-," } else { "ctrl-," };
 pub(crate) const OPEN_BROWSER_KEY: &str = if MAC { "cmd-alt-b" } else { "ctrl-alt-b" };
 pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-alt-d" };
-pub(crate) const GO_BACK_KEY: &str = if MAC { "cmd-[" } else { "alt-left" };
-pub(crate) const GO_FORWARD_KEY: &str = if MAC { "cmd-]" } else { "alt-right" };
+pub(crate) const GO_BACK_KEY: &str = go_back_key(MAC);
+pub(crate) const GO_FORWARD_KEY: &str = go_forward_key(MAC);
 pub(crate) const FILE_PICKER_KEY: &str = if MAC { "cmd-p" } else { "ctrl-p" };
 pub(crate) const REOPEN_CLOSED_KEY: &str = if MAC { "cmd-shift-t" } else { "ctrl-shift-t" };
 pub(crate) const SEARCH_FILES_KEY: &str = if MAC { "cmd-shift-f" } else { "ctrl-shift-f" };
@@ -80,21 +80,12 @@ pub fn init(cx: &mut App) {
             KeyBinding::new(FILE_PICKER_KEY, NoAction, Some("Terminal")),
             // ctrl-shift-t opens a tab in many terminal programs; the shell may want it.
             KeyBinding::new(REOPEN_CLOSED_KEY, NoAction, Some("Terminal")),
-            // alt-left/right move by word in a shell; in a text field they would surprise more than help.
+            // alt-left/right move by word in a shell.
             KeyBinding::new(GO_BACK_KEY, NoAction, Some("Terminal")),
             KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Terminal")),
-            KeyBinding::new(GO_BACK_KEY, NoAction, Some("Input")),
-            KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Input")),
-        ]);
-    } else {
-        // A text field binds cmd-[ to Outdent; the prompt is focused on most pages, so history wins there.
-        cx.bind_keys([
-            KeyBinding::new(GO_BACK_KEY, GoBack, Some("Input")),
-            KeyBinding::new(GO_FORWARD_KEY, GoForward, Some("Input")),
-            // A text field binds cmd-shift-f to Replace; the prompt and the read-only preview have nothing to replace.
-            KeyBinding::new(SEARCH_FILES_KEY, files::SearchFiles, Some("Input")),
         ]);
     }
+    cx.bind_keys(field_bindings(MAC));
     crate::ui::bind_keys(cx);
     layout::bind_keys(cx);
     onboarding::bind_keys(cx);
@@ -109,4 +100,36 @@ pub fn init(cx: &mut App) {
     devices::bind_keys(cx);
     attention::init(cx);
     crate::palette::init(cx);
+}
+
+const fn go_back_key(mac: bool) -> &'static str {
+    if mac { "cmd-[" } else { "alt-left" }
+}
+
+const fn go_forward_key(mac: bool) -> &'static str {
+    if mac { "cmd-]" } else { "alt-right" }
+}
+
+/// The workspace's keys inside a text field, on macOS (`mac`) or elsewhere: `Input` is gpui-component's text areas.
+pub(crate) fn field_bindings(mac: bool) -> Vec<KeyBinding> {
+    let fields = ["Input", crate::ui::text_input_keys::KEY_CONTEXT].map(Some);
+    fields
+        .into_iter()
+        .flat_map(|field| {
+            if mac {
+                // A text area binds cmd-[ to Outdent and cmd-shift-f to Replace; the prompt is focused on most pages
+                // and has nothing to replace, so history and the file search win.
+                vec![
+                    KeyBinding::new(go_back_key(mac), GoBack, field),
+                    KeyBinding::new(go_forward_key(mac), GoForward, field),
+                    KeyBinding::new("cmd-shift-f", files::SearchFiles, field),
+                ]
+            } else {
+                vec![
+                    KeyBinding::new(go_back_key(mac), NoAction, field),
+                    KeyBinding::new(go_forward_key(mac), NoAction, field),
+                ]
+            }
+        })
+        .collect()
 }

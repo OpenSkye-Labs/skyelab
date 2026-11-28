@@ -8538,6 +8538,7 @@ dependencies = [
  "tracing-tracy",
  "tungstenite",
  "two-face",
+ "unicode-segmentation",
 ]
 
 [[package]]

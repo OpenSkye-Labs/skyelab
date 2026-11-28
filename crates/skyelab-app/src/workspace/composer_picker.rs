@@ -249,7 +249,11 @@ impl ThreadView {
             .w(px(520.))
             .p_0()
             .overflow_hidden()
-            .on_mouse_down_out(cx.listener(|this, _, _, cx| this.close_picker(cx)))
+            .on_mouse_down_out(cx.listener(|this, e: &gpui::MouseDownEvent, _, cx| {
+                if !crate::ui::on_field_menu(e.position, cx) {
+                    this.close_picker(cx)
+                }
+            }))
             .child(
                 h_flex()
                     .items_stretch()
@@ -323,7 +327,11 @@ impl ThreadView {
             .key_context(PICKER_CONTEXT)
             .right_0()
             .w(px(280.))
-            .on_mouse_down_out(cx.listener(|this, _, _, cx| this.close_picker(cx)))
+            .on_mouse_down_out(cx.listener(|this, e: &gpui::MouseDownEvent, _, cx| {
+                if !crate::ui::on_field_menu(e.position, cx) {
+                    this.close_picker(cx)
+                }
+            }))
             .children(search.map(|s| {
                 div().pb_1().child(
                     TextField::new(&s)

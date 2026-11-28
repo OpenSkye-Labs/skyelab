@@ -8,11 +8,11 @@ use crate::ui::SkyeIcon;
 use crate::ui::TextField;
 use crate::ui::dock::{BasePanel, Panel};
 use crate::ui::{Icon, PopupMenu, PopupMenuItem, h_flex};
+use crate::ui::{TextInput, TextInputEvent};
 use gpui::{
     App, ClickEvent, Context, Focusable as _, IntoElement, KeyBinding, SharedString, Window,
     actions, div, prelude::*, px,
 };
-use gpui_component::input::{InputEvent, InputState};
 
 actions!(skyelab, [CancelTerminalRename]);
 
@@ -55,9 +55,9 @@ impl TerminalPanel {
     /// Opens the inline rename field over the title, holding the current title.
     pub fn start_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let title = self.tab_label();
-        let input = cx.new(|cx| InputState::new(window, cx).default_value(title));
-        let sub = cx.subscribe_in(&input, window, |this, _, e: &InputEvent, _, cx| {
-            if matches!(e, InputEvent::PressEnter { .. } | InputEvent::Blur) {
+        let input = cx.new(|cx| TextInput::new(window, cx).default_value(title));
+        let sub = cx.subscribe_in(&input, window, |this, _, e: &TextInputEvent, _, cx| {
+            if matches!(e, TextInputEvent::PressEnter { .. } | TextInputEvent::Blur) {
                 this.finish_rename(true, cx);
             }
         });

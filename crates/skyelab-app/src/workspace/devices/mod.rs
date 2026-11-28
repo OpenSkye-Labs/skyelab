@@ -7,11 +7,11 @@ pub(super) use source::{DeviceSource, HubSource};
 
 use super::{OpenDevices, Workspace};
 use crate::ui::dock::{BasePanel, DockPlacement, Panel};
+use crate::ui::{TextInput, TextInputEvent};
 use gpui::{
     App, BackgroundExecutor, Context, Entity, FocusHandle, Focusable, Image, ImageFormat,
     KeyBinding, PathPromptOptions, Subscription, Task, Window, actions, prelude::*,
 };
-use gpui_component::input::{InputEvent, InputState};
 use skyelab_devices::{Device, DeviceState, Error, Listing, Platform};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -66,7 +66,7 @@ pub struct DevicesPanel {
     source: Arc<dyn DeviceSource>,
     pub(super) listing: Option<Listing>,
     pub(super) ops: HashMap<String, DeviceOps>,
-    pub(super) url_input: Entity<InputState>,
+    pub(super) url_input: Entity<TextInput>,
     /// The device whose "Open URL" row is showing.
     pub(super) url_for: Option<String>,
     refreshing: Option<Task<()>>,
@@ -86,9 +86,9 @@ impl DevicesPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let url_input = cx.new(|cx| InputState::new(window, cx).placeholder("https://example.com"));
-        let _url_enter = cx.subscribe(&url_input, |this, _, e: &InputEvent, cx| {
-            if matches!(e, InputEvent::PressEnter { .. }) {
+        let url_input = cx.new(|cx| TextInput::new(window, cx).placeholder("https://example.com"));
+        let _url_enter = cx.subscribe(&url_input, |this, _, e: &TextInputEvent, cx| {
+            if matches!(e, TextInputEvent::PressEnter { .. }) {
                 this.submit_url(cx);
             }
         });

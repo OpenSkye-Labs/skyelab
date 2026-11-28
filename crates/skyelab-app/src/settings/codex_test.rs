@@ -23,7 +23,7 @@ fn add_a_codex_account_and_log_in(cx: &mut TestAppContext) {
             cx,
         )
     });
-    let set = |input: &Entity<InputState>, text: &str, cx: &mut gpui::VisualTestContext| {
+    let set = |input: &Entity<TextInput>, text: &str, cx: &mut gpui::VisualTestContext| {
         let text = text.to_string();
         input.update_in(cx, |s, window, cx| s.set_value(text, window, cx));
     };

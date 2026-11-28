@@ -3,8 +3,8 @@
 
 use super::ask_cards::{OTHER, QuestionDraft, questions};
 use super::thread_model::Item;
+use crate::ui::TextInput;
 use gpui::{AppContext as _, Context, Entity, Window};
-use gpui_component::input::InputState;
 use std::collections::HashMap;
 
 pub(super) type Drafts = HashMap<String, QuestionDraft>;
@@ -103,12 +103,12 @@ pub(super) fn other_input<V: 'static>(
     q: usize,
     window: &mut Window,
     cx: &mut Context<V>,
-) -> Entity<InputState> {
+) -> Entity<TextInput> {
     let existing = draft_mut(items, drafts, id).other.get(q).cloned().flatten();
     if let Some(input) = existing {
         return input;
     }
-    let input = cx.new(|cx| InputState::new(window, cx).placeholder("Your answer"));
+    let input = cx.new(|cx| TextInput::new(window, cx).placeholder("Your answer"));
     if let Some(slot) = draft_mut(items, drafts, id).other.get_mut(q) {
         *slot = Some(input.clone());
     }

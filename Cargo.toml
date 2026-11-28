@@ -20,6 +20,8 @@ gpui-component = { version = "=0.11.0", features = ["syntect"] }
 arboard = { version = "3.7.0", default-features = false, features = ["wayland-data-control"] }
 # Its window text selection (`TextSelection`), which gpui-component doesn't re-export; the version it pins.
 gpui-base = "=0.11.0"
+# Grapheme clusters and words for ui::TextInput; gpui-base already pulls it in.
+unicode-segmentation = "1.13.3"
 # The icon SVGs gpui-component draws; same release as gpui-component, so one copy.
 gpui-kit-assets = "=0.11.0"
 # Diff rows' syntax colors (gpui-component keeps its syntect highlighter private): the versions it pins, so the

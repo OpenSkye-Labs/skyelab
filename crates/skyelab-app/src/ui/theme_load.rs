@@ -111,6 +111,7 @@ fn from_value(t: &Value, dark: bool) -> anyhow::Result<Theme> {
         popover_foreground: color("popover.foreground")?,
         ring: color("ring")?,
         selection,
+        caret: color("caret")?,
         overlay: color("overlay")?,
         link: color("link")?,
         tab_bar: color("tab_bar.background")?,

@@ -3,11 +3,11 @@
 //! the workspace does the writing (`OnboardingEvent`). Return or Space goes next and Esc back while the page itself
 //! has focus (a field or button keeps its keys).
 
+use crate::ui::TextInput;
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, KeyBinding, Task,
     Window, actions,
 };
-use gpui_component::input::InputState;
 use skyelab_core::onboarding::FoundAccount;
 use skyelab_core::{Account, AccountsConfig, ColorMode, Provider};
 use std::path::{Path, PathBuf};
@@ -70,7 +70,7 @@ impl Step {
 /// A found config dir, and its name field once the user chose to rename it.
 pub(super) struct Found {
     pub found: FoundAccount,
-    pub label: Option<Entity<InputState>>,
+    pub label: Option<Entity<TextInput>>,
 }
 
 /// `--version` of an agent or gh: `None` while checking.
@@ -372,7 +372,7 @@ impl Onboarding {
             return;
         };
         let label = row.found.label.clone();
-        let input = cx.new(|cx| InputState::new(window, cx).default_value(label));
+        let input = cx.new(|cx| TextInput::new(window, cx).default_value(label));
         input.update(cx, |s, cx| s.focus(window, cx));
         row.label = Some(input);
         cx.notify();

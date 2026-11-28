@@ -8,13 +8,13 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::TextField;
+use crate::ui::TextInput;
 use crate::ui::{h_flex, v_flex};
 use gpui::Focusable as _;
 use gpui::{
     AppContext as _, Context, Entity, FontWeight, SharedString, Task, WeakEntity, Window, div,
     prelude::*, px,
 };
-use gpui_component::input::InputState;
 use skyelab_git::{Branches, OnDirty, Status};
 use std::path::PathBuf;
 
@@ -26,7 +26,7 @@ pub struct BranchPicker {
     pub(super) dir: PathBuf,
     pub(super) open: bool,
     pub(super) branches: Branches,
-    pub(super) query: Entity<InputState>,
+    pub(super) query: Entity<TextInput>,
     pub(super) error: Option<SharedString>,
     /// A switch the uncommitted changes held back: the branch, and the status the user is asked about.
     pub(super) dirty: Option<(String, Status)>,
@@ -59,7 +59,7 @@ impl BranchPicker {
         cx: &mut Context<Self>,
     ) -> Self {
         let query =
-            cx.new(|cx| InputState::new(window, cx).placeholder("Search or create a branch"));
+            cx.new(|cx| TextInput::new(window, cx).placeholder("Search or create a branch"));
         let _query = cx.observe(&query, |_, _, cx| cx.notify());
         let mut this = Self {
             owner,

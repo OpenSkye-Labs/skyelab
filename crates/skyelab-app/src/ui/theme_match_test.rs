@@ -57,14 +57,14 @@ fn our_theme_matches_gpui_components_for_every_choice(cx: &mut TestAppContext) {
                     theirs.apply_config(&std::rc::Rc::new(config));
                     let what = format!("{} {mode:?} accent {accent:?}", f.key);
                     same!(live, theirs, what, bad;
-                        background, foreground, border, primary, danger_hover, sidebar_accent, tab_bar, selection,
+                        background, foreground, border, primary, danger_hover, sidebar_accent, tab_bar, selection, caret,
                     );
                     same!(ours, theirs, what, bad;
                         background, foreground, border, muted, muted_foreground, accent, accent_foreground,
                         primary, primary_foreground, primary_hover, primary_active,
                         secondary, secondary_foreground, secondary_hover, secondary_active,
                         danger, danger_foreground, danger_hover, danger_active, warning, success, info,
-                        input, popover, popover_foreground, ring, selection, overlay, link, tab_bar,
+                        input, popover, popover_foreground, ring, selection, caret, overlay, link, tab_bar,
                         tab_active, tab_foreground, tab_active_foreground,
                         sidebar, sidebar_foreground, sidebar_accent, sidebar_accent_foreground, sidebar_border,
                         red, green, blue, yellow, magenta, cyan, chart_1, chart_2, chart_3, chart_4, chart_5,

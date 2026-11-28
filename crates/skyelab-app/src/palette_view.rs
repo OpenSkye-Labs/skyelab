@@ -13,8 +13,8 @@ pub(crate) use rows::footer;
 use rows::{back_row, row, search_field};
 
 use crate::ui::ActiveTheme as _;
+use crate::ui::{TextInput, TextInputEvent};
 use gpui::Subscription;
-use gpui_component::input::{InputEvent, InputState};
 use gpui_component::{
     IndexPath,
     command::{Command, CommandGroup, CommandItem, CommandState},
@@ -75,7 +75,7 @@ impl Page {
 struct Palette {
     state: Entity<CommandState>,
     /// The search field: ours, at T3's large size (the Command's own field is a fixed medium one).
-    field: Entity<InputState>,
+    field: Entity<TextInput>,
     /// The root's entries: top-level, then submenu items from `nested`, then the last search's from `fixed`.
     entries: Vec<Entry>,
     nested: usize,
@@ -130,14 +130,14 @@ fn open_with(
     let nested = entries.len();
     let entries = flatten(entries);
     let state = cx.new(|cx| CommandState::new(window, cx));
-    let field = cx.new(|cx| InputState::new(window, cx));
+    let field = cx.new(|cx| TextInput::new(window, cx));
     let palette = cx.new(|cx| {
         // Typing in our field drives the palette and keeps the Command's query (its Escape and empty state) in step.
         let sub = cx.subscribe_in(
             &field,
             window,
-            |p: &mut Palette, field, e: &InputEvent, window, cx| {
-                if matches!(e, InputEvent::Change) {
+            |p: &mut Palette, field, e: &TextInputEvent, window, cx| {
+                if matches!(e, TextInputEvent::Change) {
                     let query = field.read(cx).value();
                     p.set_query(&query, cx);
                     p.state.update(cx, |s, cx| s.set_query(query, window, cx));
@@ -534,16 +534,18 @@ impl Render for Palette {
                     back(&p, window, cx);
                 }
             })
-            .capture_action(move |_: &gpui_component::input::Backspace, window, cx| {
-                let Some(p) = on_backspace.upgrade() else {
-                    return;
-                };
-                let read = p.read(cx);
-                if read.page.is_some() && read.state.read(cx).query(cx).is_empty() {
-                    cx.stop_propagation();
-                    back(&p, window, cx);
-                }
-            })
+            .capture_action(
+                move |_: &crate::ui::text_input_keys::Backspace, window, cx| {
+                    let Some(p) = on_backspace.upgrade() else {
+                        return;
+                    };
+                    let read = p.read(cx);
+                    if read.page.is_some() && read.state.read(cx).query(cx).is_empty() {
+                        cx.stop_propagation();
+                        back(&p, window, cx);
+                    }
+                },
+            )
             .child(command)
     }
 }

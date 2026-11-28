@@ -10,16 +10,12 @@ use super::timeline_fold::{fold_key, folded_by};
 use super::turn_files::minimap::markdown_plain;
 use crate::ui;
 use crate::ui::ActiveTheme as _;
-use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::h_flex;
+use crate::ui::{Button, TextInput, TextInputEvent};
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, KeyBinding, ListState, Subscription, Window,
     actions, div, prelude::*, px,
-};
-use gpui_component::{
-    Sizable as _,
-    input::{Input, InputEvent, InputState},
 };
 use skyelab_agent::DeltaKind;
 
@@ -46,7 +42,7 @@ pub fn bind_keys(cx: &mut App) {
 #[derive(Default)]
 pub struct Find {
     /// The query field, while the bar is open.
-    pub input: Option<Entity<InputState>>,
+    pub input: Option<Entity<TextInput>>,
     /// The row of each match, in order: a row matching twice is listed twice.
     pub matches: Vec<usize>,
     /// Which of `matches` is current.
@@ -274,27 +270,27 @@ pub(super) fn open_bar<V: 'static>(
     changed: fn(&mut V, &mut Context<V>),
     step: fn(&mut V, bool, &mut Context<V>),
 ) {
-    let input = match &find.input {
-        Some(input) => input.clone(),
-        None => {
-            let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
-            let sub = cx.subscribe_in(
-                &input,
-                window,
-                move |this, _, e: &InputEvent, _, cx| match e {
-                    InputEvent::Change => changed(this, cx),
-                    InputEvent::PressEnter { shift, .. } => step(this, !*shift, cx),
-                    _ => {}
-                },
-            );
-            *find = Find {
-                input: Some(input.clone()),
-                _sub: Some(sub),
-                ..Find::default()
-            };
-            input
-        }
-    };
+    let input =
+        match &find.input {
+            Some(input) => input.clone(),
+            None => {
+                let input = cx.new(|cx| TextInput::new(window, cx).placeholder(placeholder));
+                let sub =
+                    cx.subscribe_in(&input, window, move |this, _, e: &TextInputEvent, _, cx| {
+                        match e {
+                            TextInputEvent::Change => changed(this, cx),
+                            TextInputEvent::PressEnter { shift, .. } => step(this, !*shift, cx),
+                            _ => {}
+                        }
+                    });
+                *find = Find {
+                    input: Some(input.clone()),
+                    _sub: Some(sub),
+                    ..Find::default()
+                };
+                input
+            }
+        };
     input.update(cx, |i, cx| {
         i.focus(window, cx);
         i.select_all(window, cx);
@@ -350,10 +346,9 @@ pub(super) fn find_bar<V: 'static>(
                         .shadow_md()
                         .child(
                             div().flex_1().child(
-                                Input::new(&input)
-                                    .appearance(false)
-                                    .small()
-                                    .aria_label("Find query"),
+                                ui::TextField::new(&input)
+                                    .bare()
+                                    .accessibility_label("Find query"),
                             ),
                         )
                         .child(
