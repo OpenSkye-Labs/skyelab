@@ -133,7 +133,7 @@ impl DevicesPanel {
                             .gap_1()
                             .text_size(ui::META)
                             .text_color(theme.muted_foreground)
-                            .child(crate::ui::Spinner::new().size(px(12.)))
+                            .child(crate::ui::Spinner::new().size(gpui::rems(0.75)))
                             .child(label)
                     })),
             )

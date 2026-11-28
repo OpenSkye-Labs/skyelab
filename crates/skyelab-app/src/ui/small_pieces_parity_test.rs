@@ -60,7 +60,7 @@ fn same_bounds(
 }
 
 fn spinners() -> Vec<(&'static str, AnyElement, AnyElement)> {
-    [12., 14., 16.]
+    let mut cases: Vec<_> = [12., 14., 16.]
         .into_iter()
         .map(|s| {
             (
@@ -71,7 +71,15 @@ fn spinners() -> Vec<(&'static str, AnyElement, AnyElement)> {
                 Spinner::new().size(px(s)).into_any_element(),
             )
         })
-        .collect()
+        .collect();
+    cases.push((
+        "xsmall, the devices panel's",
+        gpui_component::spinner::Spinner::new()
+            .xsmall()
+            .into_any_element(),
+        Spinner::new().size(gpui::rems(0.75)).into_any_element(),
+    ));
+    cases
 }
 
 #[gpui::test]

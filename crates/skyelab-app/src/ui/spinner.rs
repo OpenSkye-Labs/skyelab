@@ -3,9 +3,9 @@
 
 use super::{Icon, SkyeIcon};
 use gpui::{
-    Animation, AnimationExt as _, App, Hsla, IntoElement, ParentElement as _, Pixels, RenderOnce,
-    Styled as _, Transformation, Window, div, ease_in_out, percentage, prelude::FluentBuilder as _,
-    px,
+    AbsoluteLength, Animation, AnimationExt as _, App, Hsla, IntoElement, ParentElement as _,
+    RenderOnce, Styled as _, Transformation, Window, div, ease_in_out, percentage,
+    prelude::FluentBuilder as _, px,
 };
 use std::time::Duration;
 
@@ -14,7 +14,7 @@ pub(super) const GLYPH: SkyeIcon = SkyeIcon::Loader;
 
 #[derive(IntoElement)]
 pub struct Spinner {
-    size: Pixels,
+    size: AbsoluteLength,
     color: Option<Hsla>,
 }
 
@@ -27,13 +27,14 @@ impl Default for Spinner {
 impl Spinner {
     pub fn new() -> Self {
         Self {
-            size: px(16.),
+            size: px(16.).into(),
             color: None,
         }
     }
 
-    pub fn size(mut self, size: Pixels) -> Self {
-        self.size = size;
+    /// In px, or in rems to follow the text size (gpui-component's `xsmall()` was `rems(0.75)`).
+    pub fn size(mut self, size: impl Into<AbsoluteLength>) -> Self {
+        self.size = size.into();
         self
     }
 
