@@ -81,6 +81,9 @@ reaches for these.
   `info`, `success`, `warning`, `error`; `action(label, f)` adds one button (and stops autohide unless
   `.autohide(true)`), `on_click`, and `key` (a newer toast with the same key replaces it). Fades in over 150 ms, leaves
   at once, hides after 5 s unless hovered. `push_system` sends an OS notification for a background window.
+- **`h_flex` / `v_flex`** (`ui/layout.rs`): a row centering its children, a column stretching them.
+- **`Icon`** (`ui/icon.rs`): `Icon::new(SkyeIcon::…)`, at the text size and color around it unless `.size_3()` (12
+  px), `.size_3p5()` (14 px), `.size_4()` or `.text_color()` say otherwise; it never shrinks in a crowded row.
 
 ## Still gpui-component
 
@@ -91,7 +94,7 @@ reaches for these.
 - **The dock and its tab bars**, and **`TextView`** (markdown).
 - **`Command`** (the palette's list): its own query field is private and a fixed medium size, so the palette turns
   it off (`searchable(false)`) and draws a large field of ours in the header that drives `CommandState::set_query`.
-- **The browser crate** (`skyelab-browser`) keeps gpui-component's buttons, since it can't depend on the app's `ui`.
+- **The browser crate** (`skyelab-browser`) keeps gpui-component's buttons, `h_flex` and `Icon`, since it can't depend on the app's `ui`.
 
 ## Restyling
 

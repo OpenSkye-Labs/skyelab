@@ -1,5 +1,3 @@
-//! Row and column shorthands every view lays out with.
-
 use gpui::{Div, Styled as _, div};
 
 /// A row whose children center on the cross axis.

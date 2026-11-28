@@ -1,6 +1,3 @@
-//! Own UI kit, stage 2b (.agent/plans/2026-11-28-own-ui-kit-layout-icon.md), criteria 1 and 3: our `Icon`, `h_flex` and
-//! `v_flex` lay out exactly as gpui-component's did, and the caption buttons draw our own glyphs.
-
 use super::{AppAssets, Icon, SkyeIcon, h_flex, v_flex};
 use gpui::{
     AnyElement, AssetSource as _, Context, InteractiveElement as _, IntoElement,
@@ -18,7 +15,6 @@ fn ours() -> Icon {
     Icon::new(SkyeIcon::Check)
 }
 
-/// Each sizing a view uses, as gpui-component's icon and as ours.
 fn cases() -> Vec<(&'static str, AnyElement, AnyElement)> {
     vec![
         (
@@ -91,7 +87,6 @@ impl Render for Pairs {
                         ]),
                 );
             }
-            // A row too narrow for its contents: the icon keeps its size, its neighbor gives way.
             for (side, icon) in [
                 ("theirs-squeezed", theirs().into_any_element()),
                 ("ours-squeezed", ours().into_any_element()),
@@ -175,20 +170,10 @@ fn caption_buttons_draw_our_icons() {
             "{icon:?} is an SVG drawn in the text color"
         );
     }
-    let src = include_str!("window_controls.rs");
-    assert!(
-        !src.contains("IconName"),
-        "the caption buttons use SkyeIcon"
-    );
-    for name in [
-        "WindowMinimize",
-        "WindowMaximize",
-        "WindowRestore",
-        "WindowClose",
-    ] {
-        assert!(
-            src.contains(&format!("SkyeIcon::{name}")),
-            "the caption buttons draw {name}"
-        );
-    }
+    use super::window_controls::caption_icon;
+    use gpui::WindowControlArea::{Close, Max, Min};
+    assert_eq!(caption_icon(Min, false), SkyeIcon::WindowMinimize);
+    assert_eq!(caption_icon(Max, false), SkyeIcon::WindowMaximize);
+    assert_eq!(caption_icon(Max, true), SkyeIcon::WindowRestore);
+    assert_eq!(caption_icon(Close, false), SkyeIcon::WindowClose);
 }

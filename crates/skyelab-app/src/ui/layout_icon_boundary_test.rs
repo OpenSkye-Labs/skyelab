@@ -1,18 +1,10 @@
-//! Own UI kit, stage 2b (.agent/plans/2026-11-28-own-ui-kit-layout-icon.md), criterion 2: skyelab-app lays out and
-//! draws icons with crate::ui's `h_flex`, `v_flex` and `Icon`, never gpui-component's or gpui-base's.
-
 use std::{fs, path::Path};
 
 const THEIRS: &[&str] = &["h_flex", "v_flex", "Icon", "IconName"];
 const CRATES: &[&str] = &["gpui_component", "gpui_base"];
-/// The parity test compares against theirs; theme_boundary_test.rs holds an import of theirs as a string.
-const ALLOWED: &[&str] = &[
-    "icon_layout_test.rs",
-    "layout_icon_boundary_test.rs",
-    "theme_boundary_test.rs",
-];
+/// The parity test compares against theirs.
+const ALLOWED: &str = "icon_layout_test.rs";
 
-/// Each `use gpui_component…;` / `use gpui_base…;` statement in `src`, joined onto one line, with its line number.
 fn uses(src: &str) -> Vec<(usize, String)> {
     let mut out = Vec::new();
     let mut open: Option<(usize, String)> = None;
@@ -41,8 +33,7 @@ fn words(text: &str) -> impl Iterator<Item = &str> {
     text.split(|c: char| !(c.is_alphanumeric() || c == '_'))
 }
 
-/// The names `line` reaches through a full path such as `gpui_component::Icon::new`.
-fn paths(line: &str) -> Vec<&str> {
+fn names_after_crate_path(line: &str) -> Vec<&str> {
     let mut out = Vec::new();
     for c in CRATES {
         let prefix = format!("{c}::");
@@ -63,7 +54,7 @@ fn hits_in(src: &str, rel: &str) -> Vec<String> {
         }
     }
     for (n, line) in src.lines().enumerate() {
-        for name in paths(line) {
+        for name in names_after_crate_path(line) {
             if THEIRS.contains(&name) {
                 hits.push(format!("{rel}:{}: names {name}", n + 1));
             }
@@ -80,7 +71,10 @@ fn scan(dir: &Path, root: &Path, hits: &mut Vec<String>) {
             continue;
         }
         let file = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
-        if path.extension().is_none_or(|e| e != "rs") || ALLOWED.contains(&file) {
+        if path.extension().is_none_or(|e| e != "rs")
+            || file == ALLOWED
+            || file.ends_with("_boundary_test.rs")
+        {
             continue;
         }
         let rel = path

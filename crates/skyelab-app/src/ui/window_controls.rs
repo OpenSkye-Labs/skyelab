@@ -63,7 +63,8 @@ impl RenderOnce for WindowControls {
         let (fg, hover) = (theme.foreground, theme.accent);
         // Windows' own close hover: red with white.
         let close_bg = gpui::rgb(0xc42b1c);
-        let button = |id: &'static str, icon: SkyeIcon, area: WindowControlArea| {
+        let maximized = window.is_maximized();
+        let button = |id: &'static str, area: WindowControlArea| {
             let close = matches!(area, WindowControlArea::Close);
             div()
                 .id(id)
@@ -78,7 +79,7 @@ impl RenderOnce for WindowControls {
                 })
                 .when(!close, |b| b.hover(move |s| s.bg(hover)))
                 .window_control_area(area)
-                .child(Icon::new(icon).size_3p5())
+                .child(Icon::new(caption_icon(area, maximized)).size_3p5())
         };
         h_flex()
             .id("window-controls")
@@ -88,25 +89,19 @@ impl RenderOnce for WindowControls {
             .h(BUTTON_H)
             .max_h(HEADER_H)
             .occlude()
-            .child(button(
-                "window-min",
-                SkyeIcon::WindowMinimize,
-                WindowControlArea::Min,
-            ))
-            .child(button(
-                "window-max",
-                if window.is_maximized() {
-                    SkyeIcon::WindowRestore
-                } else {
-                    SkyeIcon::WindowMaximize
-                },
-                WindowControlArea::Max,
-            ))
-            .child(button(
-                "window-close",
-                SkyeIcon::WindowClose,
-                WindowControlArea::Close,
-            ))
+            .child(button("window-min", WindowControlArea::Min))
+            .child(button("window-max", WindowControlArea::Max))
+            .child(button("window-close", WindowControlArea::Close))
             .into_any_element()
+    }
+}
+
+/// The glyph a caption button draws.
+pub(crate) fn caption_icon(area: WindowControlArea, maximized: bool) -> SkyeIcon {
+    match area {
+        WindowControlArea::Min => SkyeIcon::WindowMinimize,
+        WindowControlArea::Max if maximized => SkyeIcon::WindowRestore,
+        WindowControlArea::Max => SkyeIcon::WindowMaximize,
+        WindowControlArea::Close | WindowControlArea::Drag => SkyeIcon::WindowClose,
     }
 }

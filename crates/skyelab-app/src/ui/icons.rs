@@ -17,7 +17,6 @@ macro_rules! icons {
             }
         }
 
-        // gpui-component's menus still take an icon by this trait (until the menus are ours).
         impl IconNamed for SkyeIcon {
             fn path(self) -> SharedString {
                 SkyeIcon::path(self)
