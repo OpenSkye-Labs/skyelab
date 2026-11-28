@@ -5,7 +5,7 @@ use gpui::{
     App, Hsla, IntoElement, RenderOnce, SharedString, StyleRefinement, Styled, Window, svg,
 };
 
-#[derive(IntoElement)]
+#[derive(IntoElement, Clone)]
 pub struct Icon {
     style: StyleRefinement,
     path: SharedString,

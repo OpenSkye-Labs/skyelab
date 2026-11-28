@@ -1,7 +1,7 @@
 //! SkyeLab's button, after T3's (`ui/button.tsx`): sized by [`Size`], colored by [`Variant`] through [`colors`].
 //! Built on gpui-base's headless button (role, focus, Enter/Space, the disabled click guard). Stateless: a `RenderOnce`
-//! builder, no entity, hover and press drawn by GPUI's own styles. It implements gpui-component's `DropdownMenu`, so
-//! `.dropdown_menu(..)` opens the shared popup menu.
+//! builder, no entity, hover and press drawn by GPUI's own styles. `.dropdown_menu(..)` opens a
+//! [`super::PopupMenu`] from it.
 
 use super::{DISABLED_OPACITY, Kbd, Size, SkyeIcon, Tooltip};
 use crate::ui::Icon;
@@ -11,7 +11,7 @@ use gpui::{
     ParentElement, Pixels, RenderOnce, SharedString, StyleRefinement, Styled, Window, div,
     prelude::*, px,
 };
-use gpui_component::{Selectable, Sizable as _, menu::DropdownMenu, spinner::Spinner};
+use gpui_component::{Selectable, Sizable as _, spinner::Spinner};
 use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -145,7 +145,6 @@ pub struct Button {
     square: bool,
     toggled: Option<bool>,
     tooltip: Option<(SharedString, Option<ActionRef>)>,
-    /// `Some` when this button drives a popover or menu (set by [`Selectable::open`]).
     menu_open: Option<bool>,
     key_hint: Option<ActionRef>,
     on_click: Option<OnClick>,
@@ -360,24 +359,22 @@ impl Selectable for Button {
         Button::selected(self, selected)
     }
 
-    // The popover's open state, kept apart from `selected` (a filter that is on): a popover passes `is_open()` back
-    // to `open` every frame, so deriving one from the other would mark a selected trigger open for good.
-    fn open(mut self, open: bool) -> Self {
-        self.menu_open = Some(open);
-        let selected = self.selected || open;
-        Button::selected(self, selected)
-    }
-
-    fn is_open(&self) -> bool {
-        self.menu_open.unwrap_or(false)
-    }
-
     fn is_selected(&self) -> bool {
         self.selected
     }
 }
 
-impl DropdownMenu for Button {}
+impl Button {
+    pub(super) fn menu_open(mut self, open: bool) -> Self {
+        self.menu_open = Some(open);
+        let selected = self.selected || open;
+        Button::selected(self, selected)
+    }
+
+    pub(super) fn element_id(&self) -> ElementId {
+        self.id.clone()
+    }
+}
 
 impl Styled for Button {
     fn style(&mut self) -> &mut StyleRefinement {
@@ -486,11 +483,7 @@ impl RenderOnce for Button {
                 b.track_focus(&trigger_focus).on_a11y_action(
                     gpui::accesskit::Action::Click,
                     move |_, window, cx| {
-                        dispatch_focus.dispatch_action(
-                            &gpui_base::actions::Confirm { secondary: false },
-                            window,
-                            cx,
-                        );
+                        dispatch_focus.dispatch_action(&super::popover::Toggle, window, cx);
                     },
                 )
             });

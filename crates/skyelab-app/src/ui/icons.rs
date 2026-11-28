@@ -1,5 +1,4 @@
 use gpui::SharedString;
-use gpui_component::IconNamed;
 
 // Keep the type, lookup paths and embedded artwork in one registry.
 macro_rules! icons {
@@ -17,7 +16,9 @@ macro_rules! icons {
             }
         }
 
-        impl IconNamed for SkyeIcon {
+        /// The parity tests draw a `SkyeIcon` with gpui-component's own `Icon` and menus to compare against.
+        #[cfg(test)]
+        impl gpui_component::IconNamed for SkyeIcon {
             fn path(self) -> SharedString {
                 SkyeIcon::path(self)
             }

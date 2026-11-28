@@ -38,9 +38,8 @@ reaches for these.
   Builders: `label`, `icon` (leading), `icon_end`, `loading` (spinner, clicks swallowed), `disabled`, `selected` (a toggle
   that is on or a trigger whose menu is open), `toggled` (screen-reader toggle state), `aria_expanded`, `aria_selected`,
   `aria_description`, `accessibility_label`, `accessibility_id`, `role`, `dropdown_caret`, `key_hint`
-  (the bound key inside the button), `tooltip` / `tooltip_with_action`, `on_click`. `.dropdown_menu(..)` opens the shared
-  popup menu (and dropdown/popover triggers using `selected(open)` + no `on_click` automatically expose expanded state
-  and handle `Action::Click`). A press never takes focus from the field you were typing in. Every interactive `Button`
+  (the bound key inside the button), `tooltip` / `tooltip_with_action`, `on_click`. `.dropdown_menu(..)` opens a
+  `ui::PopupMenu` below it (the trigger exposes expanded state and handles `Action::Click`). A press never takes focus from the field you were typing in. Every interactive `Button`
   must have an accessible name (`label`, `accessibility_label`, or `tooltip`).
 - **`icon_button(id, icon)`**: a ghost, square, icon-only `Button`. Always give it a tooltip (or `accessibility_label`).
 - **`Switch` / `Checkbox`** (`ui/toggle.rs`): `checked`, `label`, `accessibility_label` (when there is no visible
@@ -84,13 +83,16 @@ reaches for these.
 - **`h_flex` / `v_flex`** (`ui/layout.rs`): a row centering its children, a column stretching them.
 - **`Icon`** (`ui/icon.rs`): `Icon::new(SkyeIcon::…)`, at the text size and color around it unless `.size_3()` (12
   px), `.size_3p5()` (14 px), `.size_4()` or `.text_color()` say otherwise; it never shrinks in a crowded row.
+- **`PopupMenu` / `PopupMenuItem`** (`ui/menu.rs`): dropdowns (`Button::dropdown_menu`) and right-click menus. Rows,
+  checks, icons, labels, separators, one level of submenu, key hints; colored by the theme's `popover`, `accent` and
+  `border`. See [docs/gpui/kit.md](../gpui/kit.md).
+- **`Popover` / `HoverCard`** (`ui/popover.rs`): content anchored to a trigger, opened by a click or by resting the
+  pointer on it.
 
 ## Still gpui-component
 
-- **The popup menu** (`DropdownMenu` / `PopupMenu`, `context_menu`): keyboard navigation, submenus and focus. It is
-  colored by the theme's `popover`, `accent` and `border`.
 - **`Input` / `Textarea`**: text editing. GPUI has no text input of its own.
-- **`HoverCard`**: a layer inside `Root`. (gpui-component's `Notification` is banned; see `Toast`.)
+- gpui-component's `Notification` is banned; see `Toast`.
 - **The dock and its tab bars**, and **`TextView`** (markdown).
 - **`Command`** (the palette's list): its own query field is private and a fixed medium size, so the palette turns
   it off (`searchable(false)`) and draws a large field of ours in the header that drives `CommandState::set_query`.

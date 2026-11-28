@@ -2,6 +2,7 @@
 //! toggled/selected/expanded states, dropdown expanded transitions, decorative checkboxes, and smoke renders across the
 //! UI Gallery and every Settings section.
 
+use super::PopupMenuItem;
 use super::{
     Button, Checkbox, EmptyState, SectionHeader, SegmentedControl, Switch, Tabs, TextField,
     icon_button, page_title, row, row_surface, section_title,
@@ -16,10 +17,7 @@ use gpui::{
     accesskit, canvas, div,
 };
 use gpui_base::test_support::snapshots;
-use gpui_component::{
-    input::InputState,
-    menu::{DropdownMenu as _, PopupMenuItem},
-};
+use gpui_component::input::InputState;
 use std::{
     cell::RefCell,
     rc::Rc,

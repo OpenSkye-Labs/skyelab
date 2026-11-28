@@ -25,7 +25,7 @@ actions!(
 const KEY_CONTEXT: &str = "SkyeDialog";
 /// Over SkyeLab's own overlays (settings, tab menus: 1 and 2), under popups and toasts (100), so a menu opened from a
 /// dialog paints over it.
-const PRIORITY: usize = 50;
+pub(super) const PRIORITY: usize = 50;
 /// More than any window's tab stops: Tab walks them looking for the dialog's.
 const MAX_TAB_STEPS: usize = 4096;
 /// The window's top strip, where a press drags the window instead of closing the dialog.

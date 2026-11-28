@@ -32,7 +32,7 @@ patching around it.
 ## Theme (`ui/theme.rs`, `ui/theme_load.rs`, `ui/themes.rs`, `ui/theme_bridge.rs`)
 
 - Views read colors, fonts and sizes from `crate::ui::ActiveTheme` (`cx.theme()`), which is our `ui::Theme`. Never
-  import gpui-component's `ActiveTheme` or `Theme`: `theme_boundary_test` fails on it.
+  import gpui-component's `ActiveTheme` or `Theme`: `kit_boundaries_test` fails on it.
 - `theme_load::resolve(json, dark, settings)` builds a `Theme` from a family file with the accent and sizes written in
   (`themes::adjust`). Colors are hex (`#rgb`, `#rrggbb`, `#rrggbbaa`); anything else is a load error naming the theme
   and key, never a silent default. A field a view needs and the files lack goes into every family file first.
@@ -43,11 +43,31 @@ patching around it.
 ## Layout and icons (`ui/layout.rs`, `ui/icon.rs`, `ui/icons.rs`)
 
 - Rows and columns are `crate::ui::h_flex()` (centers children on the cross axis) and `ui::v_flex()` (stretches
-  them). Never import gpui-component's or gpui-base's: `layout_icon_boundary_test` fails on it.
+  them). Never import gpui-component's or gpui-base's: `kit_boundaries_test` fails on it.
 - Icons are `ui::Icon::new(SkyeIcon::…)`: the text size and text color around it unless `.size_*()` / `.text_color()`
   say otherwise, and it never shrinks in a crowded row. Size steps: `size_3` (12 px, was `xsmall()`), `size_3p5`
   (14 px, was `small()`), `size_4`. A new glyph is an SVG in `icons/ui/` plus a line in `icons.rs`.
-- gpui-component's menus still take a `SkyeIcon` (its `IconNamed` impl in `icons.rs`) until the menus are ours.
+- `SkyeIcon` implements gpui-component's `IconNamed` only in tests, for the parity tests that draw theirs.
+
+## Menus and popovers (`ui/menu.rs`, `ui/menu_render.rs`, `ui/dropdown.rs`, `ui/popover.rs`)
+
+- A menu is a `ui::PopupMenu` entity (`PopupMenu::build(window, cx, |menu, window, cx| ..)`): rows from `item`,
+  `menu` (dispatches an action to `action_context`), `menu_with_check`, `menu_with_icon`, `label`, `separator`,
+  `submenu`; `checks_right()` moves checks to the row's end. `PopupMenuItem::element(name, ..)` draws its own row and
+  must be named. It emits `DismissEvent` when it closes and gives focus back to what had it when it was built,
+  unless a pick moved focus on.
+- Keys live in the `SkyeMenu` context (`ui::bind_keys`): Up/Down skip labels, separators and disabled rows and wrap;
+  Right opens a submenu (a hover opens it too), Left closes only it; Enter picks; Escape closes the whole chain.
+- `Button::dropdown_menu(..)` / `dropdown_menu_with_anchor(..)` open a menu from a button through `ui::Popover`,
+  which keeps the menu while open and gives focus back to what had it before the press (a press on a button never
+  takes focus, so a pick leaves you typing where you were).
+- `ui::Popover::new(id).trigger(|open| ..).content(|window, cx| ..)` draws its content in a deferred layer at
+  priority 100 (`menu::POPUP_PRIORITY`, above dialogs), anchored to the trigger with an 8 px window margin; a click
+  toggles it, a press outside or Escape closes it. `ui::HoverCard` opens after its open delay on hover and stays
+  while the pointer is on the trigger or the card.
+- GPUI has no `aria_disabled`: wrap the element last with `a11y_disabled(el, disabled)` (`ui/a11y_disabled.rs`).
+- Never import gpui-component's or gpui-base's menu, popover or hover card: `kit_boundaries_test` fails on it. The
+  one exception is `workspace/terminal_tab.rs`, which fills the "…" menu gpui-component's dock draws (stage 5).
 
 ## Windows
 

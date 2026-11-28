@@ -8,12 +8,12 @@ use super::remote_thread::RemoteThreadView;
 use super::thread::ThreadView;
 use super::thread_items::ItemsView;
 use super::turn_files::minimap::markdown_plain;
+use crate::ui::{PopupMenu, PopupMenuItem};
 use gpui::{
     AnyElement, App, ClipboardItem, Context, DismissEvent, Entity, FocusHandle, Focusable as _,
     InteractiveElement as _, IntoElement, MouseButton, Pixels, Point, Subscription, Window,
     anchored, deferred, div, prelude::*, px,
 };
-use gpui_component::menu::{PopupMenu, PopupMenuItem};
 use skyelab_core::terminal_context;
 
 type QuoteFn = Box<dyn Fn(&mut Window, &mut App)>;

@@ -10,11 +10,7 @@ use skyelab_core::snooze;
 /// owns it.
 #[derive(Clone)]
 pub(in crate::workspace) struct SnoozeMenu {
-    pub open: Option<(
-        i64,
-        gpui::Point<gpui::Pixels>,
-        Entity<gpui_component::menu::PopupMenu>,
-    )>,
+    pub open: Option<(i64, gpui::Point<gpui::Pixels>, Entity<crate::ui::PopupMenu>)>,
     pub sidebar: gpui::WeakEntity<Sidebar>,
 }
 
@@ -70,7 +66,7 @@ impl Sidebar {
         cx: &mut Context<Self>,
     ) {
         let focus = self.focus.clone();
-        let menu = gpui_component::menu::PopupMenu::build(window, cx, move |menu, _, _| {
+        let menu = crate::ui::PopupMenu::build(window, cx, move |menu, _, _| {
             super::super::thread_list::snooze_menu(
                 menu.action_context(focus.clone()),
                 id,
@@ -91,17 +87,16 @@ impl Sidebar {
     ) {
         let focus = self.focus.clone();
         let id = shelf.as_ref().map_or(0, |s| s.id);
-        let menu =
-            gpui_component::menu::PopupMenu::build(window, cx, move |mut menu, window, cx| {
-                menu = menu.action_context(focus.clone());
-                for (label, action) in &entries {
-                    menu = menu.menu(label.clone(), action.boxed_clone());
-                }
-                match &shelf {
-                    Some(s) => super::super::thread_list::shelf_menu(menu, s, window, cx),
-                    None => menu,
-                }
-            });
+        let menu = crate::ui::PopupMenu::build(window, cx, move |mut menu, window, cx| {
+            menu = menu.action_context(focus.clone());
+            for (label, action) in &entries {
+                menu = menu.menu(label.clone(), action.boxed_clone());
+            }
+            match &shelf {
+                Some(s) => super::super::thread_list::shelf_menu(menu, s, window, cx),
+                None => menu,
+            }
+        });
         self.show_menu(id, at, menu, window, cx);
     }
 
@@ -109,7 +104,7 @@ impl Sidebar {
         &mut self,
         id: i64,
         at: gpui::Point<gpui::Pixels>,
-        menu: Entity<gpui_component::menu::PopupMenu>,
+        menu: Entity<crate::ui::PopupMenu>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {

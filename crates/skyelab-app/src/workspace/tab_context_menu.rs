@@ -7,15 +7,13 @@
 use super::files::PreviewPanel;
 use super::terminal_panel::TerminalPanel;
 use super::{NewTerminal, Workspace};
+use crate::ui::{PopupMenu, PopupMenuItem};
 use gpui::{
     AnyElement, App, Context, DismissEvent, Entity, FocusHandle, Focusable as _,
     InteractiveElement as _, IntoElement, MouseButton, Pixels, Point, Subscription, WeakEntity,
     Window, anchored, deferred, div, prelude::*, px,
 };
-use gpui_component::{
-    dock::{DockPlacement, PanelId, TabGroupContext},
-    menu::{PopupMenu, PopupMenuItem},
-};
+use gpui_component::dock::{DockPlacement, PanelId, TabGroupContext};
 use skyelab_core::terminal_layout::Axis;
 
 #[path = "tab_hits.rs"]

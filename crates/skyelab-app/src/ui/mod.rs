@@ -6,6 +6,7 @@
 
 #[cfg(test)]
 mod a11y_audit_test;
+mod a11y_disabled;
 mod a11y_scroll;
 pub(crate) use a11y_scroll::A11yScrollArea;
 
@@ -53,6 +54,9 @@ mod dialog_stack_test;
 mod dialog_test;
 #[cfg(test)]
 mod dialog_title_strip_test;
+mod dropdown;
+#[cfg(test)]
+mod dropdown_keys_test;
 pub mod gallery;
 #[cfg(test)]
 mod gallery_test;
@@ -60,12 +64,25 @@ mod gallery_test;
 mod icon_layout_test;
 mod kbd;
 #[cfg(test)]
-mod kit_boundary_test;
+mod kit_boundaries_test;
 #[cfg(test)]
-mod layout_icon_boundary_test;
+mod kit_boundary_test;
+mod menu;
+#[cfg(test)]
+mod menu_keys_test;
+#[cfg(test)]
+mod menu_nested_click_test;
+#[cfg(test)]
+mod menu_parity_test;
+mod menu_render;
 pub mod motion;
 #[cfg(test)]
 mod motion_test;
+mod popover;
+#[cfg(test)]
+mod popover_follow_test;
+#[cfg(test)]
+mod popover_test;
 mod surface;
 pub mod syntax;
 #[cfg(test)]
@@ -74,8 +91,6 @@ mod terminal_colors_test;
 mod tests;
 mod text_field;
 pub mod theme;
-#[cfg(test)]
-mod theme_boundary_test;
 mod theme_bridge;
 #[cfg(test)]
 mod theme_font_test;
@@ -109,8 +124,14 @@ pub use components::{
 pub use dialog::{
     DialogEntrance, close_dialog, dialog_cancel, dialog_footer, has_active_dialog, open_dialog,
 };
-pub use dialog_layer::bind_keys;
+pub fn bind_keys(cx: &mut gpui::App) {
+    dialog_layer::bind_keys(cx);
+    menu::bind_keys(cx);
+    popover::bind_keys(cx);
+}
 pub use kbd::{Kbd, keys};
+pub use menu::{PopupMenu, PopupMenuItem};
+pub use popover::{HoverCard, Popover};
 pub use surface::{Card, Divider};
 pub use text_field::TextField;
 pub use toggle::{Checkbox, Switch};
@@ -527,7 +548,7 @@ impl gpui::AssetSource for AppAssets {
             "icons/minimize.svg" => Some(SkyeIcon::Collapse),
             _ => None,
         };
-        let resolved = native_icon.map(gpui_component::IconNamed::path);
+        let resolved = native_icon.map(SkyeIcon::path);
         let path = resolved.as_deref().unwrap_or(path);
         let bytes: &'static [u8] = match path {
             BRAND_MARK => include_bytes!("../../icons/mark.svg"),

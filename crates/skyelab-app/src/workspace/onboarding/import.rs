@@ -6,10 +6,10 @@ use super::render::home_relative;
 use super::{Onboarding, OnboardingEvent};
 use crate::ui;
 use crate::ui::ActiveTheme as _;
+use crate::ui::PopupMenuItem;
 use crate::ui::{Button, Checkbox, SkyeIcon};
 use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{Context, Div, FontWeight, ParentElement as _, SharedString, div, prelude::*, px};
-use gpui_component::menu::{DropdownMenu as _, PopupMenuItem};
 use skyelab_core::project_import::{self, Candidate, Group};
 use std::path::PathBuf;
 

@@ -4,9 +4,9 @@
 
 use super::sidebar::{RowAccount, RowCard};
 use super::*;
+use crate::ui::HoverCard;
 use crate::ui::SkyeIcon;
 use gpui::{Anchor, AnyElement};
-use gpui_component::hover_card::HoverCard;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -42,13 +42,9 @@ pub fn with_card_at(
     HoverCard::new(SharedString::from(format!("card-{id}")))
         .anchor(anchor)
         .open_delay(OPEN_DELAY)
-        .trigger_style({
-            let mut s = gpui::StyleRefinement::default();
-            s.size.width = Some(gpui::relative(1.).into());
-            s
-        })
+        .w_full()
         .trigger(row)
-        .content(move |_, _, cx| render_card(&card, cx))
+        .content(move |_, cx| render_card(&card, cx))
         .into_any_element()
 }
 

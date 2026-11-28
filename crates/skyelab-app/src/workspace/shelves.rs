@@ -6,8 +6,8 @@
 use super::super::Workspace;
 use super::super::manage::Job;
 use super::super::panels::RowShelf;
+use crate::ui::PopupMenu;
 use gpui::{Action, AppContext as _, Context, SharedString, Window, actions};
-use gpui_component::menu::PopupMenu;
 use skyelab_core::snooze;
 
 /// Where a thread row goes: settled, back, snoozed until a time (ms since the epoch), or awake.

@@ -11,7 +11,6 @@ use crate::ui::SkyeIcon;
 use crate::workspace::dispatch;
 use gpui::AnyElement;
 use gpui_component::Colorize as _;
-use gpui_component::menu::DropdownMenu as _;
 use skyelab_core::snooze;
 
 pub(super) fn section_button(s: &SidebarSection) -> Option<Button> {

@@ -46,9 +46,9 @@ fn escape(s: &str) -> String {
 }
 
 use crate::ui::Button;
+use crate::ui::PopupMenuItem;
 use crate::ui::h_flex;
 use gpui::{App, ClipboardItem, IntoElement, ParentElement as _, Styled as _, Window};
-use gpui_component::menu::{DropdownMenu as _, PopupMenuItem};
 use std::sync::Mutex;
 
 /// The table's actions row: one copy button, right-aligned, whose menu picks the format.

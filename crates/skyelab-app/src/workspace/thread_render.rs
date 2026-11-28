@@ -5,6 +5,7 @@ use super::thread_find::FindHost as _;
 use super::{NewThread, OpenSettings, OpenThread, SelectProject};
 use crate::ui;
 use crate::ui::ActiveTheme as _;
+use crate::ui::PopupMenuItem;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Tooltip};
 use crate::ui::{Icon, h_flex, v_flex};
@@ -12,7 +13,6 @@ use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
 };
 use gpui_base::TestSupportExt as _;
-use gpui_component::menu::{DropdownMenu as _, PopupMenuItem};
 
 #[path = "thread_mode_picker.rs"]
 pub(super) mod mode_picker;
