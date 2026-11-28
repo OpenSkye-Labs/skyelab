@@ -8,10 +8,11 @@ use super::{Button, HEADER_H, META, RADIUS_LG, SkyeIcon, icon_button, motion};
 use crate::ui::ActiveTheme as _;
 use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
-    Animation, AnimationExt as _, App, AppContext as _, Context, Entity, FontWeight, Global, Hsla,
-    InteractiveElement as _, IntoElement, ParentElement as _, Pixels, Render, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Task, Window, WindowId, deferred, div,
-    prelude::FluentBuilder as _, px,
+    Animation, AnimationExt as _, AnyWindowHandle, App, AppContext as _, Context, Entity,
+    FontWeight, Global, Hsla, InteractiveElement as _, IntoElement, ParentElement as _, Pixels,
+    Render, SharedString, StatefulInteractiveElement as _, Styled as _, SystemNotification,
+    SystemNotificationResponse, Task, Window, WindowId, deferred, div, prelude::FluentBuilder as _,
+    px,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -394,26 +395,82 @@ pub fn shown(window: &Window, cx: &App) -> Vec<SharedString> {
         .unwrap_or_default()
 }
 
+const SYSTEM_TAG: &str = "skyelab/notification/";
+/// Older ones only bring the app forward when clicked.
+const CLICKABLE_NOTIFICATIONS: usize = 100;
+
+struct Posted {
+    tag: SharedString,
+    window: AnyWindowHandle,
+    on_click: Option<Handler>,
+}
+
+/// Oldest first.
+#[derive(Default)]
+struct SystemNotes {
+    next: u64,
+    posted: Vec<Posted>,
+}
+
+impl Global for SystemNotes {}
+
 /// An OS notification for a window that isn't in front: no in-app toast (the user isn't looking). A click on it
-/// brings the window forward and runs the toast's click handler. gpui-component owns the app's one OS response
-/// handler, so this goes through its notification, the one place it is still built.
-#[allow(clippy::disallowed_methods, clippy::disallowed_types)]
+/// brings the window forward and runs the toast's click handler; a toast with the same key replaces it.
 pub fn push_system(window: &mut Window, toast: Toast, cx: &mut App) {
-    use gpui_component::WindowExt as _;
-    use gpui_component::notification::Notification;
-    struct Keyed;
-    if !matches!(window.root::<gpui_component::Root>(), Some(Some(_))) {
-        return; // a test window without gpui-component's Root
+    let (title, body) = match toast.title {
+        Some(title) => (title, toast.message),
+        None => (toast.message, SharedString::default()),
+    };
+    let notes = cx.default_global::<SystemNotes>();
+    let tag: SharedString = match toast.key {
+        Some(key) => format!("{SYSTEM_TAG}key/{key}"),
+        None => {
+            notes.next += 1;
+            // With the process id: a notification left over from an earlier run never matches a new one.
+            format!("{SYSTEM_TAG}n/{}-{}", std::process::id(), notes.next)
+        }
     }
-    let mut note = Notification::new().message(toast.message).system();
-    if let Some(title) = toast.title {
-        note = note.title(title);
+    .into();
+    notes.posted.retain(|p| p.tag != tag);
+    notes.posted.push(Posted {
+        tag: tag.clone(),
+        window: window.window_handle(),
+        on_click: toast.on_click,
+    });
+    let extra = notes.posted.len().saturating_sub(CLICKABLE_NOTIFICATIONS);
+    notes.posted.drain(..extra);
+    cx.show_system_notification(SystemNotification {
+        tag,
+        title,
+        body,
+        actions: Vec::new(),
+    });
+}
+
+/// Answers clicks on our OS notifications. GPUI keeps one handler, the last registered: call it after
+/// gpui-component's init (`ui::init` does).
+pub fn init_system(cx: &mut App) {
+    cx.on_system_notification_response(on_system_click);
+}
+
+fn on_system_click(response: SystemNotificationResponse, cx: &mut App) {
+    if !response.tag.starts_with(SYSTEM_TAG) {
+        return;
     }
-    if let Some(key) = toast.key {
-        note = note.id1::<Keyed>(key);
-    }
-    if let Some(f) = toast.on_click {
-        note = note.on_click(move |_, window, cx| f(window, cx));
-    }
-    window.push_notification(note, cx);
+    cx.dismiss_system_notification(&response.tag).detach();
+    cx.activate(true);
+    let notes = cx.default_global::<SystemNotes>();
+    let Some(ix) = notes.posted.iter().position(|p| p.tag == response.tag) else {
+        return;
+    };
+    let Posted {
+        window, on_click, ..
+    } = notes.posted.remove(ix);
+    // Err: the window closed since; the app still came forward.
+    let _ = window.update(cx, |_, window, cx| {
+        window.activate_window();
+        if let Some(f) = on_click {
+            f(window, cx);
+        }
+    });
 }

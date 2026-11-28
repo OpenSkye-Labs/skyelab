@@ -27,6 +27,7 @@ const ROWS: &[Row] = &[
             "theme_match_test.rs",
             "theme_switch_test.rs",
             "motion_test.rs",
+            "small_pieces_parity_test.rs",
         ],
     },
     Row {
@@ -53,6 +54,21 @@ const ROWS: &[Row] = &[
         ],
         // terminal_tab.rs fills the "…" menu gpui-component's dock draws for a panel (stage 5).
         allowed: &["menu_parity_test.rs", "terminal_tab.rs"],
+    },
+    Row {
+        stage: "4a small pieces",
+        crates: &["gpui_component", "gpui_base"],
+        names: &[
+            "spinner",
+            "Spinner",
+            "clipboard",
+            "Clipboard",
+            "status_bar",
+            "StatusBar",
+            "notification",
+            "Notification",
+        ],
+        allowed: &["small_pieces_parity_test.rs"],
     },
 ];
 

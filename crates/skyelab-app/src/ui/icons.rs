@@ -71,6 +71,9 @@ icons! {
     Collapse => "collapse",
     Columns2 => "columns2",
     Copy => "copy",
+    // ui::CopyButton only: the glyphs it drew under gpui-component, kept for look parity.
+    CopyButton => "copy-button",
+    CopyButtonDone => "copy-button-done",
     Expand => "expand",
     ExternalLink => "external-link",
     File => "file",
@@ -95,6 +98,7 @@ icons! {
     Info => "info",
     Keyboard => "keyboard",
     Link => "link",
+    Loader => "loader",
     LoaderCircle => "loader-circle",
     Lock => "lock",
     Map => "map",

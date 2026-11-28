@@ -9,7 +9,6 @@ use crate::ui::Button;
 use crate::ui::TextField;
 use crate::ui::{h_flex, v_flex};
 use gpui::{Context, ObjectFit, SharedString, Window, div, img, prelude::*, px};
-use gpui_component::{Sizable as _, spinner::Spinner};
 use skyelab_devices::{Device, DeviceKind, DeviceState, Holder, Platform};
 
 impl DevicesPanel {
@@ -134,7 +133,7 @@ impl DevicesPanel {
                             .gap_1()
                             .text_size(ui::META)
                             .text_color(theme.muted_foreground)
-                            .child(Spinner::new().xsmall())
+                            .child(crate::ui::Spinner::new().size(gpui::rems(0.75)))
                             .child(label)
                     })),
             )

@@ -10,7 +10,6 @@ use crate::ui::ActiveTheme as _;
 use crate::ui::{Button, SkyeIcon};
 use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{AnyElement, Context, FontWeight, IntoElement, SharedString, div, prelude::*, px};
-use gpui_component::clipboard::Clipboard;
 use skyelab_agent::{Todo, TodoStatus};
 
 use skyelab_agent::timeline::cards::DIFF_LINES;
@@ -319,12 +318,15 @@ pub(super) fn render_edit<V: ItemsView + 'static>(
 }
 
 /// A copy button for `text`.
-pub(super) fn copy(id: impl Into<gpui::ElementId>, text: impl Into<SharedString>) -> Clipboard {
-    Clipboard::new(id).value(text).tooltip("Copy")
+pub(super) fn copy(
+    id: impl Into<gpui::ElementId>,
+    text: impl Into<SharedString>,
+) -> crate::ui::CopyButton {
+    crate::ui::CopyButton::new(id).value(text).tooltip("Copy")
 }
 
 /// A reply's copy button. Every reply has one: its first words tell them apart.
-pub(super) fn copy_reply(id: impl Into<gpui::ElementId>, text: &str) -> Clipboard {
+pub(super) fn copy_reply(id: impl Into<gpui::ElementId>, text: &str) -> crate::ui::CopyButton {
     let first: Vec<&str> = text.split_whitespace().take(8).collect();
     copy(id, text.to_owned()).accessibility_label(format!("Copy reply: {}", first.join(" ")))
 }

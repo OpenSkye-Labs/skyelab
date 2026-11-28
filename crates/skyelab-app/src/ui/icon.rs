@@ -2,7 +2,8 @@
 
 use super::SkyeIcon;
 use gpui::{
-    App, Hsla, IntoElement, RenderOnce, SharedString, StyleRefinement, Styled, Window, svg,
+    App, Hsla, IntoElement, RenderOnce, SharedString, StyleRefinement, Styled, Transformation,
+    Window, svg,
 };
 
 #[derive(IntoElement, Clone)]
@@ -10,11 +11,18 @@ pub struct Icon {
     style: StyleRefinement,
     path: SharedString,
     color: Option<Hsla>,
+    transformation: Option<Transformation>,
 }
 
 impl Icon {
     pub fn new(icon: impl Into<Icon>) -> Self {
         icon.into()
+    }
+
+    /// Rotates or scales the drawn glyph (the spinner turns it) without changing its layout box.
+    pub fn transform(mut self, transformation: Transformation) -> Self {
+        self.transformation = Some(transformation);
+        self
     }
 }
 
@@ -24,6 +32,7 @@ impl From<SkyeIcon> for Icon {
             style: StyleRefinement::default(),
             path: icon.path(),
             color: None,
+            transformation: None,
         }
     }
 }
@@ -49,6 +58,10 @@ impl RenderOnce for Icon {
             .flex_shrink_0()
             .text_color(self.color.unwrap_or(text.color))
             .path(self.path);
+        let el = match self.transformation {
+            Some(t) => el.with_transformation(t),
+            None => el,
+        };
         if sized {
             el
         } else {

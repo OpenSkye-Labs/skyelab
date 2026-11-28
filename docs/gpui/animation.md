@@ -79,8 +79,8 @@ things that switch, get selected or go away change at once.
 - Toasts are SkyeLab's own (`ui/toast.rs`): one `ToastList` entity per window, kept in a global map by `WindowId`
   (the window being updated is missing from `cx.windows()`, so keep it by id when pruning), drawn by the workspace's
   render as a `deferred` layer with priority 100 (above gpui-component's dialogs at 10 + index). Clippy bans
-  `WindowExt::push_notification` and `notification::Notification`; `toast::push_system` is the one exception, an
-  OS-only notification for a window in the background, since gpui-component owns the app's one OS response handler.
+  `WindowExt::push_notification` and `notification::Notification`. `toast::push_system` posts the OS notification for a
+  window in the background straight through GPUI (docs/gpui/kit.md, "Small pieces").
 - A fade over something with a shadow ramps the shadow by t³: GPUI has no group compositing, so a half-faded card
   shows its own shadow through as a dark slab.
 - One curve source: `motion::ease_out_quad` (a `fn(f32) -> f32` for `with_easing`) and `motion::spring_ease`, the
