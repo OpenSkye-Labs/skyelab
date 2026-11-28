@@ -50,6 +50,10 @@ gpui-component moves to the official `gpui` crate; then we move with it.
   That includes a "tiny" file read inside a `cx.spawn` loop: an `await` in `cx.spawn` runs the code between awaits on
   the main thread, and one `std::fs::read_to_string` that stalled on a busy external disk froze the app and Quit
   (the verify actions file poll). Do the read in `background_executor().spawn` and await it.
+- N background jobs that each hop back on their own finish in any order, so state they append to (dock tabs) comes
+  out shuffled (saved terminal tabs came back swapped on 11 of 30 test seeds). Start the jobs side by side, then
+  await them in the wanted order from one `cx.spawn` (`terminal_restore::open_saved_terminals`), and test it with
+  `#[gpui::test(iterations = 30)]`.
 - **Never hold a `read`/`update` borrow across an `.await`.** Copy out what you need, await, then update.
 - A `Task` is cancelled when dropped. Store it in a field (`_task: Task<()>`) to tie its life to the view, or `.detach()`
   only for true fire-and-forget. Agent processes, PTYs and network streams belong to a stored task, never a detached one.
