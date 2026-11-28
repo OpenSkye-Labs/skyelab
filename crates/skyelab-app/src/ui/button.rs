@@ -11,7 +11,7 @@ use gpui::{
     ParentElement, Pixels, RenderOnce, SharedString, StyleRefinement, Styled, Window, div,
     prelude::*, px,
 };
-use gpui_component::{Selectable, Sizable as _, spinner::Spinner};
+use gpui_component::Selectable;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -502,8 +502,8 @@ impl RenderOnce for Button {
             )
         } else if self.loading {
             Some(
-                Spinner::new()
-                    .with_size(size.icon())
+                super::Spinner::new()
+                    .size(size.icon())
                     .color(c.icon)
                     .into_any_element(),
             )

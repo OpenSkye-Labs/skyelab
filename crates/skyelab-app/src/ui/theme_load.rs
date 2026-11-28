@@ -117,6 +117,8 @@ fn from_value(t: &Value, dark: bool) -> anyhow::Result<Theme> {
         tab_active: color("tab.active.background")?,
         tab_foreground: color("tab.foreground")?,
         tab_active_foreground: color("tab.active.foreground")?,
+        status_bar: color("status_bar.background")?,
+        status_bar_border: color("status_bar.border")?,
         sidebar: color("sidebar.background")?,
         sidebar_foreground: color("sidebar.foreground")?,
         sidebar_accent: color("sidebar.accent.background")?,

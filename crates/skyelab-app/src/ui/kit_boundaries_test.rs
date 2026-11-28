@@ -27,6 +27,7 @@ const ROWS: &[Row] = &[
             "theme_match_test.rs",
             "theme_switch_test.rs",
             "motion_test.rs",
+            "small_pieces_parity_test.rs",
         ],
     },
     Row {
@@ -58,6 +59,21 @@ const ROWS: &[Row] = &[
         crates: &["gpui_component"],
         names: &["dock"],
         allowed: &["dock_parity_test.rs"],
+    },
+    Row {
+        stage: "4a small pieces",
+        crates: &["gpui_component", "gpui_base"],
+        names: &[
+            "spinner",
+            "Spinner",
+            "clipboard",
+            "Clipboard",
+            "status_bar",
+            "StatusBar",
+            "notification",
+            "Notification",
+        ],
+        allowed: &["small_pieces_parity_test.rs"],
     },
 ];
 

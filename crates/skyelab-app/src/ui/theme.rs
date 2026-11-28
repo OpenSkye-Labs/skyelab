@@ -63,6 +63,8 @@ pub struct Theme {
     pub tab_active: Hsla,
     pub tab_foreground: Hsla,
     pub tab_active_foreground: Hsla,
+    pub status_bar: Hsla,
+    pub status_bar_border: Hsla,
     pub sidebar: Hsla,
     pub sidebar_foreground: Hsla,
     pub sidebar_accent: Hsla,
