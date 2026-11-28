@@ -32,7 +32,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - A ring drawn inside a dock panel's view (the composer) only changes when that view is notified: panels are cached,
   so whoever moves the ring notifies the view too. A ring over a dock is drawn by the workspace over the `DockArea`
   from `dock_size`, with no bounds bookkeeping.
-- `InputState::set_value` emits no `InputEvent::Change`. A test of a search field types into it
+- `TextInput::set_value` (and gpui-component's text areas') emits no `Change`. A test of a search field types into it
   (`simulate_input`), and the field must be drawn (its section shown) to take the keys.
 - Focusable views hold a `FocusHandle` (`cx.focus_handle()`), render `.track_focus(&self.focus)` and implement `Focusable`.
 - A modal drawn in the workspace's tree (not a gpui-component `Dialog`) wraps its root in gpui-base's

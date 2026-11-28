@@ -5,9 +5,9 @@ use super::ActiveTheme as _;
 use super::text_input::TextInput;
 use gpui::{
     App, Bounds, DispatchPhase, Element, ElementId, ElementInputHandler, Entity, GlobalElementId,
-    InspectorElementId, LayoutId, MouseButton, MouseMoveEvent, MouseUpEvent, Pixels, ShapedLine,
-    SharedString, Style, TextAlign, TextRun, UnderlineStyle, Window, fill, point, px, relative,
-    size,
+    InspectorElementId, LayoutId, MouseButton, MouseMoveEvent, MouseUpEvent, PathBuilder, Pixels,
+    ShapedLine, SharedString, Style, TextAlign, TextRun, UnderlineStyle, Window, fill, point, px,
+    relative, size,
 };
 use std::ops::Range;
 
@@ -208,7 +208,17 @@ impl Element for TextElement {
         let selected = input.buffer.range();
         let shows_selection = focus.is_focused(window) || input.menu.is_some();
         if active && shows_selection && !selected.is_empty() && input.buffer.marked().is_none() {
-            window.paint_quad(fill(layout.range_bounds(&selected), selection_color));
+            // A path, as gpui-component's text areas fill theirs: a quad rounds its edges differently.
+            let b = layout.range_bounds(&selected);
+            let mut path = PathBuilder::fill();
+            path.move_to(b.origin);
+            for corner in [b.top_right(), b.bottom_right(), b.bottom_left()] {
+                path.line_to(corner);
+            }
+            path.close();
+            if let Ok(path) = path.build() {
+                window.paint_path(path, selection_color);
+            }
         }
         let caret = layout.caret.filter(|_| active && input.blink.visible);
         let origin = point(bounds.left() + layout.scroll_x, bounds.top());

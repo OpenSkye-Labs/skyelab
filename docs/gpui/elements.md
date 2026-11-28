@@ -11,7 +11,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   scrolls up, and starts again once they scroll back down; `scroll_to_end()` on your own send follows again.
 - Controls come from `crate::ui` ([docs/design/components.md](../design/components.md)): `Button`, `icon_button`,
   `Switch`, `Checkbox`, `SegmentedControl`, `Tabs`, `TextField`, `Kbd`, `Tooltip`, `Card`, `Divider`. Use gpui-component
-  for what `ui` doesn't cover (`Input` editing, `List`, `Table`, `Dock`, `Dialog`, `Markdown`, the code
+  for what `ui` doesn't cover (`Textarea`, `List`, `Table`, `Markdown`, the code
   editor). Only drop to raw `div()` for layout.
 - A `ui` component is a `#[derive(IntoElement)]` + `RenderOnce` builder: no entity, no `cx.notify()`, no state across
   frames. Hover and press are GPUI styles (`.hover(..)`, `.active(..)`, `.focus_visible(..)`), never a hovered flag in
@@ -35,7 +35,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Register app SVGs in `ui/icons.rs` and use `SkyeIcon` at the call site. The registry
   embeds the file and supplies the same path to `AppAssets::load` and `AppAssets::list`.
   GPUI tints the SVG with the element's text color. Check the glyph in a live screenshot.
-- Text input is not built into GPUI. Use `gpui_component::input`, never hand-roll `EntityInputHandler`.
+- Text input is not built into GPUI. One line: `ui::TextField` over `ui::TextInput` (kit.md); text areas and the
+  code editor are `gpui_component::input` until stages 6b to 6d.
 - `img()` takes its height from its width and the image's aspect ratio, even with `.h(..)` set: a wide box draws a
   square image as tall as the box is wide. Cap it with `.max_h(..)` (the image viewer does), and check a fit in a live
   screenshot, not only by reading the layout.

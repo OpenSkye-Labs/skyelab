@@ -63,6 +63,7 @@ icons! {
     CircleDot => "circle-dot",
     CircleUser => "circle-user",
     CircleX => "circle-x",
+    Clear => "clear",
     ClipboardList => "clipboard-list",
     Clock => "clock",
     Close => "close",

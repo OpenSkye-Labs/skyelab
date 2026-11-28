@@ -181,8 +181,7 @@ impl RenderOnce for TextField {
 
 /// The × of a `cleanable` field: an edit (it can be undone and emits `Change`), and the focus stays in the field.
 fn clear_button(state: Entity<TextInput>, cx: &App) -> impl IntoElement {
-    let theme = cx.theme();
-    let hover = theme.foreground;
+    let ink = cx.theme().foreground;
     div()
         .id("clean")
         .role(Role::Button)
@@ -190,10 +189,11 @@ fn clear_button(state: Entity<TextInput>, cx: &App) -> impl IntoElement {
         .flex()
         .items_center()
         .justify_center()
-        .h_5()
         .cursor_pointer()
-        .hover(move |s| s.text_color(hover))
-        .child(Icon::new(SkyeIcon::Close).size_3())
+        .text_color(ink.opacity(0.9))
+        .hover(move |s| s.text_color(ink))
+        .active(move |s| s.text_color(ink.opacity(0.7)))
+        .child(Icon::new(SkyeIcon::Clear).size_3())
         .on_click(move |_, window, cx| {
             state.update(cx, |state, cx| {
                 state.accessibility_set_value("", window, cx);
