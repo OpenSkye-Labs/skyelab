@@ -7,8 +7,8 @@ use super::v_flex;
 use gpui::{
     Anchor, AnyElement, App, Bounds, Context, Edges, ElementId, FocusHandle,
     InteractiveElement as _, IntoElement, KeyBinding, MouseButton, ParentElement as _, Pixels,
-    RenderOnce, Role, StatefulInteractiveElement as _, StyleRefinement, Styled, Task, Window,
-    actions, anchored, canvas, deferred, div, prelude::FluentBuilder as _, px, relative,
+    Point, RenderOnce, Role, StatefulInteractiveElement as _, StyleRefinement, Styled, Task,
+    Window, actions, anchored, canvas, deferred, div, point, prelude::FluentBuilder as _, px,
 };
 use std::{rc::Rc, time::Duration};
 
@@ -30,25 +30,24 @@ pub(super) fn bind_keys(cx: &mut App) {
     ]);
 }
 
-/// A zero-size box at the trigger's corner the popup's `anchor` corner meets, `offset` away from the trigger.
-fn corner(anchor: Anchor, offset: Pixels) -> gpui::Div {
-    let d = div().absolute().size_0();
+fn position(anchor: Anchor, trigger: Bounds<Pixels>, offset: Pixels) -> Point<Pixels> {
     match anchor {
-        Anchor::TopLeft => d.left_0().top_full().mt(offset),
-        Anchor::TopCenter => d.left(relative(0.5)).top_full().mt(offset),
-        Anchor::TopRight => d.right_0().top_full().mt(offset),
-        Anchor::BottomLeft => d.left_0().top_0().mt(-offset),
-        Anchor::BottomCenter => d.left(relative(0.5)).top_0().mt(-offset),
-        Anchor::BottomRight => d.right_0().top_0().mt(-offset),
-        Anchor::LeftCenter => d.right_0().top(relative(0.5)).ml(offset),
-        Anchor::RightCenter => d.left_0().top(relative(0.5)).ml(-offset),
+        Anchor::TopLeft => trigger.bottom_left() + point(px(0.), offset),
+        Anchor::TopCenter => trigger.bottom_center() + point(px(0.), offset),
+        Anchor::TopRight => trigger.bottom_right() + point(px(0.), offset),
+        Anchor::BottomLeft => trigger.origin - point(px(0.), offset),
+        Anchor::BottomCenter => trigger.top_center() - point(px(0.), offset),
+        Anchor::BottomRight => trigger.top_right() - point(px(0.), offset),
+        Anchor::LeftCenter => trigger.right_center() + point(offset, px(0.)),
+        Anchor::RightCenter => trigger.left_center() - point(offset, px(0.)),
     }
 }
 
-/// The trigger, and while `content` is `Some` the content anchored to it in this frame's layout. `on_bounds` gets the
-/// trigger's bounds each frame.
+/// The trigger, and while `content` is `Some` the content anchored to it: from the trigger's origin in this frame's
+/// layout (so it follows a trigger that moves), at the corner its last measured `bounds` size puts it.
 fn host(
     trigger: AnyElement,
+    bounds: Bounds<Pixels>,
     on_bounds: impl Fn(Bounds<Pixels>, &mut App) + 'static,
     anchor: Anchor,
     offset: Pixels,
@@ -65,11 +64,13 @@ fn host(
                 .left_0(),
         )
         .when_some(content, |d, content| {
+            let corner = position(anchor, Bounds::new(Point::default(), bounds.size), offset);
             d.child(
-                corner(anchor, offset).child(
+                div().absolute().top_0().left_0().size_0().child(
                     deferred(
                         anchored()
                             .anchor(anchor)
+                            .offset(corner)
                             .snap_to_window_with_margin(Edges::all(WINDOW_MARGIN))
                             .child(div().occlude().child(content)),
                     )
@@ -214,9 +215,9 @@ impl Popover {
 impl RenderOnce for Popover {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let state = window.use_keyed_state(self.id.clone(), cx, |_, cx| PopoverState::new(cx));
-        let (open, focus) = {
+        let (open, bounds, focus) = {
             let s = state.read(cx);
-            (s.open, s.focus.clone())
+            (s.open, s.bounds, s.focus.clone())
         };
         let offset = self.offset.unwrap_or(window.rem_size() * 0.25);
         let trigger = self
@@ -255,6 +256,7 @@ impl RenderOnce for Popover {
         let bounds_state = state.clone();
         host(
             trigger,
+            bounds,
             move |b, cx| bounds_state.update(cx, |s, _| s.bounds = b),
             self.anchor,
             offset,
@@ -293,6 +295,7 @@ impl RenderOnce for Popover {
 
 pub(super) struct HoverCardState {
     open: bool,
+    bounds: Bounds<Pixels>,
     over_trigger: bool,
     over_card: bool,
     timer: Option<Task<()>>,
@@ -391,11 +394,12 @@ impl RenderOnce for HoverCard {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let state = window.use_keyed_state(self.id.clone(), cx, |_, _| HoverCardState {
             open: false,
+            bounds: Bounds::default(),
             over_trigger: false,
             over_card: false,
             timer: None,
         });
-        let open = state.read(cx).open;
+        let (open, bounds) = (state.read(cx).open, state.read(cx).bounds);
         let delays = (self.open_delay, self.close_delay);
         let top = matches!(
             self.anchor,
@@ -422,7 +426,15 @@ impl RenderOnce for HoverCard {
             })
             .children(self.trigger)
             .into_any_element();
-        let mut root = host(trigger, |_, _| {}, self.anchor, px(0.), content);
+        let bounds_state = state.clone();
+        let mut root = host(
+            trigger,
+            bounds,
+            move |b, cx| bounds_state.update(cx, |s, _| s.bounds = b),
+            self.anchor,
+            px(0.),
+            content,
+        );
         gpui::Refineable::refine(root.style(), &self.style);
         root.id(self.id)
     }
