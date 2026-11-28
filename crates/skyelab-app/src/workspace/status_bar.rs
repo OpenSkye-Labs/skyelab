@@ -6,7 +6,6 @@ use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::h_flex;
 use gpui::{Context, IntoElement, div, prelude::*};
-use gpui_component::status_bar::StatusBar;
 
 impl Workspace {
     pub(super) fn render_status(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -50,7 +49,7 @@ impl Workspace {
             .w_full()
             .flex_shrink_0()
             .child(
-                StatusBar::new()
+                ui::StatusBar::new()
                     .left(
                         h_flex()
                             .min_w_0()

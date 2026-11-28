@@ -143,6 +143,15 @@ use gpui::{Hsla, Pixels, Rems, px, rems};
 use std::path::Path;
 pub use theme::{ActiveTheme, Theme};
 
+/// Start-up for the UI: gpui-component's init (until stage 8), the app identity OS notifications need (Windows'
+/// AppUserModelID; the bundle's id), then our notification click handler, after gpui-component's so ours is the one
+/// GPUI keeps.
+pub fn init(cx: &mut gpui::App) {
+    gpui_component::init(cx);
+    cx.set_app_identity("dev.openskye.skyelab", "SkyeLab");
+    toast::init_system(cx);
+}
+
 /// Checks SkyeLab's theme families (T3 Code's zinc light and true-black dark tokens are the default, see
 /// docs/design/t3-reference.md) and applies the default appearance. Call once at start, after `gpui_component::init`
 /// (the bridge writes its theme too); then [`themes::load`] applies the saved choice. Views read colors only from the active theme.
@@ -517,6 +526,18 @@ pub use provider_logo::provider_logo;
 
 mod assets;
 pub use assets::{AppAssets, brand_mark, peek_mark};
+
+mod spinner;
+pub use spinner::Spinner;
+mod copy_button;
+pub use copy_button::CopyButton;
+mod status_bar;
+pub use status_bar::StatusBar;
+
+#[cfg(test)]
+mod os_notification_test;
+#[cfg(test)]
+mod small_pieces_parity_test;
 #[cfg(test)]
 mod toggle_disabled_regress_test;
 #[cfg(test)]

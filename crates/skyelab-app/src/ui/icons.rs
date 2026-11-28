@@ -95,6 +95,7 @@ icons! {
     Info => "info",
     Keyboard => "keyboard",
     Link => "link",
+    Loader => "loader",
     LoaderCircle => "loader-circle",
     Lock => "lock",
     Map => "map",

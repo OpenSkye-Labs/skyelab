@@ -114,6 +114,8 @@ fn from_value(t: &Value, dark: bool) -> anyhow::Result<Theme> {
         overlay: color("overlay")?,
         link: color("link")?,
         tab_bar: color("tab_bar.background")?,
+        status_bar: color("status_bar.background")?,
+        status_bar_border: color("status_bar.border")?,
         sidebar: color("sidebar.background")?,
         sidebar_foreground: color("sidebar.foreground")?,
         sidebar_accent: color("sidebar.accent.background")?,
