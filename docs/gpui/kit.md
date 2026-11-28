@@ -83,7 +83,9 @@ patching around it.
   never do, so an agent opening a browser tab can't take the keys from the composer.
 - A group gets its `TabGroupRenderer` once and keeps it, because it holds the tab bar's scroll: one made per render
   snaps a wheeled bar back, one shared by groups scrolls their bars together.
-- Groups are drawn inline by one entity, so anything keyed by element id carries the group's placement
+- Each group is a `RenderOnce` component, not built inside `DockArea::render`: GPUI renders it once that returns, so a
+  panel's title or toolbar may read the dock. Built inline it panics ("cannot read … while it is already being updated").
+- Groups are drawn by one entity, so anything keyed by element id carries the group's placement
   (`("tab-panel", placement)`), or two groups share a menu's open state.
 - The "…" menu's Zoom and Close are sent as `ToggleZoom` / `ClosePanel` from the shown panel's focus handle, so a
   panel's own handler (an unsaved preview) runs before the group's. A locked dock (the workspace's) offers no Close.

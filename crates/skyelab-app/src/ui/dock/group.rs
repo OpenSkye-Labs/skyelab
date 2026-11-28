@@ -3,9 +3,9 @@
 
 use super::{DockArea, DockContext, DockPlacement, PanelId, PanelView};
 use gpui::{
-    AnyElement, AnyView, App, Context, Div, InteractiveElement as _, IntoElement,
-    ParentElement as _, Pixels, Render, Stateful, Styled as _, WeakEntity, Window, canvas, div,
-    prelude::FluentBuilder as _, px,
+    AnyElement, AnyView, App, Context, Div, FocusHandle, InteractiveElement as _, IntoElement,
+    ParentElement as _, Pixels, Render, RenderOnce, Stateful, Styled as _, WeakEntity, Window,
+    canvas, div, prelude::FluentBuilder as _, px,
 };
 use std::{rc::Rc, sync::Arc};
 
@@ -120,29 +120,22 @@ impl TabGroupContext {
     }
 }
 
-impl DockArea {
-    fn render_group(
-        &self,
-        at: DockPlacement,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let group = self.group(at);
-        let active = group.active_panel().cloned();
-        let context = TabGroupContext {
-            area: cx.weak_entity(),
-            placement: at,
-            panels: group.panels.clone(),
-            active_ix: group.active_ix,
-            zoomed: self.zoomed == Some(at),
-            collapsed: self.is_collapsed(at),
-            closable: self.may_close(at) && active.as_ref().is_some_and(|p| p.closable(cx)),
-        };
-        let focus = match &active {
-            Some(panel) => panel.focus_handle(cx),
-            None => group.focus.clone(),
-        };
-        let renderer = group.renderer.clone();
+/// One group, drawn after `DockArea::render` returns, so a title or a toolbar may read the dock.
+#[derive(IntoElement)]
+struct GroupElement {
+    context: TabGroupContext,
+    renderer: Rc<dyn TabGroupRenderer>,
+    focus: FocusHandle,
+}
+
+impl RenderOnce for GroupElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let Self {
+            context,
+            renderer,
+            focus,
+        } = self;
+        let active = context.active_panel().map(|p| p.view());
         renderer
             .frame(&context, window, cx)
             .flex()
@@ -163,10 +156,30 @@ impl DockArea {
                     .overflow_hidden()
                     .children(
                         active
-                            .map(|p| renderer.render_active_panel(p.view(), &context, window, cx)),
+                            .map(|panel| renderer.render_active_panel(panel, &context, window, cx)),
                     ),
             )
-            .into_any_element()
+    }
+}
+
+impl DockArea {
+    fn render_group(&self, at: DockPlacement, cx: &Context<Self>) -> AnyElement {
+        let group = self.group(at);
+        let active = group.active_panel();
+        GroupElement {
+            focus: active.map_or_else(|| group.focus.clone(), |p| p.focus_handle(cx)),
+            renderer: group.renderer.clone(),
+            context: TabGroupContext {
+                area: cx.weak_entity(),
+                placement: at,
+                panels: group.panels.clone(),
+                active_ix: group.active_ix,
+                zoomed: self.zoomed == Some(at),
+                collapsed: self.is_collapsed(at),
+                closable: self.may_close(at) && active.is_some_and(|p| p.closable(cx)),
+            },
+        }
+        .into_any_element()
     }
 
     fn render_dock(
@@ -184,7 +197,7 @@ impl DockArea {
         if size <= px(0.) {
             return None;
         }
-        let content = self.render_group(at, window, cx);
+        let content = self.render_group(at, cx);
         let chrome = self.renderer.render_dock(&dock, content, window, cx);
         Some(
             div()
@@ -224,7 +237,7 @@ impl Render for DockArea {
             )
             .track_focus(&self.focus)
             .map(|frame| match self.zoomed {
-                Some(at) => frame.child(self.render_group(at, window, cx)),
+                Some(at) => frame.child(self.render_group(at, cx)),
                 None => frame
                     .children(self.render_dock(DockPlacement::Left, window, cx))
                     .child(
@@ -247,11 +260,7 @@ impl Render for DockArea {
                                             .flex_1()
                                             .size_full()
                                             .min_w(super::PANEL_MIN_SIZE)
-                                            .child(self.render_group(
-                                                DockPlacement::Center,
-                                                window,
-                                                cx,
-                                            )),
+                                            .child(self.render_group(DockPlacement::Center, cx)),
                                     ),
                             )
                             .children(self.render_dock(DockPlacement::Bottom, window, cx)),

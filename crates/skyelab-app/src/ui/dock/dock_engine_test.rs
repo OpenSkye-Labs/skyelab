@@ -25,6 +25,8 @@ pub(super) struct Fix {
     log: Rc<RefCell<Vec<String>>>,
     /// Focused by `on_removed`, as a panel that hands the keys somewhere itself.
     focus_on_removed: Option<FocusHandle>,
+    /// Read by `title`, as a tab that shows something about its dock.
+    reads: Option<Entity<DockArea>>,
     pub focus: FocusHandle,
 }
 
@@ -74,7 +76,10 @@ impl BasePanel for Fix {
 }
 
 impl dock::Panel for Fix {
-    fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(area) = &self.reads {
+            area.read(cx).is_zoomed();
+        }
         self.name
     }
     fn zoom_control(&self, _: &gpui::App) -> Option<PanelControl> {
@@ -122,6 +127,7 @@ impl Rig<'_> {
                 closable,
                 log,
                 focus_on_removed: None,
+                reads: None,
                 focus: cx.focus_handle(),
             })
         })
@@ -245,6 +251,7 @@ pub(super) fn rig(cx: &mut TestAppContext) -> Rig<'_> {
             closable: false,
             log,
             focus_on_removed: None,
+            reads: None,
             focus: cx.focus_handle(),
         })
     });
@@ -439,6 +446,16 @@ fn each_group_keeps_its_own_tab_bar_scroll_across_redraws(cx: &mut TestAppContex
         drawer_at,
         "the drawer's bar did not"
     );
+}
+
+#[gpui::test]
+fn a_title_may_read_the_dock(cx: &mut TestAppContext) {
+    let mut rig = rig(cx);
+    let a = rig.fix("A", false, true);
+    let area = rig.area.clone();
+    a.update(rig.vcx, |a, _| a.reads = Some(area));
+    rig.dock(RIGHT, &[&a], 300.);
+    assert!(rig.drawn("content-A"));
 }
 
 #[gpui::test]
