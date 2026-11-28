@@ -26,9 +26,6 @@ impl TextInput {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.is_disabled() {
-            return;
-        }
         self.focus.focus(window, cx);
         self.start_blink(cx);
         // The window's own text selection (the timeline's) must not start a drag from here.
