@@ -5,11 +5,11 @@
 use super::Settings;
 use super::widgets::DESC;
 use crate::ui::ActiveTheme as _;
+use crate::ui::PopupMenuItem;
 use crate::ui::h_flex;
 use crate::ui::{Button, Switch};
 use crate::workspace::thread_extras::prefs;
 use gpui::{AnyElement, Context, SharedString, Window, prelude::*};
-use gpui_component::menu::{DropdownMenu as _, PopupMenuItem};
 use skyelab_core::thread_defaults::ThreadField;
 use std::path::PathBuf;
 use std::rc::Rc;

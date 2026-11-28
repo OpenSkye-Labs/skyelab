@@ -7,6 +7,7 @@
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::Popover;
 use crate::ui::SkyeIcon;
 use crate::ui::{Icon, h_flex, v_flex};
 use crate::updates::{Step, UpdateStatus, Updates};
@@ -16,8 +17,6 @@ use gpui::{
     AnyElement, App, EntityId, InteractiveElement as _, IntoElement, ParentElement as _, Pixels,
     RenderOnce, StatefulInteractiveElement as _, Styled as _, Window, div, px, relative,
 };
-use gpui_component::Selectable;
-use gpui_component::popover::Popover;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -243,8 +242,11 @@ pub(super) fn pill(view: EntityId, window: &mut Window, cx: &mut App) -> Option<
                 Popover::new("update-pill-popover")
                     .anchor(Anchor::BottomLeft)
                     .offset(px(6.))
-                    .trigger(trigger)
-                    .content(|_, _, cx| details(cx)),
+                    .trigger(move |open| PillTrigger {
+                        menu_open: open,
+                        ..trigger
+                    })
+                    .content(|_, cx| details(cx)),
             )
             .into_any_element(),
     )
@@ -262,17 +264,6 @@ struct PillTrigger {
     /// The slot's width: what the open pill grows to.
     room: Pixels,
     menu_open: bool,
-}
-
-impl Selectable for PillTrigger {
-    fn selected(mut self, selected: bool) -> Self {
-        self.menu_open = selected;
-        self
-    }
-
-    fn is_selected(&self) -> bool {
-        self.menu_open
-    }
 }
 
 impl RenderOnce for PillTrigger {

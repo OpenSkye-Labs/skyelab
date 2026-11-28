@@ -5,6 +5,7 @@ use super::form::Kind;
 use super::page::{Editor, Pick, Row, ScheduledPage};
 use crate::ui;
 use crate::ui::ActiveTheme as _;
+use crate::ui::PopupMenuItem;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Checkbox, Switch, TextField};
 use crate::ui::{Icon, h_flex, v_flex};
@@ -13,10 +14,7 @@ use gpui::{
     AnyElement, Context, IntoElement, ParentElement as _, Render, SharedString, Styled as _,
     Window, div, prelude::*,
 };
-use gpui_component::{
-    input::Textarea,
-    menu::{DropdownMenu as _, PopupMenuItem},
-};
+use gpui_component::input::Textarea;
 use skyelab_agent::Mode;
 use skyelab_core::schedule::Schedule;
 

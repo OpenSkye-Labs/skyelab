@@ -4,10 +4,10 @@
 use super::widgets::{path_line, path_text, section};
 use super::*;
 use crate::ui;
+use crate::ui::PopupMenuItem;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
 use crate::ui::{Icon, h_flex, v_flex};
-use gpui_component::menu::{DropdownMenu as _, PopupMenuItem};
 
 /// Why a stale binding stops agents, in one sentence.
 fn stale_reason(confirmed: bool, resolves: bool) -> &'static str {
