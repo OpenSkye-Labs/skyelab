@@ -21,15 +21,16 @@ const TAB_H: Pixels = px(32.);
 const TAB_INNER_H: Pixels = px(30.);
 const TAB_PAD_X: Pixels = px(12.);
 
-/// The toolbar's 20 px ghost button with a 12 px icon, the size gpui-component's dock drew, so the tab bar keeps its
-/// layout: smaller than our smallest `Size`, and not a tab stop.
+/// The toolbar's ghost button at gpui-component's extra-small size (1.25 rem, a 0.75 rem icon, the theme's radius),
+/// so the tab bar keeps its look: smaller than our smallest `Size`, and not a tab stop.
 fn tool_button(id: &'static str, icon: SkyeIcon, cx: &App) -> Button {
     Button::new(id)
         .ghost()
         .xsmall()
         .tab_stop(false)
-        .size(px(20.))
+        .size(rems(1.25))
         .px_0()
+        .rounded(cx.theme().radius)
         .child(
             Icon::new(icon)
                 .size_3()
@@ -60,8 +61,8 @@ impl Tabs {
         let focus = group.active_panel().map(|p| p.focus_handle(cx));
         let zoom_label = if zoomed { "Zoom Out" } else { "Zoom In" };
         let zoom = match (zoomed, toolbar_zoom) {
-            (true, _) => Some(("zoom-out", SkyeIcon::Minimize)),
-            (false, true) => Some(("zoom-in", SkyeIcon::Maximize)),
+            (true, _) => Some(("zoom-out", SkyeIcon::Collapse)),
+            (false, true) => Some(("zoom-in", SkyeIcon::Expand)),
             (false, false) => None,
         };
         h_flex()
@@ -73,6 +74,8 @@ impl Tabs {
                     tool_button(id, icon, cx)
                         .tooltip_with_action(zoom_label, &ToggleZoom, None)
                         .selected(zoomed)
+                        // gpui-component's held ghost fill, which this button has always had.
+                        .when(zoomed, |b| b.bg(cx.theme().secondary_active))
                         .debug_selector(|| "dock-tab-bar-zoom-control".into())
                         .on_click(move |_, window, cx| group.toggle_zoom(window, cx)),
                 )

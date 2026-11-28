@@ -1,6 +1,6 @@
 //! Stage 5a acceptance: our dock skin lays a dock out exactly as gpui-component's `DockSkin` does. The same panels are
-//! drawn under each skin in a window of the same size, in two layouts so every selector names one element: a center
-//! without a title bar beside a right dock with two tabs (one zoomable), and a center over a bottom dock, open and
+//! drawn under each skin in a window of the same size, in three layouts so every selector names one element: a center
+//! without a title bar beside a right dock with two tabs (one zoomable), the same with one panel (a title bar), and a center over a bottom dock, open and
 //! then closed to its strip (the center's height measures it). Every tab, the zoom button and each panel's content region must have the same bounds.
 
 use crate::ui::dock as ours;
@@ -90,6 +90,8 @@ impl Render for Host {
 #[derive(Clone, Copy, PartialEq)]
 enum Layout {
     Right,
+    /// The right dock with one zoomable panel: a title bar, as the app's "Open a surface" tab draws.
+    Title,
     Bottom,
 }
 
@@ -100,6 +102,7 @@ const RIGHT: [&str; 5] = [
     "content-Center",
     "content-A",
 ];
+const TITLE: [&str; 3] = ["dock-tab-bar-zoom-control", "content-Center", "content-A"];
 // One panel alone gets a title bar, not tabs: its strip shows in the center's height.
 const BOTTOM: [&str; 2] = ["content-Center", "content-Bottom"];
 
@@ -162,6 +165,10 @@ fn draw(skin: Skin, layout: Layout, cx: &mut TestAppContext) -> (Drawn, Drawn) {
             let b = fix("B", false, true, cx);
             area.set_dock(DockPlacement::Right, tabs(vec![a, b], cx), window, cx);
             DockPlacement::Right
+        } else if layout == Layout::Title {
+            let a = fix("A", true, true, cx);
+            area.set_dock(DockPlacement::Right, tabs(vec![a], cx), window, cx);
+            DockPlacement::Right
         } else {
             let bottom = fix("Bottom", false, true, cx);
             area.set_dock(DockPlacement::Bottom, tabs(vec![bottom], cx), window, cx);
@@ -174,13 +181,13 @@ fn draw(skin: Skin, layout: Layout, cx: &mut TestAppContext) -> (Drawn, Drawn) {
         area.set_locked(true, window, cx);
     });
     vcx.run_until_parked();
-    let selectors: &[&'static str] = if layout == Layout::Right {
-        &RIGHT
-    } else {
-        &BOTTOM
+    let selectors: &[&'static str] = match layout {
+        Layout::Right => &RIGHT,
+        Layout::Title => &TITLE,
+        Layout::Bottom => &BOTTOM,
     };
     let open = bounds(vcx, selectors);
-    if layout == Layout::Right {
+    if layout != Layout::Bottom {
         return (open, Vec::new());
     }
     area.update_in(vcx, |area, window, cx| {
@@ -193,7 +200,11 @@ fn draw(skin: Skin, layout: Layout, cx: &mut TestAppContext) -> (Drawn, Drawn) {
 #[gpui::test]
 fn our_dock_skin_lays_out_like_gpui_component_s(cx: &mut TestAppContext) {
     super::super::button_test::setup(cx);
-    for (layout, selectors) in [(Layout::Right, &RIGHT[..]), (Layout::Bottom, &BOTTOM[..])] {
+    for (layout, selectors) in [
+        (Layout::Right, &RIGHT[..]),
+        (Layout::Title, &TITLE[..]),
+        (Layout::Bottom, &BOTTOM[..]),
+    ] {
         let (their_open, their_closed) = draw(Skin::Theirs, layout, cx);
         let (our_open, our_closed) = draw(Skin::Ours, layout, cx);
         for (i, s) in selectors.iter().enumerate() {
