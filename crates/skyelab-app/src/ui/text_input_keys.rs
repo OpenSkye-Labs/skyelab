@@ -239,10 +239,9 @@ pub(super) fn on_actions(
         .on_action(cx.listener(|this, _: &Enter, _, cx| this.enter(false, false, cx)))
         .on_action(cx.listener(|this, _: &SecondaryEnter, _, cx| this.enter(true, false, cx)))
         .on_action(cx.listener(|this, _: &ShiftEnter, _, cx| this.enter(false, true, cx)))
-        .on_action(cx.listener(|this, _: &Escape, _, cx| {
+        .on_action(cx.listener(|this, _: &Escape, window, cx| {
             if this.buffer.marked().is_some() {
-                this.buffer.unmark();
-                cx.notify();
+                this.end_composition(window, cx);
             }
             cx.propagate();
         }))

@@ -117,6 +117,8 @@ mod text_input_handler;
 #[cfg(test)]
 mod text_input_harness;
 #[cfg(test)]
+mod text_input_ime_events_test;
+#[cfg(test)]
 mod text_input_ime_rect_test;
 #[cfg(test)]
 mod text_input_ime_test;

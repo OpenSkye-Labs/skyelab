@@ -34,8 +34,8 @@ impl EntityInputHandler for TextInput {
         self.buffer.marked().map(|r| self.utf16(&r))
     }
 
-    fn unmark_text(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        self.buffer.unmark();
+    fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.end_composition(window, cx);
         cx.notify();
     }
 
@@ -51,8 +51,8 @@ impl EntityInputHandler for TextInput {
         }
         let range = self.target(range);
         if self.buffer.marked().is_some() {
-            let changed = self.buffer.commit(range, &fit(text));
-            self.edited(changed, window, cx);
+            self.buffer.commit(range, &fit(text));
+            self.end_composition(window, cx);
         } else {
             self.edit(range, text, Intent::Typing, window, cx);
         }
@@ -72,8 +72,13 @@ impl EntityInputHandler for TextInput {
         let range = self.target(range);
         let new = fit(new_text);
         let caret = new_selected_range.map(|r| bytes_of_utf16(&new, &r));
-        let changed = self.buffer.compose(range, &new, caret);
-        self.edited(changed, window, cx);
+        if self.composing_from.is_none() {
+            self.composing_from = Some(self.buffer.text().to_owned());
+        }
+        if self.buffer.compose(range, &new, caret) {
+            window.notify_text_input_changed(&self.focus);
+        }
+        self.moved(window, cx);
     }
 
     fn bounds_for_range(

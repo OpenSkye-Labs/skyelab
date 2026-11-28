@@ -130,7 +130,8 @@ patching around it.
   is true: the field's right-click menu hangs outside it (`popover.rs`, `details_panel.rs`, `composer_picker.rs`).
 - A press on a control inside the field (the ×) calls `window.prevent_default()` on mouse-down, or GPUI focuses
   whatever focusable holds the field.
-- `set_value` emits no `Change` and clears undo. `Blur` is what Settings and the tab rename save on, so the field's own
+- A composition's marked steps emit no `Change`; its commit, unmark or Escape emits one when the text differs from
+  before it began, so lists never filter on half-typed Pinyin. `set_value` emits no `Change` and clears undo. `Blur` is what Settings and the tab rename save on, so the field's own
   right-click menu taking the focus is not a blur (`blur_held`).
 - A mouse-down handler that moves the focus (opening a menu) calls `window.prevent_default()`: GPUI focuses the
   pressed `track_focus` element after the handler and would take it back.

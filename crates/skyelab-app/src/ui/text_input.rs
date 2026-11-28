@@ -57,6 +57,8 @@ pub struct TextInput {
     pub(super) revealed: Option<(usize, usize)>,
     /// The caret place the platform last heard, for the input method's window.
     pub(super) ime_anchor: Option<Bounds<Pixels>>,
+    /// The text before the composition in progress began.
+    pub(super) composing_from: Option<String>,
     pub(super) selecting: bool,
     /// The word a double click took: dragging on selects by words from it.
     pub(super) word: Option<Range<usize>>,
@@ -83,9 +85,9 @@ impl TextInput {
                 cx.emit(TextInputEvent::Focus);
             }
         });
-        let on_blur = cx.on_blur(&focus, window, |this, _, cx| {
+        let on_blur = cx.on_blur(&focus, window, |this, window, cx| {
             this.selecting = false;
-            this.buffer.unmark();
+            this.end_composition(window, cx);
             this.stop_blink(cx);
             if this.menu.is_some() {
                 this.blur_held = true;
@@ -104,6 +106,7 @@ impl TextInput {
             scroll_x: px(0.),
             revealed: None,
             ime_anchor: None,
+            composing_from: None,
             selecting: false,
             word: None,
             menu: None,
@@ -232,11 +235,21 @@ impl TextInput {
     }
 
     pub(super) fn edited(&mut self, changed: bool, window: &mut Window, cx: &mut Context<Self>) {
+        self.composing_from = None;
         if changed {
             window.notify_text_input_changed(&self.focus);
             cx.emit(TextInputEvent::Change);
         }
         self.moved(window, cx);
+    }
+
+    /// A composition's marked steps send no `Change`; its end sends one if the text differs from before it began.
+    pub(super) fn end_composition(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.buffer.unmark();
+        match self.composing_from.take() {
+            Some(from) => self.edited(from != self.buffer.text(), window, cx),
+            None => self.moved(window, cx),
+        }
     }
 
     pub(super) fn edit(
