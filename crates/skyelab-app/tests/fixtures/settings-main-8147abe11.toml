@@ -1,0 +1,85 @@
+share_on_tailnet = false
+recent_environments = []
+linked_environments = []
+approved_devices = []
+sidebar_views = []
+developer_mode = false
+quit_without_asking = false
+keep_running_in_background = false
+resume_after_restart = true
+onboarded = false
+dictation_server_locales = []
+
+[environment_nodes]
+
+[[windows]]
+x = 0
+y = 0
+width = 1400
+height = 900
+right_panel_open = true
+right_panel_width = 520
+view = "welcome"
+
+[[windows.terminals]]
+name = "Dev"
+
+[windows.terminals.panes.split]
+axis = "row"
+sizes = [
+    5000,
+    5000,
+]
+
+[[windows.terminals.panes.split.children]]
+leaf = "@PROJECT@"
+
+[[windows.terminals.panes.split.children]]
+leaf = "@PROJECT@/web"
+
+[[windows.terminals]]
+
+[windows.terminals.panes]
+leaf = "@PROJECT@"
+
+[threads]
+generate_titles = true
+generate_git_text = true
+new_worktree = false
+fetch_minutes = 5
+send_shortcut = "enter"
+
+[diff]
+split = false
+wrap = true
+ignore_whitespace = false
+
+[updates]
+check = true
+
+[appearance]
+mode = "system"
+theme = "skyelab"
+compact = false
+motion = "system"
+ui_font_size = 14
+code_font_size = 13
+
+[scheduled]
+skip_missed = false
+max_concurrent = 2
+
+[terminal]
+confirm_close = true
+
+[visual_replies]
+allowed_hosts = [
+    "cdnjs.cloudflare.com",
+    "cdn.jsdelivr.net",
+    "unpkg.com",
+]
+width = "standard"
+
+[delegation]
+links = []
+targets = []

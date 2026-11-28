@@ -7,11 +7,11 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Kbd;
 use crate::ui::SkyeIcon;
-use crate::ui::dock::{BasePanel, Panel, PanelControl, PanelEvent};
+use crate::ui::dock::{BasePanel, Panel, PanelControl};
 use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
-    Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, KeyBinding,
-    Render, Subscription, Window, actions, div, prelude::*,
+    Action, App, Context, Entity, FocusHandle, Focusable, IntoElement, KeyBinding, Render,
+    Subscription, Window, actions, div, prelude::*,
 };
 
 actions!(
@@ -100,8 +100,6 @@ impl SurfacesPanel {
         cx.notify();
     }
 }
-
-impl EventEmitter<PanelEvent> for SurfacesPanel {}
 
 impl BasePanel for SurfacesPanel {
     fn panel_name(&self) -> &'static str {
@@ -267,19 +265,11 @@ impl Render for SurfacesPanel {
 impl Workspace {
     /// How many tabs the right dock holds (Open a surface counts as one).
     pub(super) fn right_tab_count(&self, cx: &App) -> usize {
-        let mut n = 0;
-        if let Some(layout) = self
+        let group = self
             .dock
             .read(cx)
-            .layout(crate::ui::dock::DockPlacement::Right)
-        {
-            layout.root().walk(&mut |node| {
-                if let crate::ui::dock::PaneRef::Tabs { panels, .. } = node.kind() {
-                    n += panels.len();
-                }
-            });
-        }
-        n
+            .tabs(crate::ui::dock::DockPlacement::Right);
+        group.map_or(0, |g| g.panels.len())
     }
 
     pub(super) fn surface_actions(

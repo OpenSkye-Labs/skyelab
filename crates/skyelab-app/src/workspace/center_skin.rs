@@ -5,31 +5,27 @@
 //! (`timeline_view.rs`), and the center's other pages are drawn cached by `Center` (docs/gpui/redraw.md).
 //!
 //! A dock that closes (the sidebar, the tools dock, the terminal) collapses on Rex's spring (`ui::motion::SPRING`)
-//! instead of vanishing: the toggle calls [`CenterSkin::start_close`], base asks
+//! instead of vanishing: the toggle calls [`CenterSkin::start_close`], the dock asks
 //! [`DockAreaRenderer::closed_dock_extent`] how much of a closed dock to draw, and this skin answers with the
 //! spring's last value until it settles. A drag that closes a dock stays with the pointer. Opening stays instant, as Rex's lands most of
 //! the way on its first frame.
 //!
-//! The sidebar's edge also hides it (T3's rail): base clamps the drag at the minimum width, and past
+//! The sidebar's edge also hides it (T3's rail): the dock clamps the drag at the minimum width, and past
 //! [`HIDE_BELOW`] the sidebar fades; releasing there hides it through the toggle (`Workspace::hide_sidebar_from_drag`).
 
 use crate::ui::A11yScrollArea as _;
-use crate::ui::dock::BasePanelView as PanelView;
 use crate::ui::dock::{
-    DockAreaRenderer, DockContext, DockPlacement, DropIndicator, NodeId, PanelState, Skin,
-    TabGroupContext, TabGroupRenderer,
+    DockAreaRenderer, DockContext, DockPlacement, Skin, TabGroupContext, TabGroupRenderer,
 };
 use gpui::{
-    AnyElement, AnyView, App, Axis, Bounds, Div, EntityId, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, Pixels, Stateful, WeakEntity, Window, canvas, div, prelude::*,
+    AnyElement, AnyView, App, Bounds, Div, EntityId, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, Pixels, Stateful, WeakEntity, Window, canvas, div, prelude::*,
 };
-use gpui_base::ResizeHandleContext;
 use std::cell::Cell;
 use std::rc::Rc;
-use std::sync::Arc;
 
 /// T3 hides its sidebar once the pointer is under a quarter of the minimum width (`SIDEBAR_COLLAPSE_DRAG_RATIO`).
-pub(super) const HIDE_BELOW: Pixels = gpui::px(25.); // a quarter of gpui-base's PANEL_MIN_SIZE (100 px)
+pub(super) const HIDE_BELOW: Pixels = gpui::px(25.); // a quarter of the dock's PANEL_MIN_SIZE (100 px)
 /// The dock's resize handle: its hit area hugs the trailing edge this deep (gpui-base's `HANDLE_SIZE` + padding).
 const HANDLE_W: Pixels = gpui::px(5.);
 
@@ -52,7 +48,7 @@ pub(super) struct CenterSkin {
 
 #[derive(Clone, Copy, Default)]
 pub(super) struct Drawn {
-    /// Only while the dock closes: an open dock reports base's own closed extent, which base also reads as the
+    /// Only while the dock closes: an open dock reports the skin's closed extent, which the dock also reads as the
     /// bottom dock's strip during a resize drag.
     extent: Option<Pixels>,
     open: Pixels,
@@ -92,7 +88,7 @@ impl CenterSkin {
             )
             .child(
                 canvas(
-                    // Over base's handle, not blocking it: a press there counts only when nothing (a dialog, a
+                    // Over the resize handle, not blocking it: a press there counts only when nothing (a dialog, a
                     // popover) covers the handle.
                     |bounds: Bounds<Pixels>, window, _| {
                         let strip = Bounds::from_corners(
@@ -136,7 +132,7 @@ impl CenterSkin {
                             // Only a real drag of the handle: a press with no drag (under a dialog, say) never hides.
                             if let (Some(width), true, true) = (start, hide, cx.has_active_drag()) {
                                 let workspace = workspace.clone();
-                                // After base's own release handler, which settles the drag.
+                                // After the skin's own release handler, which settles the drag.
                                 window.defer(cx, move |window, cx| {
                                     _ = workspace.update(cx, |ws, cx| {
                                         ws.hide_sidebar_from_drag(width, window, cx)
@@ -174,7 +170,7 @@ impl CenterSkin {
     }
 
     /// A closing dock: its content held at the size it had open, pinned to the edge beside the center and clipped
-    /// by base's frame, so it slides out without laying out (or resizing a terminal) on every frame.
+    /// by the dock's box, so it slides out without laying out (or resizing a terminal) on every frame.
     fn render_closing(
         &self,
         at: DockPlacement,
@@ -194,7 +190,7 @@ impl CenterSkin {
         );
         drawn.extent = (now > closed).then_some(now);
         if drawn.extent.is_none() {
-            // Base sized this frame from the last value; one more frame draws the closed extent.
+            // The dock sized this frame from the last value; one more frame draws the closed extent.
             window.request_animation_frame();
         }
         cell.set(drawn);
@@ -218,29 +214,6 @@ impl CenterSkin {
 }
 
 impl DockAreaRenderer for CenterSkin {
-    fn frame(&self, window: &mut Window, cx: &mut App) -> Stateful<Div> {
-        self.skin.frame(window, cx)
-    }
-    fn split_frame(
-        &self,
-        node: NodeId,
-        axis: Axis,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Stateful<Div> {
-        self.skin.split_frame(node, axis, window, cx)
-    }
-    fn center_frame(&self, window: &mut Window, cx: &mut App) -> Stateful<Div> {
-        self.skin.center_frame(window, cx)
-    }
-    fn render_split_handle(
-        &self,
-        handle: &ResizeHandleContext,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Option<AnyElement> {
-        self.skin.render_split_handle(handle, window, cx)
-    }
     fn closed_dock_extent(&self, placement: DockPlacement) -> Pixels {
         let closed = self.skin.closed_dock_extent(placement);
         self.drawn(placement)
@@ -283,14 +256,6 @@ impl DockAreaRenderer for CenterSkin {
             return self.render_closing(at, cell, content, window, cx);
         }
         self.skin.render_dock(dock, content, window, cx)
-    }
-    fn build_placeholder(
-        &self,
-        state: &PanelState,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Option<Arc<dyn PanelView>> {
-        self.skin.build_placeholder(state, window, cx)
     }
     fn tab_group_renderer(&self) -> Rc<dyn TabGroupRenderer> {
         Rc::new(CenterTabs {
@@ -374,7 +339,7 @@ impl TabGroupRenderer for CenterTabs {
         else {
             return bar;
         };
-        // A press on a tab focuses the tab, and gpui-base's `select_tab` moves focus into the panel only when the tab
+        // A press on a tab focuses the tab, and the dock's `select_tab` moves focus into the panel only when the tab
         // changes: a click on the tab already shown left the keys (mod+F, Esc) outside the panel. The bar's toolbar
         // occludes, so its menu keeps the focus it takes.
         let panels = group.panels().to_vec();
@@ -422,22 +387,6 @@ impl TabGroupRenderer for CenterTabs {
             .flex_1()
             .child(div().absolute().size_full().child(panel))
             .into_any_element()
-    }
-    fn render_drop_indicator(
-        &self,
-        indicator: DropIndicator,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Option<AnyElement> {
-        self.tabs.render_drop_indicator(indicator, window, cx)
-    }
-    fn render_empty(
-        &self,
-        group: &TabGroupContext,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Option<AnyElement> {
-        self.tabs.render_empty(group, window, cx)
     }
 }
 

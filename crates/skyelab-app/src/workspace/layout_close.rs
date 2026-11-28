@@ -15,7 +15,7 @@ impl Workspace {
         let dock = self.dock.clone();
         // Deferred: closing a tab emits dock events this workspace handles.
         window.defer(cx, move |window, cx| {
-            // The dock is locked (nothing is dragged around), and a locked tab group refuses every close.
+            // The dock is locked (its "…" menus offer no Close), and a locked tab group refuses every close.
             dock.update(cx, |d, cx| d.set_locked(false, window, cx));
             tab.dispatch_action(&crate::ui::dock::ClosePanel, window, cx);
             dock.update(cx, |d, cx| d.set_locked(true, window, cx));

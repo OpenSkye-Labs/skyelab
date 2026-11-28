@@ -31,7 +31,7 @@ Lessons from the sidebar's update pill (`workspace/update_notice.rs`).
 
 ## Docks on a narrow window
 
-- **gpui-component's `DockArea` has no maximum for a side dock**: a saved 560 px right dock on a 760 px window left the
+- **A side dock's set size has no maximum** (`set_dock_size`; only a drag is clamped): a saved 560 px right dock on a 760 px window left the
   center (the thread) 0 px wide. Fit it yourself from the viewport (`dock_fit.rs`): on restore, on
   `observe_window_bounds` and after a toggle, shrink the dock to leave the center its minimum, and close it (or hide
   the other dock) when even its own minimum doesn't fit.

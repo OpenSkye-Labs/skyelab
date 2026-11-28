@@ -1,16 +1,16 @@
-//! Stage 5a acceptance: our dock skin (`ui::dock::Skin`) on gpui-base's engine. Tabs select and focus, the zoom
+//! Stage 5a acceptance: our dock skin (`ui::dock::Skin`). Tabs select and focus, the zoom
 //! button, the `ToggleZoom` action and the "…" menu's Zoom item zoom, the menu's Close removes one tab, the resize
 //! handles resize and the bottom one closes its dock, and the tab bar reads right in the a11y tree. Each dock area has
 //! one "…" button unless a test adds the bottom dock, so selectors name one element.
 
 use crate::ui::dock::{
-    self as dock, DockArea, DockLayout, DockPlacement, PanelControl, PanelEvent, ToggleZoom,
+    self as dock, DockArea, DockLayout, DockPlacement, PanelControl, ToggleZoom,
 };
 use crate::ui::{PopupMenu, PopupMenuItem};
 use gpui::{
-    AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable,
-    InteractiveElement as _, IntoElement, Modifiers, MouseButton, ParentElement as _, Render, Role,
-    Styled as _, TestAppContext, VisualTestContext, Window, div, point, px, size,
+    AppContext as _, Context, Entity, FocusHandle, Focusable, InteractiveElement as _, IntoElement,
+    Modifiers, MouseButton, ParentElement as _, Render, Role, Styled as _, TestAppContext,
+    VisualTestContext, Window, div, point, px, size,
 };
 use gpui_base::test_support::snapshots;
 use std::{cell::Cell, rc::Rc};
@@ -35,8 +35,6 @@ impl Fix {
     }
 }
 
-impl EventEmitter<PanelEvent> for Fix {}
-
 impl Focusable for Fix {
     fn focus_handle(&self, _: &gpui::App) -> FocusHandle {
         self.focus.clone()
@@ -54,7 +52,7 @@ impl Render for Fix {
     }
 }
 
-impl gpui_base::dock::Panel for Fix {
+impl dock::BasePanel for Fix {
     // Not the title: a tab must be named by its own title, not its panel type.
     fn panel_name(&self) -> &'static str {
         "Fixture"
@@ -101,7 +99,7 @@ impl Render for Host {
 }
 
 /// A 1000x700 window: a center and a right dock with tabs A (zoomable) and B (closable); with `bottom`, an open bottom
-/// dock too. `locked` as the workspace sets it: gpui-base then lets no group close a tab.
+/// dock too. `locked` as the workspace sets it: no group then closes a tab.
 fn area(
     cx: &mut TestAppContext,
     locked: bool,
@@ -116,9 +114,8 @@ fn area(
     });
     let mut built = None;
     let (_host, vcx) = cx.add_window_view(|window, cx| {
-        let area = cx.new(|cx| {
-            DockArea::new("skin-test", None, window, cx).with_renderer(dock::Skin::new(cx))
-        });
+        let area =
+            cx.new(|cx| DockArea::new("skin-test", window, cx).with_renderer(dock::Skin::new(cx)));
         built = Some(area.clone());
         Host(area)
     });
@@ -134,7 +131,7 @@ fn area(
         area.set_center(tabs(&[&p.center], cx), window, cx);
         area.set_dock(DockPlacement::Right, tabs(&[&p.a, &p.b], cx), window, cx);
         area.set_dock_size(DockPlacement::Right, px(400.), window, cx);
-        // A new dock starts open in gpui-base; toggling it would close it.
+        // A new dock starts open; toggling it would close it.
         if !area.is_dock_open(DockPlacement::Right) {
             area.toggle_dock(DockPlacement::Right, window, cx);
         }
@@ -195,7 +192,7 @@ fn a_clicked_tab_is_shown_and_takes_the_focus(cx: &mut TestAppContext) {
     let focused =
         p.b.update_in(vcx, |b, window, _| b.focus.is_focused(window));
     assert!(focused, "the click moved focus into B");
-    // Clicking the tab already shown still focuses it (gpui-base only moves focus when the tab changes).
+    // Clicking the tab already shown still focuses it (the engine only moves focus when the tab changes).
     p.center
         .update_in(vcx, |c, window, cx| c.focus.focus(window, cx));
     click(vcx, "dock-tab-1");
@@ -267,7 +264,7 @@ fn the_menu_holds_the_panel_s_items_then_zoom(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn a_locked_dock_offers_no_close(cx: &mut TestAppContext) {
-    // gpui-base refuses every close in a locked area (`TabGroupContext::is_closable`), so neither skin offers one.
+    // A locked area refuses every close (`TabGroupContext::is_closable`), so the menu offers none.
     let (_area, _p, vcx) = area(cx, true, false);
     click(vcx, "dock-tab-1");
     click(vcx, "dock-tab-bar-menu");

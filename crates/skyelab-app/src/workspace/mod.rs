@@ -1,4 +1,4 @@
-//! The main window: sidebar, the center's one page, bottom terminals and a status bar, on gpui-component's dock.
+//! The main window: sidebar, the center's one page, bottom terminals and a status bar, on `ui::dock`.
 
 mod attention;
 pub(crate) mod background;
@@ -127,6 +127,8 @@ use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
 mod cached_workspace;
 mod click;
 mod diff_view;
+#[cfg(test)]
+mod dock_restore_test;
 mod find_marks;
 mod limit_banner;
 mod saved_views;
@@ -375,7 +377,7 @@ impl Workspace {
                 workspace.clone(),
             ));
             skins = Some(ours.clone());
-            DockArea::new("workspace", None, window, cx).with_renderer(ours)
+            DockArea::new("workspace", window, cx).with_renderer(ours)
         });
         let dock_skin = skins.expect("the dock area's constructor ran");
         dock.update(cx, |dock, cx| {
