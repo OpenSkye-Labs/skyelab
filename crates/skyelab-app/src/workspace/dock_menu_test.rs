@@ -5,7 +5,7 @@
 use super::devices_tests::{Fake, open};
 use super::worktree_thread_test::{fixture, open_thread, wait_until};
 use super::*;
-use gpui_component::dock::ToggleZoom;
+use crate::ui::dock::ToggleZoom;
 use std::sync::Arc;
 
 fn zoomed(ws: &Entity<Workspace>, cx: &mut gpui::VisualTestContext) -> bool {
@@ -41,7 +41,7 @@ fn the_devices_tab_zooms(cx: &mut gpui::TestAppContext) {
 
 #[gpui::test]
 fn escape_puts_an_expanded_dock_back_before_hiding_it(cx: &mut gpui::TestAppContext) {
-    use gpui_component::dock::DockPlacement;
+    use crate::ui::dock::DockPlacement;
     let (ws, panel, cx) = open(cx, Arc::<Fake>::default());
     panel.update_in(cx, |p, window, cx| p.focus_handle(cx).focus(window, cx));
     cx.run_until_parked();

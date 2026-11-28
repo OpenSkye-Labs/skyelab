@@ -4,7 +4,7 @@
 use super::devices_tests::{Fake, open};
 use super::keys::OPEN_DEVICES_KEY;
 use super::*;
-use gpui_component::dock::DockPlacement;
+use crate::ui::dock::DockPlacement;
 use std::sync::Arc;
 
 fn right_open(ws: &Entity<Workspace>, cx: &mut gpui::VisualTestContext) -> bool {

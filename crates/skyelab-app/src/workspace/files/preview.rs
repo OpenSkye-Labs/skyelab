@@ -7,6 +7,7 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::dock::{BasePanel, Panel, PanelEvent};
 use crate::ui::{h_flex, v_flex};
 use crate::workspace::thread_find::{
     CloseFind, Find, FindInThread, FindNext, FindPrevious, find_bar, open_bar,
@@ -16,10 +17,7 @@ use gpui::{
     App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, ObjectFit,
     SharedString, Task, Window, div, img, prelude::*,
 };
-use gpui_component::{
-    dock::{BasePanel, Panel, PanelEvent},
-    input::{Editor, EditorState, Position},
-};
+use gpui_component::input::{Editor, EditorState, Position};
 use skyelab_core::files::Preview;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

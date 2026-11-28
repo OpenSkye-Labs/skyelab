@@ -1,13 +1,11 @@
 //! A dock tab's title as `tab_context_menu` reads it: where each title was painted and which one a right-click hit.
 
+use crate::ui::dock::{PanelId, TabGroupContext};
 use gpui::{
     App, Bounds, Global, InteractiveElement as _, IntoElement, MouseButton, Pixels, Point, Window,
     WindowId, div, prelude::*, px,
 };
-use gpui_component::{
-    ElementExt as _,
-    dock::{PanelId, TabGroupContext},
-};
+use gpui_component::ElementExt as _;
 use std::collections::HashMap;
 
 /// Last painted title bounds and direct right-click hits, keyed by window and panel.

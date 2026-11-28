@@ -5,8 +5,8 @@
 use super::Workspace;
 use super::terminal_panel::{Pane, TerminalPanel};
 use super::thread::ThreadView;
+use crate::ui::dock::DockPlacement;
 use gpui::{App, AppContext as _, Context, Entity, Window};
-use gpui_component::dock::DockPlacement;
 use skyelab_core::terminal_layout::{PaneTree, SavedTerminalTab};
 use std::path::PathBuf;
 

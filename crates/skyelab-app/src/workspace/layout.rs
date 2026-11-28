@@ -5,12 +5,12 @@ use super::{CONTEXT, ToggleBottomPanel, ToggleSidebar, Workspace};
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::dock::{DockEvent, DockPlacement, Panel, panel_handle};
 use crate::ui::h_flex;
 use gpui::{
     App, AppContext as _, Context, Div, Entity, Global, IntoElement, KeyBinding, NoAction, Pixels,
     Task, Window, actions, prelude::*, px,
 };
-use gpui_component::dock::{DockEvent, DockPlacement, Panel, panel_handle};
 use skyelab_core::{AppSettings, WindowLayout};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -260,7 +260,7 @@ impl Workspace {
     /// Shows a tool already in the right dock: opens the dock first, or the selection lands on a hidden view.
     pub(super) fn show_right_panel(
         &mut self,
-        id: gpui_component::dock::PanelId,
+        id: crate::ui::dock::PanelId,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -276,7 +276,7 @@ impl Workspace {
     pub(super) fn dock_shows(
         &self,
         at: DockPlacement,
-        panel: gpui_component::dock::PanelId,
+        panel: crate::ui::dock::PanelId,
         cx: &App,
     ) -> bool {
         let dock = self.dock.read(cx);
@@ -284,7 +284,7 @@ impl Workspace {
             return false;
         };
         let node = tree.find_panel_node(panel).and_then(|n| tree.find_node(n));
-        matches!(node.map(|n| n.kind()), Some(gpui_component::dock::PaneRef::Tabs { panels, active_ix }) if panels.get(active_ix) == Some(&panel))
+        matches!(node.map(|n| n.kind()), Some(crate::ui::dock::PaneRef::Tabs { panels, active_ix }) if panels.get(active_ix) == Some(&panel))
     }
 
     /// A dock changed: refresh the toggles, and save the layout once things settle.

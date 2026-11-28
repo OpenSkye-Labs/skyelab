@@ -5,11 +5,11 @@
 use super::Workspace;
 use super::center::Page;
 use crate::ui::ActiveTheme as _;
+use crate::ui::dock::{DockPlacement, PaneRef};
 use gpui::{
     App, Context, FocusHandle, Focusable as _, Global, IntoElement, Window, actions, div,
     prelude::*, px,
 };
-use gpui_component::dock::{DockPlacement, PaneRef};
 
 actions!(skyelab, [FocusNextArea, FocusPreviousArea, FocusComposer]);
 
@@ -277,7 +277,7 @@ impl Workspace {
             size(DockPlacement::Right),
             // A closed bottom dock keeps its tab strip.
             match size(DockPlacement::Bottom) {
-                h if h == px(0.) => gpui_component::dock::CLOSED_BOTTOM_STRIP,
+                h if h == px(0.) => crate::ui::dock::CLOSED_BOTTOM_STRIP,
                 h => h,
             },
         );

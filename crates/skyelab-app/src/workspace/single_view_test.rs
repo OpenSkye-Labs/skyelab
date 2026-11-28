@@ -12,7 +12,7 @@ use super::threads_test::{
 };
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
-use gpui_component::dock::Panel as _;
+use crate::ui::dock::Panel as _;
 
 fn alive(pid: i64) -> bool {
     std::process::Command::new("/bin/kill")

@@ -14,16 +14,16 @@
 //! [`HIDE_BELOW`] the sidebar fades; releasing there hides it through the toggle (`Workspace::hide_sidebar_from_drag`).
 
 use crate::ui::A11yScrollArea as _;
+use crate::ui::dock::BasePanelView as PanelView;
+use crate::ui::dock::{
+    DockAreaRenderer, DockContext, DockPlacement, DockSkin, DropIndicator, NodeId, PanelState,
+    TabGroupContext, TabGroupRenderer,
+};
 use gpui::{
     AnyElement, AnyView, App, Axis, Bounds, Div, EntityId, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, Pixels, Stateful, WeakEntity, Window, canvas, div, prelude::*,
 };
 use gpui_base::ResizeHandleContext;
-use gpui_base::dock::PanelView;
-use gpui_component::dock::{
-    DockAreaRenderer, DockContext, DockPlacement, DockSkin, DropIndicator, NodeId, PanelState,
-    TabGroupContext, TabGroupRenderer,
-};
 use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::Arc;

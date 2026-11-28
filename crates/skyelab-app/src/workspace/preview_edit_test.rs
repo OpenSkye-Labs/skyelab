@@ -110,7 +110,7 @@ fn editing_marks_dirty_and_saves(cx: &mut gpui::TestAppContext) {
         "the dot marks it"
     );
     assert!(
-        !p.read_with(cx, gpui_component::dock::BasePanel::closable),
+        !p.read_with(cx, crate::ui::dock::BasePanel::closable),
         "no × while dirty"
     );
     cx.simulate_keystrokes("backspace backspace");
@@ -340,7 +340,7 @@ fn closing_the_tab_or_window_with_edits_asks(cx: &mut gpui::TestAppContext) {
     cx.run_until_parked();
 
     // The tab's Close (its menu) asks; Discard then closes it.
-    cx.dispatch_action(gpui_component::dock::ClosePanel);
+    cx.dispatch_action(crate::ui::dock::ClosePanel);
     cx.run_until_parked();
     assert!(dialog_open(cx), "the tab's Close asks");
     p.update_in(cx, |p, window, cx| p.answer_leave(Some(false), window, cx));

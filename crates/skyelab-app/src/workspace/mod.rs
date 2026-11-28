@@ -159,6 +159,7 @@ mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
 use crate::ui::ActiveTheme as _;
+use crate::ui::dock::{DockArea, DockLayout, DockPlacement, DockSkin, panel_handle};
 use crate::ui::v_flex;
 use center::{Center, Page};
 pub use github::{AntigravityBin, CodexBin, CursorBin, GhBin};
@@ -167,7 +168,6 @@ use gpui::{
     App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Task, WeakEntity,
     Window, div, prelude::*, px,
 };
-use gpui_component::dock::{DockArea, DockLayout, DockPlacement, DockSkin, panel_handle};
 use panels::{BrowserPanel, Sidebar, TerminalsEmpty, Welcome};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Project, Store, Thread};

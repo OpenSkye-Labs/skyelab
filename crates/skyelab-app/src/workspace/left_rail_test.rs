@@ -10,7 +10,7 @@ use crate::palette::Kind as PaletteKind;
 use crate::settings::Section;
 use crate::ui::{AppAssets, SkyeIcon};
 use gpui::{AssetSource as _, Modifiers, TestAppContext, px, size};
-use gpui_component::dock::DockPlacement;
+use crate::ui::dock::DockPlacement;
 use skyelab_core::Provider;
 
 fn sample_usage(windows: Vec<UsageWindow>, limited: Option<Option<i64>>, now_ms: i64) -> AccountUsage {

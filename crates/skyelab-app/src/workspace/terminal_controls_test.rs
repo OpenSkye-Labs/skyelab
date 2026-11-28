@@ -5,7 +5,7 @@
 use super::worktree_thread_test::{fixture, open_thread, wait_until};
 use super::*;
 use gpui::VisualTestContext;
-use gpui_component::dock::DockPlacement;
+use crate::ui::dock::DockPlacement;
 
 fn click(cx: &mut VisualTestContext, selector: &'static str) {
     cx.run_until_parked();

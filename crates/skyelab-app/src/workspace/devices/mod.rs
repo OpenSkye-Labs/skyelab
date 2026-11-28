@@ -6,14 +6,12 @@ mod source;
 pub(super) use source::{DeviceSource, HubSource};
 
 use super::{OpenDevices, Workspace};
+use crate::ui::dock::{BasePanel, DockPlacement, Panel, PanelEvent};
 use gpui::{
     App, BackgroundExecutor, Context, Entity, EventEmitter, FocusHandle, Focusable, Image,
     ImageFormat, KeyBinding, PathPromptOptions, Subscription, Task, Window, actions, prelude::*,
 };
-use gpui_component::{
-    dock::{BasePanel, DockPlacement, Panel, PanelEvent},
-    input::{InputEvent, InputState},
-};
+use gpui_component::input::{InputEvent, InputState};
 use skyelab_devices::{Device, DeviceState, Error, Listing, Platform};
 use std::collections::HashMap;
 use std::path::PathBuf;

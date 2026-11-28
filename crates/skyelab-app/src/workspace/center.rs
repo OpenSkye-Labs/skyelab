@@ -6,11 +6,11 @@
 use super::remote_thread::RemoteThreadView;
 use super::thread::ThreadView;
 use super::{GoBack, GoForward, OpenBots, OpenHome, OpenSettingsSection, OpenThread, Workspace};
+use crate::ui::dock::DockPlacement;
 use gpui::{
     AnyView, App, Context, Entity, FocusHandle, Focusable, IntoElement, MouseButton,
     NavigationDirection, WeakEntity, Window, div, prelude::*,
 };
-use gpui_component::dock::DockPlacement;
 
 /// What the center shows. Threads are weak, so history never keeps a closed view alive.
 #[derive(Clone, Debug, PartialEq)]

@@ -6,7 +6,7 @@ use super::devices_tests::{Fake, open};
 use super::worktree_thread_test::{fixture, open_thread, wait_until};
 use super::*;
 use gpui::VisualTestContext;
-use gpui_component::dock::{DockPlacement, ToggleZoom};
+use crate::ui::dock::{DockPlacement, ToggleZoom};
 use std::sync::Arc;
 
 fn right_open(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> bool {

@@ -5,15 +5,13 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
+use crate::ui::dock::{BasePanel, Panel, PanelEvent};
 use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, SharedString,
     Subscription, Task, Window, div, prelude::*, px, uniform_list,
 };
-use gpui_component::{
-    dock::{BasePanel, Panel, PanelEvent},
-    input::{InputEvent, InputState},
-};
+use gpui_component::input::{InputEvent, InputState};
 use skyelab_core::files::{Found, search};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -281,7 +279,7 @@ impl Panel for SearchPanel {
             "Search",
         )
     }
-    fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
+    fn zoom_control(&self, _: &App) -> Option<crate::ui::dock::PanelControl> {
         None
     }
 }

@@ -3,7 +3,7 @@
 
 use super::manage_harness::rig;
 use gpui::{TestAppContext, VisualTestContext};
-use gpui_component::dock::DockPlacement;
+use crate::ui::dock::DockPlacement;
 use std::time::Duration;
 
 /// Frames the window asked for since the last draw (each runs the callbacks and draws again).
@@ -82,7 +82,7 @@ fn reduce_motion_closes_the_dock_at_once(cx: &mut TestAppContext) {
 /// own value there, never its open size.
 #[gpui::test]
 fn an_open_dock_reports_the_base_closed_extent(cx: &mut TestAppContext) {
-    use gpui_component::dock::DockAreaRenderer as _;
+    use crate::ui::dock::DockAreaRenderer as _;
     let (r, cx) = rig(cx);
     cx.update(|_, cx| cx.set_reduce_motion(false));
     pending_frames(cx);

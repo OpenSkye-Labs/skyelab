@@ -3,12 +3,12 @@
 use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::Button;
+use crate::ui::dock::{BasePanel, Panel, PanelEvent};
 use crate::ui::{Icon, h_flex, v_flex};
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, SharedString,
     Window, div, prelude::*,
 };
-use gpui_component::dock::{BasePanel, Panel, PanelEvent};
 use skyelab_browser::BrowserView;
 
 /// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar.

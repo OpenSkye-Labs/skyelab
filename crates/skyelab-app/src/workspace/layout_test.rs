@@ -4,7 +4,7 @@ use super::layout::ToggleRightPanel;
 use super::threads_test::{fixture, open_workspace, project_thread, setup};
 use super::*;
 use gpui::TestAppContext;
-use gpui_component::dock::DockPlacement;
+use crate::ui::dock::DockPlacement;
 
 fn right_open(ws: &Entity<Workspace>, cx: &mut gpui::VisualTestContext) -> (bool, bool) {
     ws.read_with(cx, |ws, cx| {

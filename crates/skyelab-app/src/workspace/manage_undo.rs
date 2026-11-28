@@ -34,7 +34,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        use gpui_component::dock::DockPlacement;
+        use crate::ui::dock::DockPlacement;
         if !self.dock.read(cx).is_dock_open(DockPlacement::Left) {
             return self.undo_notice(text, undo, window, cx);
         }

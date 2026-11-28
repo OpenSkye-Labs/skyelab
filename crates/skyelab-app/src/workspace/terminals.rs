@@ -3,8 +3,8 @@
 
 use super::terminal_panel::{Pane, SplitTerminal, SplitTerminalDown, TabEvent, TerminalPanel};
 use super::{NewTerminal, Workspace};
+use crate::ui::dock::{DockPlacement, panel_handle};
 use gpui::{AppContext as _, Context, Entity, Focusable as _, SharedString, Window};
-use gpui_component::dock::{DockPlacement, panel_handle};
 use skyelab_core::terminal_layout::Axis;
 use skyelab_terminal::{SpawnOptions, Terminal, TerminalEvent, TerminalView};
 

@@ -4,7 +4,7 @@
 
 use super::manage_harness::{Rig, rig};
 use gpui::{Modifiers, MouseButton, Pixels, TestAppContext, VisualTestContext, point, px, size};
-use gpui_component::dock::DockPlacement;
+use crate::ui::dock::DockPlacement;
 
 const Y: f32 = 300.;
 const RAIL: f32 = 48.;

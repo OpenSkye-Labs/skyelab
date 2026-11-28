@@ -7,7 +7,7 @@ use super::manage_harness::{Rig, rig};
 use super::threads_test::wait_until;
 use super::*;
 use gpui::{FocusHandle, Modifiers, TestAppContext, VisualTestContext, px, size};
-use gpui_component::dock::DockPlacement;
+use crate::ui::dock::DockPlacement;
 
 /// Where the focus is when the button is clicked.
 #[derive(Clone, Copy, Debug)]
@@ -149,7 +149,7 @@ fn right_tabs(r: &Rig, cx: &mut VisualTestContext) -> usize {
         let mut n = 0;
         if let Some(layout) = dock.layout(DockPlacement::Right) {
             layout.root().walk(&mut |node| {
-                if let gpui_component::dock::PaneRef::Tabs { panels, .. } = node.kind() {
+                if let crate::ui::dock::PaneRef::Tabs { panels, .. } = node.kind() {
                     n += panels.len();
                 }
             });

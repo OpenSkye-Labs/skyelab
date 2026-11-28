@@ -2,8 +2,8 @@
 
 use super::Workspace;
 use super::layout::{CloseTab, HideRightPanel};
+use crate::ui::dock::DockPlacement;
 use gpui::{Context, Window};
-use gpui_component::dock::DockPlacement;
 
 impl Workspace {
     /// Closes the right panel's active tab through the dock's `ClosePanel`, sent from that tab so a tab that asks
@@ -17,7 +17,7 @@ impl Workspace {
         window.defer(cx, move |window, cx| {
             // The dock is locked (nothing is dragged around), and a locked tab group refuses every close.
             dock.update(cx, |d, cx| d.set_locked(false, window, cx));
-            tab.dispatch_action(&gpui_component::dock::ClosePanel, window, cx);
+            tab.dispatch_action(&crate::ui::dock::ClosePanel, window, cx);
             dock.update(cx, |d, cx| d.set_locked(true, window, cx));
         });
     }

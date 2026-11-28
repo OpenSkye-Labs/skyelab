@@ -6,13 +6,13 @@ use crate::ui;
 use crate::ui::ActiveTheme as _;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
+use crate::ui::dock::{BasePanel, Panel, PanelEvent};
 use crate::ui::{Icon, h_flex};
 use gpui::{
     App, ClickEvent, Context, EventEmitter, Focusable as _, IntoElement, KeyBinding, SharedString,
     Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
-    dock::{BasePanel, Panel, PanelEvent},
     input::{InputEvent, InputState},
     menu::{PopupMenu, PopupMenuItem},
 };
