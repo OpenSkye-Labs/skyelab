@@ -137,7 +137,7 @@ fn each_stage_s_names_come_from_our_kit() {
     let mut hits = Vec::new();
     for path in &files {
         let file = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
-        if file.contains("boundar") {
+        if ["kit_boundaries_test.rs", "kit_boundary_test.rs"].contains(&file) {
             continue;
         }
         let rel = path

@@ -1,5 +1,3 @@
-//! A [`Button`] that opens a [`PopupMenu`] below (or above) it: `Button::dropdown_menu`.
-
 use super::popover::Popover;
 use super::{Button, PopupMenu};
 use gpui::{

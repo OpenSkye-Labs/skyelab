@@ -1,6 +1,6 @@
 //! SkyeLab's button, after T3's (`ui/button.tsx`): sized by [`Size`], colored by [`Variant`] through [`colors`].
 //! Built on gpui-base's headless button (role, focus, Enter/Space, the disabled click guard). Stateless: a `RenderOnce`
-//! builder, no entity, hover and press drawn by GPUI's own styles. `.dropdown_menu(..)` (`ui/dropdown.rs`) opens a
+//! builder, no entity, hover and press drawn by GPUI's own styles. `.dropdown_menu(..)` opens a
 //! [`super::PopupMenu`] from it.
 
 use super::{DISABLED_OPACITY, Kbd, Size, SkyeIcon, Tooltip};
@@ -145,7 +145,6 @@ pub struct Button {
     square: bool,
     toggled: Option<bool>,
     tooltip: Option<(SharedString, Option<ActionRef>)>,
-    /// `Some` when this button drives a popover or menu (set by [`Button::menu_open`]).
     menu_open: Option<bool>,
     key_hint: Option<ActionRef>,
     on_click: Option<OnClick>,
@@ -366,8 +365,6 @@ impl Selectable for Button {
 }
 
 impl Button {
-    /// Marks this button the trigger of a popup that is open or not: held down while open, kept apart from
-    /// `selected` (a filter that is on).
     pub(super) fn menu_open(mut self, open: bool) -> Self {
         self.menu_open = Some(open);
         let selected = self.selected || open;

@@ -1,6 +1,6 @@
 //! Own UI kit (.agent/plans/2026-11-27-own-ui-kit.md), criterion 1: dialogs are SkyeLab's own. No source file, tests
-//! included, reaches gpui-component's dialog or its `WindowExt` dialog calls. Each later stage adds its names here, until
-//! stage 8 bans the crates outright.
+//! included, reaches gpui-component's dialog or its `WindowExt` dialog calls. Later stages add
+//! their names to `kit_boundaries_test.rs`.
 
 use std::{fs, path::Path};
 

@@ -1,6 +1,3 @@
-//! SkyeLab's popup menu: a focused `Entity` holding its rows, the selected row and an open submenu, drawn with the
-//! sizes gpui-component's menu had. Dropdowns (`Button::dropdown_menu`) and right-click menus build it.
-
 use super::Icon;
 use gpui::{
     Action, AnyElement, App, AppContext as _, Bounds, ClickEvent, Context, DismissEvent, Entity,
@@ -22,8 +19,11 @@ actions!(
 );
 
 pub(super) const KEY_CONTEXT: &str = "SkyeMenu";
-/// Popups paint above dialogs (50) and SkyeLab's own overlays.
 pub(crate) const POPUP_PRIORITY: usize = 100;
+const _: () = assert!(
+    POPUP_PRIORITY > super::dialog_layer::PRIORITY,
+    "a menu opened in a dialog paints over it"
+);
 
 pub(super) fn bind_keys(cx: &mut App) {
     let ctx = Some(KEY_CONTEXT);
@@ -42,7 +42,6 @@ type Render = Rc<dyn Fn(&mut Window, &mut App) -> AnyElement>;
 
 pub(super) enum Kind {
     Row(SharedString),
-    /// A row drawn by its builder, named for assistive technology by its own name.
     Element(SharedString, Render),
     Label(SharedString),
     Separator,
@@ -312,10 +311,21 @@ impl PopupMenu {
         if self.selected != ix {
             self.selected = ix;
             if self.open_submenu.is_some() && self.open_submenu != ix {
-                self.open_submenu = None;
+                self.close_submenu(cx);
             }
             cx.notify();
         }
+    }
+
+    /// Closes the open submenu and every submenu under it.
+    fn close_submenu(&mut self, cx: &mut Context<Self>) {
+        if let Some(sub) = self.submenu_entity() {
+            sub.update(cx, |s, cx| {
+                s.selected = None;
+                s.close_submenu(cx);
+            });
+        }
+        self.open_submenu = None;
     }
 
     fn pickable(&self) -> impl DoubleEndedIterator<Item = usize> + '_ {
@@ -368,6 +378,7 @@ impl PopupMenu {
             return;
         };
         self.selected = None;
+        self.close_submenu(cx);
         parent.update(cx, |p, cx| {
             p.open_submenu = None;
             p.focus.focus(window, cx);
@@ -439,8 +450,13 @@ impl PopupMenu {
         self.dismiss(&Cancel, window, cx);
     }
 
-    /// Closes this menu and every menu above it, giving focus back unless a pick moved it elsewhere.
     pub(super) fn dismiss(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_submenu(cx);
+        self.dismiss_up(window, cx);
+    }
+
+    /// Dismisses this menu and the ones above it; the menus below are already closed (and may be mid-update).
+    fn dismiss_up(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.selected = None;
         self.open_submenu = None;
         let moved_away = window.focused(cx).is_some() && !self.chain_has_focus(window, cx);
@@ -449,7 +465,7 @@ impl PopupMenu {
         }
         cx.emit(DismissEvent);
         if let Some(parent) = self.parent.as_ref().and_then(|p| p.upgrade()) {
-            parent.update(cx, |p, cx| p.dismiss(&Cancel, window, cx));
+            parent.update(cx, |p, cx| p.dismiss_up(window, cx));
         }
     }
 
@@ -463,15 +479,10 @@ impl PopupMenu {
 
     /// Whether `at` falls on this menu, an open submenu, or a parent menu.
     pub(super) fn chain_contains(&self, at: gpui::Point<Pixels>, cx: &App) -> bool {
-        if self.bounds.contains(&at) {
-            return true;
+        match self.parent.as_ref().and_then(|p| p.upgrade()) {
+            Some(parent) => parent.read(cx).chain_contains(at, cx),
+            None => self.contains_down(at, cx),
         }
-        let sub = self.submenu_entity();
-        if sub.is_some_and(|s| s.read(cx).contains_down(at, cx)) {
-            return true;
-        }
-        let up = self.parent.as_ref().and_then(|p| p.upgrade());
-        up.is_some_and(|p| p.read(cx).bounds.contains(&at))
     }
 
     fn contains_down(&self, at: gpui::Point<Pixels>, cx: &App) -> bool {

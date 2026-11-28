@@ -11,7 +11,6 @@ use gpui_base::TestSupportExt as _;
 
 const ROW_H: Rems = rems(1.625);
 
-/// The popup surface: the theme's popover fill, a hairline ring and a small two-layer shadow.
 pub(crate) fn popover_surface<E: gpui::Styled>(el: E, cx: &gpui::App) -> E {
     let theme = cx.theme();
     let ring = hsla(

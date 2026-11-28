@@ -55,6 +55,8 @@ mod dialog_test;
 #[cfg(test)]
 mod dialog_title_strip_test;
 mod dropdown;
+#[cfg(test)]
+mod dropdown_keys_test;
 pub mod gallery;
 #[cfg(test)]
 mod gallery_test;
@@ -69,12 +71,16 @@ mod menu;
 #[cfg(test)]
 mod menu_keys_test;
 #[cfg(test)]
+mod menu_nested_click_test;
+#[cfg(test)]
 mod menu_parity_test;
 mod menu_render;
 pub mod motion;
 #[cfg(test)]
 mod motion_test;
 mod popover;
+#[cfg(test)]
+mod popover_follow_test;
 #[cfg(test)]
 mod popover_test;
 mod surface;
@@ -118,7 +124,6 @@ pub use components::{
 pub use dialog::{
     DialogEntrance, close_dialog, dialog_cancel, dialog_footer, has_active_dialog, open_dialog,
 };
-/// Binds the kit's keys: dialogs, menus and popovers.
 pub fn bind_keys(cx: &mut gpui::App) {
     dialog_layer::bind_keys(cx);
     menu::bind_keys(cx);
