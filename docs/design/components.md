@@ -88,13 +88,19 @@ reaches for these.
   `border`. See [docs/gpui/kit.md](../gpui/kit.md).
 - **`Popover` / `HoverCard`** (`ui/popover.rs`): content anchored to a trigger, opened by a click or by resting the
   pointer on it.
+- **`Spinner`** (`ui/spinner.rs`): `Spinner::new().size(px).color(..)`, the loader glyph turning; a loading `Button`
+  draws it. Held still under reduce motion.
+- **`CopyButton`** (`ui/copy_button.rs`): `CopyButton::new(id).value(text).tooltip("Copy")`, a 20 px ghost square that
+  copies its text and shows a check for 2 s ("Copied" to a screen reader). Name it per item with
+  `.accessibility_label("Copy reply: …")`.
+- **`StatusBar`** (`ui/status_bar.rs`): `.left(..)`, `.right(..)` and children for the center, in the theme's
+  `status_bar` colors. The workspace's bottom bar.
 
 ## Still gpui-component
 
 - **`Input` / `Textarea`**: text editing. GPUI has no text input of its own.
-- gpui-component's `Notification` is banned; see `Toast`.
 - **The dock and its tab bars**, and **`TextView`** (markdown).
-- **`Command`** (the palette's list): its own query field is private and a fixed medium size, so the palette turns
+- **`Command`** (the palette's and file picker's list; ours in own-UI-kit stage 4b): its own query field is private and a fixed medium size, so the palette turns
   it off (`searchable(false)`) and draws a large field of ours in the header that drives `CommandState::set_query`.
 - **The browser crate** (`skyelab-browser`) keeps gpui-component's buttons, `h_flex` and `Icon`, since it can't depend on the app's `ui`.
 

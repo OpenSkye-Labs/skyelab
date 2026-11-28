@@ -69,6 +69,21 @@ patching around it.
 - Never import gpui-component's or gpui-base's menu, popover or hover card: `kit_boundaries_test` fails on it. The
   one exception is `workspace/terminal_tab.rs`, which fills the "…" menu gpui-component's dock draws (stage 5).
 
+## Small pieces (`ui/spinner.rs`, `ui/copy_button.rs`, `ui/status_bar.rs`, `ui/toast.rs`)
+
+- `ui::Spinner` turns `SkyeIcon::Loader` through `with_animation` and `Icon::transform`; GPUI holds it still under
+  reduce motion, so it needs no check of its own.
+- `ui::CopyButton` keeps its copied flag in `window.use_keyed_state` under its id, so give each one an id unique among
+  its siblings; one flag picks the check icon and the "Copied" description.
+- `ui::StatusBar` centers its middle children only when both ends hold items, pushes them to the end after a left
+  alone, and starts them otherwise.
+- OS notifications: GPUI keeps one response handler for the whole app, the last one registered. `ui::init` registers
+  ours (`toast::init_system`) after `gpui_component::init`, and `lib.rs` calls only `ui::init`; a test reads `lib.rs`
+  for it. Our tags start `skyelab/notification/`; a click on any other tag runs nothing, and only the newest 100 are
+  remembered.
+- Never import gpui-component's or gpui-base's spinner, clipboard, status bar or notification: `kit_boundaries_test`
+  fails on it. The command list (the palette, the file picker) is still theirs until stage 4b.
+
 ## Windows
 
 Every window, test windows included, is built with `ui::window_root(content, window, cx)`: gpui-component's `Root`
